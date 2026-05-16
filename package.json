@@ -1,15 +1,18 @@
 {
   "name": "paktiers",
   "version": "1.0.0",
-  "description": "PakTiers — Pakistan Minecraft PvP Rankings",
+  "description": "PakTiers — Pakistan MC PvP Rankings",
   "main": "api_server.js",
   "scripts": {
     "start": "node api_server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "discord.js": "^14.14.1",
+    "discord.js": "^14.15.3",
     "express": "^4.18.2",
     "ws": "^8.16.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

@@ -46,7 +46,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ── IN-MEMORY DB ─────────────────────────────────────────────
 const MEM = {
   players: {},
-  queues:  { Mace:[], Crystal:[], Sword:[], Axe:[], Netherite:[] },
+  queues:  { Mace:[], Crystal:[], Sword:[], Axe:[], Netherite:[], Vanilla:[], UHC:[], Pot:[], NethOP:[], SMP:[] },
   matches: [],
 };
 
@@ -202,6 +202,11 @@ const WEAPON_TO_MOD_GAMEMODE = {
   Sword:     'sword',
   Axe:       'axe',
   Netherite: 'netherite',
+  Vanilla:   'vanilla',
+  UHC:       'uhc',
+  Pot:       'pot',
+  NethOP:    'nethop',
+  SMP:       'smp',
 };
 
 // Tier string -> numeric value (HT1 = highest)
@@ -318,6 +323,11 @@ app.get('/v2/mode/list', (req, res) => {
     sword:     { title: 'Sword'     },
     axe:       { title: 'Axe'       },
     netherite: { title: 'Netherite' },
+    vanilla:   { title: 'Vanilla'   },
+    uhc:       { title: 'UHC'       },
+    pot:       { title: 'Pot'       },
+    nethop:    { title: 'NethOP'    },
+    smp:       { title: 'SMP'       },
   });
 });
 
@@ -373,10 +383,10 @@ app.get('/v2/profile/:uuid', (req, res) => {
 // ════════════════════════════════════════════════════════════
 //  DISCORD BOT
 // ════════════════════════════════════════════════════════════
-const WEAPONS=['Mace','Crystal','Sword','Axe','Netherite'];
+const WEAPONS=['Mace','Crystal','Sword','Axe','Netherite','Vanilla','UHC','Pot','NethOP','SMP'];
 const TIERS=['HT1','LT1','HT2','LT2','HT3','LT3','HT4','LT4','HT5','LT5'];
-const WEAPON_EMOJI={ Mace:'🔨',Crystal:'💠',Sword:'⚔️',Axe:'🪓',Netherite:'🪨' };
-const WEAPON_TO_MCTIERS={ Mace:'mace',Crystal:'vanilla',Sword:'sword',Axe:'axe',Netherite:'netherite' };
+const WEAPON_EMOJI={ Mace:'🔨',Crystal:'💠',Sword:'⚔️',Axe:'🪓',Netherite:'🪨',Vanilla:'🔮',UHC:'🔥',Pot:'🧪',NethOP:'⚫',SMP:'🟢' };
+const WEAPON_TO_MCTIERS={ Mace:'mace',Crystal:'vanilla',Sword:'sword',Axe:'axe',Netherite:'netherite',Vanilla:'vanilla',UHC:'uhc',Pot:'pot',NethOP:'nethop',SMP:'smp' };
 const TIER_COLOR={ HT1:0xFF6B00,LT1:0xFF9933,HT2:0xFFB800,LT2:0xFFD700,
   HT3:0x00C864,LT3:0x00A550,HT4:0x4FC3F7,LT4:0x29B6F6,HT5:0x888888,LT5:0x555555 };
 const TIER_BAR={ HT1:'▰▰▰▰▰▰▰▰▰▰',LT1:'▰▰▰▰▰▰▰▰▰▱',HT2:'▰▰▰▰▰▰▰▰▱▱',LT2:'▰▰▰▰▰▰▰▱▱▱',
@@ -393,7 +403,7 @@ const QF=path.join(DATA_DIR,'queue.json');
 const MF=path.join(DATA_DIR,'matches.json');
 if(!fs.existsSync(DATA_DIR))fs.mkdirSync(DATA_DIR,{recursive:true});
 const initF=(f,d)=>{if(!fs.existsSync(f))fs.writeFileSync(f,JSON.stringify(d,null,2));};
-initF(PF,{}); initF(QF,{Mace:[],Crystal:[],Sword:[],Axe:[],Netherite:[]}); initF(MF,[]);
+initF(PF,{}); initF(QF,{Mace:[],Crystal:[],Sword:[],Axe:[],Netherite:[],Vanilla:[],UHC:[],Pot:[],NethOP:[],SMP:[]}); initF(MF,[]);
 const rDB=(f)=>JSON.parse(fs.readFileSync(f,'utf8'));
 const wDB=(f,d)=>fs.writeFileSync(f,JSON.stringify(d,null,2));
 
