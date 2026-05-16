@@ -436,6 +436,172 @@
 
   @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
+  /* ── LEADERBOARD SEARCH ── */
+  .lb-search-bar {
+    display: flex; gap: 10px;
+    padding: 16px 0 8px;
+  }
+
+  .lb-search-input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .85rem;
+    padding: 9px 14px;
+    border-radius: 4px;
+    outline: none;
+    transition: border-color .2s;
+  }
+
+  .lb-search-input:focus { border-color: var(--accent); }
+  .lb-search-input::placeholder { color: var(--muted); }
+
+  /* ── PLAYER MODAL ── */
+  .player-modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.85);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+
+  .player-modal-overlay.open { display: flex; }
+
+  .player-modal {
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    width: 420px; max-width: 95vw;
+    padding: 28px;
+    border-radius: 6px;
+    position: relative;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 0 40px rgba(127,255,0,.15);
+    animation: modalIn .2s ease;
+  }
+
+  @keyframes modalIn {
+    from { opacity:0; transform: scale(.96) translateY(10px); }
+    to   { opacity:1; transform: scale(1) translateY(0); }
+  }
+
+  .modal-close-btn {
+    position: absolute; top: 12px; right: 16px;
+    background: none; border: none;
+    color: var(--muted); font-size: 22px;
+    cursor: pointer; line-height: 1;
+    transition: color .15s;
+  }
+
+  .modal-close-btn:hover { color: var(--text); }
+
+  .modal-player-top {
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .modal-avatar {
+    width: 64px; height: 64px;
+    border-radius: 4px;
+    border: 2px solid var(--border);
+    image-rendering: pixelated;
+    flex-shrink: 0;
+  }
+
+  .modal-player-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.4rem; font-weight: 900;
+    color: var(--accent);
+    letter-spacing: 1px;
+  }
+
+  .modal-player-rank {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .75rem; color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .modal-section-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .65rem; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 2px;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .modal-disc-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9px 12px;
+    background: rgba(0,0,0,.3);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    margin-bottom: 4px;
+  }
+
+  .modal-disc-left { display: flex; align-items: center; gap: 10px; }
+
+  .modal-disc-icon {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; border: 2px solid transparent;
+  }
+
+  .modal-disc-name {
+    font-size: .9rem; font-weight: 700; color: var(--text);
+  }
+
+  .modal-disc-right { display: flex; align-items: center; gap: 10px; }
+
+  .modal-tier-tag {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .65rem; font-weight: 700;
+    padding: 2px 8px; letter-spacing: 1px;
+    border: 1px solid currentColor; border-radius: 2px;
+  }
+
+  .modal-pts-val {
+    font-family: 'Orbitron', sans-serif;
+    font-size: .85rem; color: var(--accent);
+    font-weight: 700;
+  }
+
+  .modal-total-row {
+    display: flex; justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+  }
+
+  .modal-total-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .7rem; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+
+  .modal-total-pts {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.2rem; font-weight: 700;
+    color: var(--accent);
+  }
+
+  /* Tier background colors for modal icons */
+  .modal-tier-HT1{background:#3a1500;border-color:#FF6B00;color:#FF6B00;}
+  .modal-tier-LT1{background:#3a1e00;border-color:#FF9933;color:#FF9933;}
+  .modal-tier-HT2{background:#332400;border-color:#FFB800;color:#FFB800;}
+  .modal-tier-LT2{background:#2a2000;border-color:#FFD700;color:#FFD700;}
+  .modal-tier-HT3{background:#002a14;border-color:#00C864;color:#00C864;}
+  .modal-tier-LT3{background:#002010;border-color:#00A550;color:#00A550;}
+  .modal-tier-HT4{background:#001a2a;border-color:#4FC3F7;color:#4FC3F7;}
+  .modal-tier-LT4{background:#001525;border-color:#29B6F6;color:#29B6F6;}
+  .modal-tier-HT5{background:#1a1a1a;border-color:#888;color:#888;}
+  .modal-tier-LT5{background:#141414;border-color:#555;color:#555;}
+
   @media (max-width: 700px) {
     .stats-row { grid-template-columns: repeat(2, 1fr); }
     .lb-header:nth-child(4), .lb-cell:nth-child(4) { display: none; }
@@ -481,6 +647,10 @@
       <button class="weapon-btn" onclick="filterWeapon('Netherite', this)">🪨 Netherite</button>
     </div>
 
+    <div class="lb-search-bar">
+      <input class="lb-search-input" id="lbSearchInput" type="text" placeholder="Search player IGN..." maxlength="16">
+    </div>
+
     <div id="lbContainer">
       <table class="lb-table">
         <thead>
@@ -524,6 +694,14 @@
 </div>
 
 <div id="toastContainer"></div>
+
+<!-- Player Info Modal -->
+<div class="player-modal-overlay" id="playerModal">
+  <div class="player-modal">
+    <button class="modal-close-btn" onclick="closePlayerModal()">×</button>
+    <div id="playerModalContent"></div>
+  </div>
+</div>
 
 <script>
 // ─────────────────────────────────────────────────────────────
@@ -601,10 +779,14 @@ function flashStat(index) {
 // ─────────────────────────────────────────────────────────────
 //  LEADERBOARD
 // ─────────────────────────────────────────────────────────────
+let cachedPlayers = [];
+let lbSearchQuery = '';
+
 async function fetchLeaderboard(weapon = 'all') {
   try {
     const d = await apiFetch(`/api/leaderboard?weapon=${weapon}`);
-    renderLeaderboard(d.players);
+    cachedPlayers = d.players || [];
+    renderLeaderboard(cachedPlayers);
   } catch (_) {
     document.getElementById('lbBody').innerHTML =
       `<tr><td colspan="4" class="lb-cell">
@@ -619,21 +801,42 @@ async function fetchLeaderboard(weapon = 'all') {
 
 function renderLeaderboard(players, highlightIgn = null) {
   const tbody = document.getElementById('lbBody');
-  if (!players || !players.length) {
-    tbody.innerHTML = `<tr><td colspan="4" class="lb-cell"><div class="empty-state"><div class="big">🏆</div>No ranked players yet</div></td></tr>`;
+
+  // Apply search filter
+  let filtered = players;
+  if (lbSearchQuery) {
+    filtered = players.filter(p => p.ign.toLowerCase().includes(lbSearchQuery.toLowerCase()));
+  }
+
+  if (!filtered || !filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="lb-cell"><div class="empty-state"><div class="big">🏆</div>${lbSearchQuery ? 'No players found' : 'No ranked players yet'}</div></td></tr>`;
     return;
   }
 
-  tbody.innerHTML = players.map((p, i) => {
-    const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
-    const medal     = i === 0 ? '🥇'  : i === 1 ? '🥈'     : i === 2 ? '🥉'     : `${i+1}`;
+  const WEAPON_BG = { Mace:'#1a1200', Crystal:'#0e0a20', Sword:'#0d1a0d', Axe:'#1a0d0d', Netherite:'#1a1a1a' };
+  const WEAPON_EMOJI = { Mace:'🔨', Crystal:'💠', Sword:'⚔️', Axe:'🪓', Netherite:'🪨' };
+
+  tbody.innerHTML = filtered.map((p, i) => {
+    const globalIdx = players.indexOf(p);
+    const rankClass = globalIdx === 0 ? 'gold' : globalIdx === 1 ? 'silver' : globalIdx === 2 ? 'bronze' : '';
+    const medal     = globalIdx === 0 ? '🥇'  : globalIdx === 1 ? '🥈'     : globalIdx === 2 ? '🥉'     : `${globalIdx+1}`;
     const tierBadges = Object.entries(p.tiers || {}).map(([w, t]) =>
       `<span class="tier-badge" style="color:${TIER_COLOR[t]||'#888'}">${w[0]} ${t}</span>`
     ).join('');
     const highlight = highlightIgn && p.ign === highlightIgn ? ' highlight' : '';
 
+    // Build serialized player data for modal
+    const playerData = encodeURIComponent(JSON.stringify({
+      ign: p.ign,
+      avatar: p.avatar,
+      rankTitle: p.rankTitle,
+      totalPts: p.totalPts,
+      tiers: p.tiers || {},
+      rank: globalIdx + 1
+    }));
+
     return `
-      <tr class="lb-row${highlight}" onclick="quickProfile('${p.ign}')" style="animation-delay:${i*40}ms">
+      <tr class="lb-row${highlight}" onclick="openPlayerModal('${playerData}')" style="animation-delay:${i*40}ms">
         <td class="lb-cell"><div class="rank-num ${rankClass}">${medal}</div></td>
         <td class="lb-cell">
           <div class="player-cell">
@@ -656,6 +859,73 @@ function filterWeapon(weapon, el) {
   el.classList.add('active');
   fetchLeaderboard(weapon);
 }
+
+// ─────────────────────────────────────────────────────────────
+//  PLAYER MODAL
+// ─────────────────────────────────────────────────────────────
+const TIER_PTS = {HT1:10,LT1:9,HT2:8,LT2:7,HT3:6,LT3:5,HT4:4,LT4:3,HT5:2,LT5:1};
+const WEAPON_INFO = {
+  Mace:     {emoji:'🔨', bg:'#1a1200'},
+  Crystal:  {emoji:'💠', bg:'#0e0a20'},
+  Sword:    {emoji:'⚔️', bg:'#0d1a0d'},
+  Axe:      {emoji:'🪓', bg:'#1a0d0d'},
+  Netherite:{emoji:'🪨', bg:'#1a1a1a'},
+};
+
+function openPlayerModal(encodedData) {
+  const p = JSON.parse(decodeURIComponent(encodedData));
+  const content = document.getElementById('playerModalContent');
+
+  const tierRows = Object.entries(p.tiers || {}).map(([w, t]) => {
+    const wInfo = WEAPON_INFO[w] || {emoji:'⚔️', bg:'#1a1a1a'};
+    const pts = TIER_PTS[t] || 0;
+    return `
+      <div class="modal-disc-row">
+        <div class="modal-disc-left">
+          <div class="modal-disc-icon modal-tier-${t}" style="background:${wInfo.bg};">${wInfo.emoji}</div>
+          <div class="modal-disc-name">${w}</div>
+        </div>
+        <div class="modal-disc-right">
+          <span class="modal-tier-tag modal-tier-${t}">${t}</span>
+          <span class="modal-pts-val">+${pts}pts</span>
+        </div>
+      </div>`;
+  }).join('');
+
+  content.innerHTML = `
+    <div class="modal-player-top">
+      <img class="modal-avatar" src="${p.avatar}" alt="${p.ign}" onerror="this.src='https://mc-heads.net/avatar/steve/64'">
+      <div>
+        <div class="modal-player-name">${p.ign}</div>
+        <div class="modal-player-rank">${p.rankTitle.emoji} ${p.rankTitle.label} · Rank #${p.rank}</div>
+      </div>
+    </div>
+    <div class="modal-section-label">Weapon Disciplines</div>
+    ${tierRows || '<div style="color:var(--muted);font-family:\'Share Tech Mono\',monospace;font-size:.8rem;padding:12px 0;">No tiers assigned yet.</div>'}
+    <div class="modal-total-row">
+      <span class="modal-total-label">Total Points</span>
+      <span class="modal-total-pts">${p.totalPts}</span>
+    </div>
+  `;
+
+  document.getElementById('playerModal').classList.add('open');
+}
+
+function closePlayerModal() {
+  document.getElementById('playerModal').classList.remove('open');
+}
+
+document.getElementById('playerModal').addEventListener('click', e => {
+  if (e.target.id === 'playerModal') closePlayerModal();
+});
+
+// ─────────────────────────────────────────────────────────────
+//  LEADERBOARD SEARCH
+// ─────────────────────────────────────────────────────────────
+document.getElementById('lbSearchInput').addEventListener('input', e => {
+  lbSearchQuery = e.target.value;
+  renderLeaderboard(cachedPlayers);
+});
 
 // ─────────────────────────────────────────────────────────────
 //  PROFILE
