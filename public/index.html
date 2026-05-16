@@ -1105,8 +1105,8 @@ async function fetchQueue() {
 
 function renderQueue(queues) {
   const grid = document.getElementById('queueGrid');
-  const weapons = ['Mace','Crystal','Sword','Axe','Netherite'];
-  const icons   = { Mace:'🔨', Crystal:'💠', Sword:'⚔️', Axe:'🪓', Netherite:'🪨' };
+  const weapons = ['Mace','Crystal','Sword','Axe','Netherite','Vanilla','UHC','Pot','NethOP','SMP'];
+  const icons   = { Mace:'🔨', Crystal:'💠', Sword:'⚔️', Axe:'🪓', Netherite:'🪨', Vanilla:'🔮', UHC:'🔥', Pot:'🧪', NethOP:'⚫', SMP:'🟢' };
 
   grid.innerHTML = weapons.map(w => {
     const players   = queues[w] || [];
