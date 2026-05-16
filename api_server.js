@@ -190,6 +190,75 @@ app.get('/api/queue', (req,res) => {
 });
 
 // ════════════════════════════════════════════════════════════
+//  MOD API ENDPOINTS
+//  Minecraft Fabric mod (paktiers-tiertagger) ke liye
+//  Ye endpoints MCTiers-compatible JSON format return karte hain
+// ════════════════════════════════════════════════════════════
+
+// Weapon name -> mod gamemode string mapping
+const WEAPON_TO_MOD_GAMEMODE = {
+  Mace:      'mace',
+  Crystal:   'crystal',
+  Sword:     'sword',
+  Axe:       'axe',
+  Netherite: 'netherite',
+};
+
+// Tier string -> numeric value (HT1 = highest)
+const TIER_TO_MOD_VALUE = {
+  HT1:100, LT1:90, HT2:80, LT2:70,
+  HT3:60,  LT3:50, HT4:40, LT4:30,
+  HT5:20,  LT5:10,
+};
+
+// Player object ko mod-compatible format mein convert karo
+function toModPlayer(p) {
+  const totalPts = Object.values(p.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
+  const ranks = {};
+  for (const [weapon, tier] of Object.entries(p.tiers||{})) {
+    const gamemode = WEAPON_TO_MOD_GAMEMODE[weapon] || weapon.toLowerCase();
+    ranks[gamemode] = {
+      gamemode,
+      tier,
+      tierValue: TIER_TO_MOD_VALUE[tier] || 0,
+    };
+  }
+  return {
+    ingameName:  p.ign,
+    uuid:        null,   // UUID Mojang API se lazily fetch hoga agar chahiye
+    region:      'PK',
+    avatar:      `https://mc-heads.net/avatar/${p.ign}/64`,
+    totalPoints: totalPts,
+    ranks,
+  };
+}
+
+// GET /rankings/overall
+// OverallCache is hits this endpoint to bulk-load all players at startup
+app.get('/rankings/overall', (req,res) => {
+  const players = Object.values(MEM.players)
+    .filter(p => Object.keys(p.tiers||{}).length > 0)
+    .sort((a,b) => {
+      const pa = Object.values(a.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
+      const pb = Object.values(b.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
+      return pb - pa;
+    })
+    .map(toModPlayer);
+  res.json({ players });
+});
+
+// GET /api/search_profile/:ign
+// Mod calls this to look up a single player by IGN (exact or partial)
+app.get('/api/search_profile/:ign', (req,res) => {
+  const query = req.params.ign.toLowerCase();
+  const matches = Object.values(MEM.players)
+    .filter(p => p.ign.toLowerCase().includes(query))
+    .map(toModPlayer);
+  // Mod expects: { profile: { players: [...] } }
+  res.json({ profile: { players: matches } });
+});
+
+// ════════════════════════════════════════════════════════════
 //  DISCORD BOT
 // ════════════════════════════════════════════════════════════
 const WEAPONS=['Mace','Crystal','Sword','Axe','Netherite'];
