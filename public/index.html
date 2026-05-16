@@ -831,7 +831,7 @@
 <script>
 // ─── CONFIG ───────────────────────────────────────────────────
 const API = window.location.origin;
-const WS  = window.location.origin.replace(/^http/, 'ws');
+const WS  = window.location.origin.replace(/^https/, 'wss').replace(/^http(?!s)/, 'ws');
 
 // ─── STATE ────────────────────────────────────────────────────
 let currentWeapon = 'all';
