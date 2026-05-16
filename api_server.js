@@ -86,10 +86,10 @@ function enrichPlayer(p) {
 //  BOT -> API ENDPOINTS
 // ════════════════════════════════════════════════════════════
 app.post('/bot/register', requireSecret, (req,res) => {
-  const { discordId, ign } = req.body;
+  const { discordId, ign, uuid } = req.body;
   if (!discordId||!ign) return res.status(400).json({ error:'Missing fields' });
   if (MEM.players[discordId]) return res.status(409).json({ error:'Already registered' });
-  MEM.players[discordId] = { discordId, ign, tiers:{}, registeredAt:Date.now() };
+  MEM.players[discordId] = { discordId, ign, uuid: uuid||null, tiers:{}, registeredAt:Date.now() };
   broadcast({ type:'player_registered', player:MEM.players[discordId] });
   res.json({ success:true, player:MEM.players[discordId] });
 });
@@ -280,18 +280,24 @@ app.get('/api/search_profile/:ign', (req,res) => {
 // ════════════════════════════════════════════════════════════
 
 // Helper: player ko TierTagger v2 format mein convert karo
+// HT1/LT1 -> MCTiers integer tier (1=T1, 2=T2 etc) and pos (1=High, 2=Low)
+const TIER_TO_INT  = { HT1:1,LT1:1,HT2:2,LT2:2,HT3:3,LT3:3,HT4:4,LT4:4,HT5:5,LT5:5 };
+const TIER_TO_POS  = { HT1:1,LT1:2,HT2:1,LT2:2,HT3:1,LT3:2,HT4:1,LT4:2,HT5:1,LT5:2 };
+
 function toV2Player(p) {
   const rankings = {};
   for (const [weapon, tier] of Object.entries(p.tiers || {})) {
     const gamemode = WEAPON_TO_MOD_GAMEMODE[weapon] || weapon.toLowerCase();
-    const tierVal  = TIER_TO_MOD_VALUE[tier] || 0;
     rankings[gamemode] = {
-      tier,
-      retired: false,
+      tier:      TIER_TO_INT[tier] || 5,
+      pos:       TIER_TO_POS[tier] || 2,
+      peakTier:  null,
+      peakPos:   null,
+      attained:  0,
+      retired:   false,
     };
   }
   const totalPts = Object.values(p.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
-  const rankInfo = getRankTitle(totalPts);
   return {
     uuid:    p.ign,   // crack server — IGN as UUID
     name:    p.ign,
@@ -324,16 +330,31 @@ app.get('/v2/profile/by-name/:name', (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /v2/profile/:uuid/rankings — player rankings by uuid (we use IGN as uuid)
+// Helper: UUID ya IGN dono se player dhundo
+function findPlayerByUuidOrIgn(query) {
+  const q = query.toLowerCase();
+  return Object.values(MEM.players).find(x =>
+    x.ign.toLowerCase() === q ||
+    (x.uuid && x.uuid.toLowerCase() === q)
+  ) || null;
+}
+
+// GET /v2/profile/:uuid/rankings — player rankings by uuid
 app.get('/v2/profile/:uuid/rankings', (req, res) => {
   try {
-    const ign = req.params.uuid.toLowerCase();
-    const p = Object.values(MEM.players).find(x => x.ign.toLowerCase() === ign);
+    const p = findPlayerByUuidOrIgn(req.params.uuid);
     if (!p) return res.status(404).json({});
     const rankings = {};
     for (const [weapon, tier] of Object.entries(p.tiers || {})) {
       const gamemode = WEAPON_TO_MOD_GAMEMODE[weapon] || weapon.toLowerCase();
-      rankings[gamemode] = { tier, retired: false };
+      rankings[gamemode] = {
+        tier:     TIER_TO_INT[tier] || 5,
+        pos:      TIER_TO_POS[tier] || 2,
+        peakTier: null,
+        peakPos:  null,
+        attained: 0,
+        retired:  false,
+      };
     }
     res.json(rankings);
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -342,8 +363,7 @@ app.get('/v2/profile/:uuid/rankings', (req, res) => {
 // GET /v2/profile/:uuid — player profile (must be after /by-name route)
 app.get('/v2/profile/:uuid', (req, res) => {
   try {
-    const ign = req.params.uuid.toLowerCase();
-    const p = Object.values(MEM.players).find(x => x.ign.toLowerCase() === ign);
+    const p = findPlayerByUuidOrIgn(req.params.uuid);
     if (!p) return res.status(404).json({ error: 'Player not found' });
     res.json(toV2Player(p));
   } catch(e) { res.status(500).json({ error: e.message }); }
