@@ -299,13 +299,14 @@ function toV2Player(p) {
   }
   const totalPts = Object.values(p.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
   return {
-    uuid:    p.ign,   // crack server — IGN as UUID
-    name:    p.ign,
-    region:  'PK',
-    points:  totalPts,
-    overall: totalPts,
-    badges:  [],
+    uuid:          p.ign,
+    name:          p.ign,
     rankings,
+    region:        'PK',
+    points:        totalPts,
+    overall:       totalPts,
+    badges:        [],
+    combat_master: false,
   };
 }
 
