@@ -214,46 +214,52 @@ const TIER_TO_MOD_VALUE = {
 // Player object ko mod-compatible format mein convert karo
 function toModPlayer(p) {
   const totalPts = Object.values(p.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
+  const rank = getRankTitle(totalPts);
   const ranks = {};
   for (const [weapon, tier] of Object.entries(p.tiers||{})) {
     const gamemode = WEAPON_TO_MOD_GAMEMODE[weapon] || weapon.toLowerCase();
-    const tierValue = TIER_TO_MOD_VALUE[tier] || 0;
-    ranks[gamemode] = { gamemode, tier, rank: tier, tierValue, tierRank: tierValue };
+    const tierRank = TIER_TO_MOD_VALUE[tier] || 0;
+    ranks[gamemode] = { gamemode, tier, tierRank, retired: false };
   }
   return {
     ingameName:  p.ign,
-    uuid:        null,
+    uuid:        p.ign,   // crack server — uuid nahi hoti, IGN use karo
     region:      'PK',
     avatar:      `https://mc-heads.net/avatar/${p.ign}/64`,
     totalPoints: totalPts,
     tierRank:    totalPts,
+    title:       rank.label,
+    rank:        rank.label,
     ranks,
   };
 }
 
 // GET /rankings/overall
-// OverallCache is hits this endpoint to bulk-load all players at startup
+// OverallCache hits this endpoint to bulk-load all players at startup
 app.get('/rankings/overall', (req,res) => {
-  const players = Object.values(MEM.players)
-    .filter(p => Object.keys(p.tiers||{}).length > 0)
-    .sort((a,b) => {
-      const pa = Object.values(a.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
-      const pb = Object.values(b.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
-      return pb - pa;
-    })
-    .map(toModPlayer);
-  res.json({ players });
+  try {
+    const leaderboard = Object.values(MEM.players)
+      .filter(p => Object.keys(p.tiers||{}).length > 0)
+      .sort((a,b) => {
+        const pa = Object.values(a.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
+        const pb = Object.values(b.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
+        return pb - pa;
+      })
+      .map(toModPlayer);
+    res.json({ leaderboard });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // GET /api/search_profile/:ign
 // Mod calls this to look up a single player by IGN (exact or partial)
 app.get('/api/search_profile/:ign', (req,res) => {
-  const query = req.params.ign.toLowerCase();
-  const matches = Object.values(MEM.players)
-    .filter(p => p.ign.toLowerCase().includes(query))
-    .map(toModPlayer);
-  // Mod expects: { profile: { players: [...] } }
-  res.json({ profile: { players: matches } });
+  try {
+    const query = req.params.ign.toLowerCase();
+    const players = Object.values(MEM.players)
+      .filter(p => p.ign.toLowerCase().includes(query))
+      .map(toModPlayer);
+    res.json({ profile: { players } });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ════════════════════════════════════════════════════════════
@@ -261,7 +267,7 @@ app.get('/api/search_profile/:ign', (req,res) => {
 // ════════════════════════════════════════════════════════════
 const WEAPONS=['Mace','Crystal','Sword','Axe','Netherite'];
 const TIERS=['HT1','LT1','HT2','LT2','HT3','LT3','HT4','LT4','HT5','LT5'];
-const WEAPON_EMOJI={ Mace:':mace:',Crystal:':vanilla:',Sword:':sword:',Axe:':axe-1:',Netherite:':netherite_helmet:' };
+const WEAPON_EMOJI={ Mace:'🔨',Crystal:'💠',Sword:'⚔️',Axe:'🪓',Netherite:'🪨' };
 const WEAPON_TO_MCTIERS={ Mace:'mace',Crystal:'vanilla',Sword:'sword',Axe:'axe',Netherite:'netherite' };
 const TIER_COLOR={ HT1:0xFF6B00,LT1:0xFF9933,HT2:0xFFB800,LT2:0xFFD700,
   HT3:0x00C864,LT3:0x00A550,HT4:0x4FC3F7,LT4:0x29B6F6,HT5:0x888888,LT5:0x555555 };
