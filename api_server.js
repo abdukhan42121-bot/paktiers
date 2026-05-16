@@ -212,30 +212,42 @@ const TIER_TO_MOD_VALUE = {
 };
 
 // Player object ko mod-compatible format mein convert karo
+// Mod-compatible player format
+// OverallCache parses: ingameName, uuid, region, totalPoints, title, rank, ranks{}
+// ranks ke andar: gamemode, tier, tierRank, retired
+// search_profile parses: profile.players[], ingameName, uuid, ranks{}
+// ranks ke andar: rank, gamemode, tier, tierValue, retired
 function toModPlayer(p) {
   const totalPts = Object.values(p.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
-  const rank = getRankTitle(totalPts);
+  const rankInfo = getRankTitle(totalPts);
   const ranks = {};
   for (const [weapon, tier] of Object.entries(p.tiers||{})) {
     const gamemode = WEAPON_TO_MOD_GAMEMODE[weapon] || weapon.toLowerCase();
     const tierRank = TIER_TO_MOD_VALUE[tier] || 0;
-    ranks[gamemode] = { gamemode, tier, tierRank, retired: false };
+    ranks[gamemode] = {
+      gamemode,
+      tier,
+      rank:      tier,
+      tierValue: tierRank,
+      tierRank,
+      retired:   false,
+    };
   }
   return {
     ingameName:  p.ign,
-    uuid:        p.ign,   // crack server — uuid nahi hoti, IGN use karo
+    uuid:        p.ign,
     region:      'PK',
     avatar:      `https://mc-heads.net/avatar/${p.ign}/64`,
     totalPoints: totalPts,
+    overallRank: totalPts,
     tierRank:    totalPts,
-    title:       rank.label,
-    rank:        rank.label,
+    title:       rankInfo.label,
+    rank:        rankInfo.label,
     ranks,
   };
 }
 
-// GET /rankings/overall
-// OverallCache hits this endpoint to bulk-load all players at startup
+// GET /rankings/overall  (OverallCache hits this — paktiers-api domain bhi same server pe point karo)
 app.get('/rankings/overall', (req,res) => {
   try {
     const leaderboard = Object.values(MEM.players)
@@ -250,8 +262,7 @@ app.get('/rankings/overall', (req,res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/search_profile/:ign
-// Mod calls this to look up a single player by IGN (exact or partial)
+// GET /api/search_profile/:ign  (TierListAPI hits this for player lookup)
 app.get('/api/search_profile/:ign', (req,res) => {
   try {
     const query = req.params.ign.toLowerCase();
