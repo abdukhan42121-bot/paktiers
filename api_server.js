@@ -274,6 +274,82 @@ app.get('/api/search_profile/:ign', (req,res) => {
 });
 
 // ════════════════════════════════════════════════════════════
+//  TierTagger Mod v2 API (MCTiers-compatible endpoints)
+//  Mod hits: /v2/mode/list, /v2/profile/:uuid,
+//            /v2/profile/by-name/:name, /v2/profile/:uuid/rankings
+// ════════════════════════════════════════════════════════════
+
+// Helper: player ko TierTagger v2 format mein convert karo
+function toV2Player(p) {
+  const rankings = {};
+  for (const [weapon, tier] of Object.entries(p.tiers || {})) {
+    const gamemode = WEAPON_TO_MOD_GAMEMODE[weapon] || weapon.toLowerCase();
+    const tierVal  = TIER_TO_MOD_VALUE[tier] || 0;
+    rankings[gamemode] = {
+      tier,
+      retired: false,
+    };
+  }
+  const totalPts = Object.values(p.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
+  const rankInfo = getRankTitle(totalPts);
+  return {
+    uuid:    p.ign,   // crack server — IGN as UUID
+    name:    p.ign,
+    region:  'PK',
+    points:  totalPts,
+    overall: totalPts,
+    badges:  [],
+    rankings,
+  };
+}
+
+// GET /v2/mode/list — gamemodes list
+app.get('/v2/mode/list', (req, res) => {
+  res.json({
+    mace:      { title: 'Mace'      },
+    crystal:   { title: 'Crystal'   },
+    sword:     { title: 'Sword'     },
+    axe:       { title: 'Axe'       },
+    netherite: { title: 'Netherite' },
+  });
+});
+
+// GET /v2/profile/by-name/:name — search player by IGN
+app.get('/v2/profile/by-name/:name', (req, res) => {
+  try {
+    const name = req.params.name.toLowerCase();
+    const p = Object.values(MEM.players).find(x => x.ign.toLowerCase() === name);
+    if (!p) return res.status(404).json({ error: 'Player not found' });
+    res.json(toV2Player(p));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /v2/profile/:uuid/rankings — player rankings by uuid (we use IGN as uuid)
+app.get('/v2/profile/:uuid/rankings', (req, res) => {
+  try {
+    const ign = req.params.uuid.toLowerCase();
+    const p = Object.values(MEM.players).find(x => x.ign.toLowerCase() === ign);
+    if (!p) return res.status(404).json({});
+    const rankings = {};
+    for (const [weapon, tier] of Object.entries(p.tiers || {})) {
+      const gamemode = WEAPON_TO_MOD_GAMEMODE[weapon] || weapon.toLowerCase();
+      rankings[gamemode] = { tier, retired: false };
+    }
+    res.json(rankings);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /v2/profile/:uuid — player profile (must be after /by-name route)
+app.get('/v2/profile/:uuid', (req, res) => {
+  try {
+    const ign = req.params.uuid.toLowerCase();
+    const p = Object.values(MEM.players).find(x => x.ign.toLowerCase() === ign);
+    if (!p) return res.status(404).json({ error: 'Player not found' });
+    res.json(toV2Player(p));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ════════════════════════════════════════════════════════════
 //  DISCORD BOT
 // ════════════════════════════════════════════════════════════
 const WEAPONS=['Mace','Crystal','Sword','Axe','Netherite'];
