@@ -217,18 +217,16 @@ function toModPlayer(p) {
   const ranks = {};
   for (const [weapon, tier] of Object.entries(p.tiers||{})) {
     const gamemode = WEAPON_TO_MOD_GAMEMODE[weapon] || weapon.toLowerCase();
-    ranks[gamemode] = {
-      gamemode,
-      tier,
-      tierValue: TIER_TO_MOD_VALUE[tier] || 0,
-    };
+    const tierValue = TIER_TO_MOD_VALUE[tier] || 0;
+    ranks[gamemode] = { gamemode, tier, rank: tier, tierValue, tierRank: tierValue };
   }
   return {
     ingameName:  p.ign,
-    uuid:        null,   // UUID Mojang API se lazily fetch hoga agar chahiye
+    uuid:        null,
     region:      'PK',
     avatar:      `https://mc-heads.net/avatar/${p.ign}/64`,
     totalPoints: totalPts,
+    tierRank:    totalPts,
     ranks,
   };
 }
@@ -263,7 +261,7 @@ app.get('/api/search_profile/:ign', (req,res) => {
 // ════════════════════════════════════════════════════════════
 const WEAPONS=['Mace','Crystal','Sword','Axe','Netherite'];
 const TIERS=['HT1','LT1','HT2','LT2','HT3','LT3','HT4','LT4','HT5','LT5'];
-const WEAPON_EMOJI={ Mace:'🔨',Crystal:'💠',Sword:'⚔️',Axe:'🪓',Netherite:'🪨' };
+const WEAPON_EMOJI={ Mace:':mace:',Crystal:':vanilla:',Sword:':sword:',Axe:':axe-1:',Netherite:':netherite_helmet:' };
 const WEAPON_TO_MCTIERS={ Mace:'mace',Crystal:'vanilla',Sword:'sword',Axe:'axe',Netherite:'netherite' };
 const TIER_COLOR={ HT1:0xFF6B00,LT1:0xFF9933,HT2:0xFFB800,LT2:0xFFD700,
   HT3:0x00C864,LT3:0x00A550,HT4:0x4FC3F7,LT4:0x29B6F6,HT5:0x888888,LT5:0x555555 };
