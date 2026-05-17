@@ -43,6 +43,7 @@ const CONFIG = {
   VERIFIED_ROLE_ID:          process.env.VERIFIED_ROLE_ID          || '',   // Role jo register ke baad mile
   TESTERS_ROLE_ID:           process.env.TESTERS_ROLE_ID           || '',   // "﹂Tᴇsᴛᴇʀs ﹁ 👥" role — /startqueue use kar sakta hai
   QUEUE_ANNOUNCE_CHANNEL_ID: process.env.QUEUE_ANNOUNCE_CHANNEL_ID || '',   // Channel jahan @everyone ping jayega
+  PANEL_CHANNEL_ID:          process.env.PANEL_CHANNEL_ID          || '',   // Channel jahan waitlist panel msg rahega (for /setuppanel)
 
   API_SECRET: process.env.API_SECRET || 'paktiers-secret-change-me',
   PORT:       process.env.PORT       || 3001,
@@ -719,6 +720,77 @@ async function ensureAllRoles(guild) {
 }
 
 // ════════════════════════════════════════════════════════════
+//  WAITLIST ROLES — auto-create "Waitlist-<Weapon>" roles
+// ════════════════════════════════════════════════════════════
+const waitlistRoleCache = {};  // weapon -> roleId
+
+async function ensureWaitlistRole(guild, weapon) {
+  if (waitlistRoleCache[weapon]) {
+    const cached = guild.roles.cache.get(waitlistRoleCache[weapon]);
+    if (cached) return cached;
+  }
+  const name = `Waitlist-${weapon}`;
+  let role = guild.roles.cache.find(r => r.name === name);
+  if (!role) {
+    try {
+      role = await guild.roles.create({
+        name,
+        color: 0x5865F2,
+        reason: 'PakTiers auto-created waitlist role',
+        mentionable: false,
+      });
+      console.log(`[WAITLIST ROLE] Created: ${name}`);
+    } catch(err) {
+      console.error(`[WAITLIST ROLE] Failed to create ${name}:`, err.message);
+      return null;
+    }
+  }
+  waitlistRoleCache[weapon] = role.id;
+  return role;
+}
+
+// ── Send / Refresh the persistent panel message ──────────────────────────────
+async function sendWaitlistPanel(channel) {
+  const embed = new EmbedBuilder()
+    .setColor(0x7FFF00)
+    .setTitle('📋  Evaluation Testing — Waitlist & Roles')
+    .setDescription(
+      '**Step 1: Register Your Profile**\n' +
+      'Click the **Register / Update Profile** button below to set your in-game details.\n\n' +
+      '**Step 2: Get a Waitlist Role**\n' +
+      'After registering, select any gamemode below to get the corresponding **Waitlist** role. Each role has a **2-day cooldown**.\n\n' +
+      '> • **Region:** Pakistan server\n' +
+      '> • **Username:** Apna Minecraft IGN jo tune register kiya\n\n' +
+      '\u26A0\uFE0F **Failure to provide authentic information will result in a denied test.**'
+    )
+    .setFooter({ text: 'PakTiers · Pakistan Minecraft Community' })
+    .setTimestamp();
+
+  const registerBtn = new ButtonBuilder()
+    .setCustomId('panel_register')
+    .setLabel('Register / Update Profile')
+    .setStyle(ButtonStyle.Success)
+    .setEmoji('📝');
+
+  const gamemodeSelect = new StringSelectMenuBuilder()
+    .setCustomId('panel_waitlist_select')
+    .setPlaceholder('Select a gamemode to get the waitlist role ›')
+    .addOptions(
+      WEAPONS.map(w => ({
+        label: `${w}`,
+        description: `Join the ${w} waitlist`,
+        value: w,
+        emoji: WEAPON_EMOJI[w],
+      }))
+    );
+
+  const row1 = new ActionRowBuilder().addComponents(registerBtn);
+  const row2 = new ActionRowBuilder().addComponents(gamemodeSelect);
+
+  return channel.send({ embeds: [embed], components: [row1, row2] });
+}
+
+// ════════════════════════════════════════════════════════════
 //  COMMANDS
 // ════════════════════════════════════════════════════════════
 const CMDS = {};
@@ -1339,6 +1411,38 @@ CMDS.syncroles = {
 };
 
 
+// ── /setuppanel ────────────────────────────────────────────
+CMDS.setuppanel = {
+  data: new SlashCommandBuilder()
+    .setName('setuppanel')
+    .setDescription('Waitlist panel channel mein send karo (Admin only)')
+    .addChannelOption(o => o
+      .setName('channel')
+      .setDescription('Channel jahan panel bhejo (default: current)')
+      .setRequired(false)
+    ),
+
+  async execute(i) {
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isAdmin)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Sirf Admin yeh command use kar sakta hai.')] });
+
+    await i.deferReply({ ephemeral:true });
+    const targetChannel = i.options.getChannel('channel') || i.channel;
+    try {
+      await sendWaitlistPanel(targetChannel);
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+        .setDescription(`✅ Waitlist panel <#${targetChannel.id}> mein send ho gaya!`)] });
+    } catch(err) {
+      console.error('[PANEL ERROR]', err);
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Panel send karne mein masla: ${err.message}`)] });
+    }
+  },
+};
+
+
 // ════════════════════════════════════════════════════════════
 //  INTERACTION HANDLER — Registration Flow (Select Menus)
 // ════════════════════════════════════════════════════════════
@@ -1348,6 +1452,63 @@ const regState = new Map(); // userId -> { platform, accountType, region, step }
 
 async function handleSelectMenu(i) {
   const [prefix, step, uid] = i.customId.split('_');
+
+  // ── Panel: gamemode waitlist role select ──────────────────
+  if (i.customId === 'panel_waitlist_select') {
+    const weapon = i.values[0];
+    const player = LDB.get(i.user.id);
+
+    if (!player)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Pehle **Register / Update Profile** button dabaao aur register karo.')] });
+
+    // Cooldown check — reuse tier cooldown per weapon for waitlist
+    const WAITLIST_COOLDOWN_MS = CONFIG.TIER_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
+    const wlCDKey = `wl_${i.user.id}_${weapon}`;
+    const wlCDStore = global._wlCooldowns || (global._wlCooldowns = {});
+    if (wlCDStore[wlCDKey]) {
+      const remaining = WAITLIST_COOLDOWN_MS - (Date.now() - wlCDStore[wlCDKey]);
+      if (remaining > 0) {
+        const h = Math.floor(remaining/3600000), m = Math.floor((remaining%3600000)/60000);
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setTitle(`⏳ ${weapon} Waitlist — Cooldown Active`)
+          .setDescription(`**${weapon}** waitlist role ke liye **${h}h ${m}m** baad apply karo.`)] });
+      }
+    }
+
+    // Assign Waitlist-<weapon> role
+    try {
+      const role = await ensureWaitlistRole(i.guild, weapon);
+      if (role) {
+        const member = await i.guild.members.fetch(i.user.id).catch(()=>null);
+        if (member) await member.roles.add(role).catch(()=>{});
+      }
+      wlCDStore[wlCDKey] = Date.now();
+
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x7FFF00)
+        .setTitle(`✅ Waitlist Role Mila — ${WEAPON_EMOJI[weapon]} ${weapon}`)
+        .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
+        .setDescription(
+          `Tumhe **Waitlist-${weapon}** role mil gaya!
+
+` +
+          `Jab **${weapon}** queue open hogi, tumhe ping milega.
+` +
+          `Join karne ke liye queue channel mein **Join** button dabaao.`
+        )
+        .addFields(
+          { name:'🎮 IGN',      value:`**${player.ign}**`,           inline:true },
+          { name:'💻 Platform', value:player.platform||'Java',        inline:true },
+          { name:'🌍 Region',   value:player.region||'PK',           inline:true },
+        )
+        .setFooter({ text:'PakTiers · Pakistan Minecraft Community' })
+        .setTimestamp()] });
+    } catch(err) {
+      console.error('[PANEL WAITLIST ROLE]', err);
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Role assign karne mein masla: ${err.message}`)] });
+    }
+  }
 
   if (prefix !== 'reg') return;
   if (uid !== i.user.id) {
@@ -1426,6 +1587,64 @@ async function handleSelectMenu(i) {
 
 async function handleButtonClick(i) {
   const parts = i.customId.split('_');
+
+  // ── Panel: Register / Update Profile button ──────────────
+  if (i.customId === 'panel_register') {
+    // Check if already registered
+    const existing = LDB.get(i.user.id);
+    if (existing) {
+      // Already registered — show their current profile ephemeral
+      const tiers   = existing.tiers || {};
+      const entries = Object.entries(tiers).sort((a,b)=>(TIER_PTS[b[1]]||0)-(TIER_PTS[a[1]]||0));
+      const pts     = entries.reduce((s,[,t])=>s+(TIER_PTS[t]||0),0);
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setTitle('⚠️ Already Registered')
+        .setThumbnail(`https://mc-heads.net/avatar/${existing.ign}/128`)
+        .setDescription(
+          `Tum already **${existing.ign}** ke naam se registered ho.
+
+` +
+          `Apni details update karne ke liye pehle \`/profile\` dekho.
+` +
+          `Agar IGN change karna ho to staff se rabta karo.`
+        )
+        .addFields(
+          { name:'🎮 IGN',      value:`**${existing.ign}**`,          inline:true },
+          { name:'💻 Platform', value:existing.platform||'Java',       inline:true },
+          { name:'🌍 Region',   value:existing.region||'PK',          inline:true },
+          { name:'⭐ Points',   value:`**${pts} pts**`,               inline:true },
+        )
+        .setFooter({ text:'PakTiers · Pakistan Minecraft Community' })] });
+    }
+
+    // Not registered — trigger registration flow (same as /register)
+    if (CONFIG.REGISTER_CHANNEL_ID && i.channelId !== CONFIG.REGISTER_CHANNEL_ID) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Register karne ke liye <#${CONFIG.REGISTER_CHANNEL_ID}> channel use karo.`)] });
+    }
+
+    regState.set(i.user.id, { platform: 'Java Edition' });
+
+    const accRow = new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`reg_account_${i.user.id}`)
+        .setPlaceholder('🔑 Account type chunno...')
+        .addOptions(ACCOUNT_TYPES.map(a => ({ label:a, value:a }))),
+    );
+
+    return i.reply({
+      ephemeral:true,
+      embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+        .setTitle('📋 PakTiers Registration — Step 1/2')
+        .setDescription('\uD83D\uDDA5\uFE0F **Platform: Java Edition**\n\nApna **account type** chunno:')
+        .addFields(
+          { name:'💎 Premium (Paid)', value:'Original bought Minecraft account', inline:false },
+          { name:'🏴‍☠️ Cracked (Free)', value:'TLauncher ya koi aur cracked launcher', inline:false },
+        )
+        .setFooter({ text:'Sirf tujhe dikh raha hai | PakTiers' })],
+      components:[accRow],
+    });
+  }
 
   // Close ticket button
   if (i.customId.startsWith('close_ticket_')) {
