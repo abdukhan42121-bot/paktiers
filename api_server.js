@@ -761,10 +761,11 @@ function saveLivePanels(data) {
   try { fs.writeFileSync(LIVE_PANEL_FILE, JSON.stringify(data, null, 2)); } catch(_) {}
 }
 
-function buildLivePanelEmbed(weapon) {
-  const q      = LDB.getQ(weapon);
-  const panels = loadLivePanels();
+function buildLivePanelEmbed(weapon, region) {
+  const q       = LDB.getQ(weapon);
+  const panels  = loadLivePanels();
   const testers = panels[weapon]?.activeTesters || [];
+  const reg     = region || panels[weapon]?.region || 'AS/AU';
 
   const queueTxt  = q.length
     ? q.map((e, idx) => `${idx + 1}. <@${e.discordId}>`).join('\n')
@@ -780,14 +781,14 @@ function buildLivePanelEmbed(weapon) {
     .setColor(0x57F287)
     .setTitle(`✅  ${weapon} Tester Available!`)
     .setDescription(
-      `@here a **${weapon}** queue is open for the **PK** region!\n\n` +
+      `@here a **${weapon}** queue is open for the **${reg}** region!\n\n` +
       `The queue is now open and updates in real-time.`
     )
     .addFields(
       { name: '📋  Queue',          value: queueTxt,  inline: false },
       { name: '👥  Active Testers', value: testerTxt, inline: false },
     )
-    .setFooter({ text: `🌍 Region: PK  |  🕐 Last Refresh: ${now}` });
+    .setFooter({ text: `🌍 Region: ${reg}  |  🕐 Last Refresh: ${now}` });
 }
 
 async function refreshLivePanel(client, weapon) {
@@ -800,7 +801,7 @@ async function refreshLivePanel(client, weapon) {
     const msg = await ch.messages.fetch(info.messageId).catch(() => null);
     if (!msg) return;
 
-    const embed   = buildLivePanelEmbed(weapon);
+    const embed   = buildLivePanelEmbed(weapon, info.region);
     const joinBtn = new ButtonBuilder().setCustomId(`wl_join_${weapon}`).setLabel('Join').setStyle(ButtonStyle.Success);
     const leavBtn = new ButtonBuilder().setCustomId(`wl_leave_${weapon}`).setLabel('Leave').setStyle(ButtonStyle.Danger);
     const pullBtn = new ButtonBuilder().setCustomId(`wl_pull_${weapon}`).setLabel('🎫 Pull').setStyle(ButtonStyle.Primary);
@@ -1138,6 +1139,14 @@ CMDS.queue = {
     .addSubcommand(s=>s.setName('start').setDescription('Queue open karo — waitlist channel me @everyone ping (Testers only)')
       .addStringOption(o=>o.setName('gamemode').setDescription('Gamemode select karo').setRequired(true)
         .addChoices(...WEAPONS.map(w=>({name:`${WEAPON_EMOJI[w]} ${w}`,value:w}))))
+      .addStringOption(o=>o.setName('region').setDescription('Region (default: AS/AU)').setRequired(false)
+        .addChoices(
+          { name:'AS/AU', value:'AS/AU' },
+          { name:'PK', value:'PK' },
+          { name:'EU', value:'EU' },
+          { name:'NA', value:'NA' },
+          { name:'SA', value:'SA' },
+        ))
       .addStringOption(o=>o.setName('message').setDescription('Extra message (optional)').setRequired(false))),
 
   async execute(i) {
@@ -1281,6 +1290,7 @@ CMDS.queue = {
 
       const weapon   = i.options.getString('gamemode');
       const extraMsg = i.options.getString('message') || null;
+      const region   = i.options.getString('region') || 'AS/AU';
       const emoji    = WEAPON_EMOJI[weapon] || '⚔️';
 
       // ── Auto-find waitlist-<weapon> channel in guild ──────
@@ -1299,6 +1309,24 @@ CMDS.queue = {
       }
       if (!announceChannel) announceChannel = i.channel;
 
+      // ── Check bot has permission to send in that channel ──
+      const botMember = i.guild.members.me;
+      const permsInCh = announceChannel.permissionsFor(botMember);
+      if (!permsInCh?.has(PermissionFlagsBits.SendMessages) || !permsInCh?.has(PermissionFlagsBits.ViewChannel)) {
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setTitle('❌ Bot Permission Error')
+          .setDescription(
+            `Bot ko <#${announceChannel.id}> mein message send karne ki permission nahi.\n\n` +
+            `**Fix karo:**\n• <#${announceChannel.id}> channel ki settings mein bot ko **View Channel** aur **Send Messages** permission do.\n` +
+            `• Ya ek admin se kaho ke bot role ko yeh permissions dein.`
+          )
+          .addFields(
+            { name:'Channel', value:`<#${announceChannel.id}>`, inline:true },
+            { name:'Gamemode', value:`${emoji} ${weapon}`, inline:true },
+          )
+          .setFooter({ text:BOT_FOOTER })] });
+      }
+
       // ── CTL-style live panel ──────────────────────────────
       const panels = loadLivePanels();
 
@@ -1311,10 +1339,10 @@ CMDS.queue = {
         } catch(_) {}
       }
 
-      panels[weapon] = { channelId: announceChannel.id, messageId: null, activeTesters: [], lastRefresh: Date.now() };
+      panels[weapon] = { channelId: announceChannel.id, messageId: null, activeTesters: [], region, lastRefresh: Date.now() };
       saveLivePanels(panels);
 
-      const embed   = buildLivePanelEmbed(weapon);
+      const embed   = buildLivePanelEmbed(weapon, region);
       const joinBtn = new ButtonBuilder().setCustomId(`wl_join_${weapon}`).setLabel('Join').setStyle(ButtonStyle.Success);
       const leavBtn = new ButtonBuilder().setCustomId(`wl_leave_${weapon}`).setLabel('Leave').setStyle(ButtonStyle.Danger);
       const pullBtn = new ButtonBuilder().setCustomId(`wl_pull_${weapon}`).setLabel('🎫 Pull').setStyle(ButtonStyle.Primary);
@@ -1333,7 +1361,7 @@ CMDS.queue = {
         saveLivePanels(panels);
         sent = true;
       } catch(err) {
-        console.error('[QUEUE START ERROR]', err);
+        console.error('[QUEUE START ERROR]', err.message, err.code);
       }
 
       return i.editReply({ embeds:[new EmbedBuilder()
@@ -1341,10 +1369,11 @@ CMDS.queue = {
         .setTitle(sent ? '✅ Live Queue Panel Create Ho Gaya!' : '⚠️ Announcement Failed')
         .setDescription(sent
           ? `**${weapon}** live panel <#${announceChannel.id}> mein create ho gaya!\nHar join/leave/pull pe auto-update hoga.`
-          : `Message send karne mein masla aaya.`)
+          : `Message send karne mein masla aaya. Check karo ke bot ko <#${announceChannel.id}> mein **Send Messages** permission hai.`)
         .addFields(
-          { name:`${WEAPON_EMOJI[weapon]||'⚔️'} Gamemode`, value: weapon,                     inline:true },
-          { name:'📢 Channel',                              value: `<#${announceChannel.id}>`, inline:true },
+          { name:`${emoji} Gamemode`, value: weapon,                     inline:true },
+          { name:'📢 Channel',        value: `<#${announceChannel.id}>`, inline:true },
+          { name:'🌍 Region',         value: region,                     inline:true },
         )
         .setFooter({ text:BOT_FOOTER })] });
     }
