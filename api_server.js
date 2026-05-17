@@ -748,6 +748,72 @@ async function ensureAllRoles(guild) {
 // ════════════════════════════════════════════════════════════
 const waitlistRoleCache = {};  // weapon -> roleId
 
+// ════════════════════════════════════════════════════════════
+//  LIVE PANEL — CTL-style persistent queue message
+// ════════════════════════════════════════════════════════════
+const LIVE_PANEL_FILE = path.join(__dirname, 'paktiers_data', 'live_panels.json');
+
+function loadLivePanels() {
+  try { if (fs.existsSync(LIVE_PANEL_FILE)) return JSON.parse(fs.readFileSync(LIVE_PANEL_FILE, 'utf8')); } catch(_) {}
+  return {};
+}
+function saveLivePanels(data) {
+  try { fs.writeFileSync(LIVE_PANEL_FILE, JSON.stringify(data, null, 2)); } catch(_) {}
+}
+
+function buildLivePanelEmbed(weapon) {
+  const q      = LDB.getQ(weapon);
+  const panels = loadLivePanels();
+  const testers = panels[weapon]?.activeTesters || [];
+
+  const queueTxt  = q.length
+    ? q.map((e, idx) => `${idx + 1}. <@${e.discordId}>`).join('\n')
+    : '*Abhi koi queue mein nahi hai.*';
+
+  const testerTxt = testers.length
+    ? testers.map((id, idx) => `${idx + 1}. <@${id}>`).join('\n')
+    : '*Koi active tester nahi*';
+
+  const now = new Date().toLocaleTimeString('en-PK', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
+
+  return new EmbedBuilder()
+    .setColor(0x57F287)
+    .setTitle(`✅  ${weapon} Tester Available!`)
+    .setDescription(
+      `@here a **${weapon}** queue is open for the **PK** region!\n\n` +
+      `The queue is now open and updates in real-time.`
+    )
+    .addFields(
+      { name: '📋  Queue',          value: queueTxt,  inline: false },
+      { name: '👥  Active Testers', value: testerTxt, inline: false },
+    )
+    .setFooter({ text: `🌍 Region: PK  |  🕐 Last Refresh: ${now}` });
+}
+
+async function refreshLivePanel(client, weapon) {
+  const panels = loadLivePanels();
+  const info   = panels[weapon];
+  if (!info?.channelId || !info?.messageId) return;
+  try {
+    const ch  = await client.channels.fetch(info.channelId).catch(() => null);
+    if (!ch) return;
+    const msg = await ch.messages.fetch(info.messageId).catch(() => null);
+    if (!msg) return;
+
+    const embed   = buildLivePanelEmbed(weapon);
+    const joinBtn = new ButtonBuilder().setCustomId(`wl_join_${weapon}`).setLabel('Join').setStyle(ButtonStyle.Success);
+    const leavBtn = new ButtonBuilder().setCustomId(`wl_leave_${weapon}`).setLabel('Leave').setStyle(ButtonStyle.Danger);
+    const pullBtn = new ButtonBuilder().setCustomId(`wl_pull_${weapon}`).setLabel('🎫 Pull').setStyle(ButtonStyle.Primary);
+    const row     = new ActionRowBuilder().addComponents(joinBtn, leavBtn, pullBtn);
+
+    await msg.edit({ content: '', embeds: [embed], components: [row] });
+    panels[weapon].lastRefresh = Date.now();
+    saveLivePanels(panels);
+  } catch(err) {
+    console.error(`[LIVE PANEL] refresh error (${weapon}):`, err.message);
+  }
+}
+
 async function ensureWaitlistRole(guild, weapon) {
   if (waitlistRoleCache[weapon]) {
     const cached = guild.roles.cache.get(waitlistRoleCache[weapon]);
@@ -1003,12 +1069,12 @@ CMDS.tier = {
         .setTitle(`${player.ign}'s Tier Update 🏆`)
         .setThumbnail(`https://mc-heads.net/head/${player.ign}/128`)
         .addFields(
-          { name:'Tester',            value:`<@${i.user.id}>`,          inline:false },
-          { name:'Minecraft Username',value:`${player.ign}`,            inline:false },
-          { name:'Game Mode',         value:`${weapon.toUpperCase()}`,  inline:false },
-          { name:'Previous Rank',     value: oldTier ? getTierLabel(oldTier) : 'Unranked', inline:false },
-          { name:'Rank Earned',       value: getTierLabel(tier),        inline:false },
-          { name:'Region',            value: player.region || 'Pakistan 🇵🇰', inline:false },
+          { name:'Tester',             value:`<@${i.user.id}>`,                         inline:false },
+          { name:'Minecraft Username', value:`${player.ign}`,                           inline:false },
+          { name:'Game Mode',          value:`${weapon.toUpperCase()}`,                 inline:false },
+          { name:'Previous Rank',      value: oldTier ? getTierLabel(oldTier) : 'Unranked', inline:false },
+          { name:'Rank Earned',        value: getTierLabel(tier),                       inline:false },
+          { name:'Region',             value: player.region || 'Pakistan 🇵🇰',          inline:false },
         )
         .setTimestamp()] });
 
@@ -1233,66 +1299,38 @@ CMDS.queue = {
       }
       if (!announceChannel) announceChannel = i.channel;
 
-      // ── Announce embed ────────────────────────────────────
-      const announceEmbed = new EmbedBuilder()
-        .setColor(BRAND_COLOR)
-        .setTitle(`${emoji} ${weapon} Queue — OPEN!`)
-        .setDescription(
-          `## 🟢 Queue ab **LIVE** hai!
+      // ── CTL-style live panel ──────────────────────────────
+      const panels = loadLivePanels();
 
-` +
-          `**${weapon}** gamemode ki queue shuru ho gayi!
-` +
-          (extraMsg ? `> 📢 ${extraMsg}
+      // Purana panel delete karo
+      if (panels[weapon]?.channelId && panels[weapon]?.messageId) {
+        try {
+          const oldCh  = await i.client.channels.fetch(panels[weapon].channelId).catch(() => null);
+          const oldMsg = oldCh ? await oldCh.messages.fetch(panels[weapon].messageId).catch(() => null) : null;
+          if (oldMsg) await oldMsg.delete().catch(() => {});
+        } catch(_) {}
+      }
 
-` : '') +
-          `**Requirements:**
-` +
-          `• \`/register\` hona zaroori hai
-` +
-          `• Tumhara **${weapon}** tier hona chahiye
-` +
-          `• Cooldown active nahi hona chahiye`
-        )
-        .addFields(
-          { name:`${emoji} Gamemode`,   value:`**${weapon}**`,                        inline:true },
-          { name:'👤 Started By',       value:`<@${i.user.id}>`,                      inline:true },
-          { name:'⏰ Time',             value:`<t:${Math.floor(Date.now()/1000)}:T>`, inline:true },
-        )
-        .setFooter({ text:`PakTiers · Pakistan Minecraft Community` })
-        .setTimestamp();
+      panels[weapon] = { channelId: announceChannel.id, messageId: null, activeTesters: [], lastRefresh: Date.now() };
+      saveLivePanels(panels);
 
-      // ── Live waitlist field ───────────────────────────────
-      const currentQ   = LDB.getQ(weapon);
-      const allPlayers = LDB.all();
-      const waitlistTxt = currentQ.length
-        ? currentQ.map((e, idx) => {
-            const p = allPlayers[e.discordId];
-            const tier = p?.tiers?.[weapon] || '?';
-            return `**${idx+1}.** ${p?.ign || 'Unknown'} (<@${e.discordId}>) · \`${tier}\``;
-          }).join('\n')
-        : '*Abhi koi queue mein nahi — pehle join karo!*';
-
-      announceEmbed.addFields({
-        name: `📋 Waitlist — ${weapon} (${currentQ.length} waiting)`,
-        value: waitlistTxt,
-        inline: false,
-      });
-
-      // ── Buttons: Join + Leave (everyone) | + Pull (testers) ──
-      const joinBtn  = new ButtonBuilder().setCustomId(`wl_join_${weapon}`).setLabel('✅ Join').setStyle(ButtonStyle.Success);
-      const leaveBtn = new ButtonBuilder().setCustomId(`wl_leave_${weapon}`).setLabel('❌ Leave').setStyle(ButtonStyle.Danger);
-      const pullBtn  = new ButtonBuilder().setCustomId(`wl_pull_${weapon}`).setLabel('🎫 Pull').setStyle(ButtonStyle.Primary);
-      const row = new ActionRowBuilder().addComponents(joinBtn, leaveBtn, pullBtn);
+      const embed   = buildLivePanelEmbed(weapon);
+      const joinBtn = new ButtonBuilder().setCustomId(`wl_join_${weapon}`).setLabel('Join').setStyle(ButtonStyle.Success);
+      const leavBtn = new ButtonBuilder().setCustomId(`wl_leave_${weapon}`).setLabel('Leave').setStyle(ButtonStyle.Danger);
+      const pullBtn = new ButtonBuilder().setCustomId(`wl_pull_${weapon}`).setLabel('🎫 Pull').setStyle(ButtonStyle.Primary);
+      const liveRow = new ActionRowBuilder().addComponents(joinBtn, leavBtn, pullBtn);
 
       let sent = false;
+      let sentMsg = null;
       try {
-        await announceChannel.send({
-          content: `@everyone`,
-          embeds: [announceEmbed],
-          components: [row],
-          allowedMentions: { parse: ['everyone'] },
+        sentMsg = await announceChannel.send({
+          content: `@here`,
+          embeds: [embed],
+          components: [liveRow],
+          allowedMentions: { parse: ['here'] },
         });
+        panels[weapon].messageId = sentMsg.id;
+        saveLivePanels(panels);
         sent = true;
       } catch(err) {
         console.error('[QUEUE START ERROR]', err);
@@ -1300,14 +1338,14 @@ CMDS.queue = {
 
       return i.editReply({ embeds:[new EmbedBuilder()
         .setColor(sent ? 0x00C864 : 0xFF4444)
-        .setTitle(sent ? '✅ Queue Announced!' : '⚠️ Announcement Failed')
-        .setDescription(
-          sent
-            ? `**${weapon}** queue <#${announceChannel.id}> mein announce ho gaya! @everyone ping bhi gaya.`
-            : `Message send karne mein masla aaya. Bot ko **Mention @everyone** permission chahiye.`
+        .setTitle(sent ? '✅ Live Queue Panel Create Ho Gaya!' : '⚠️ Announcement Failed')
+        .setDescription(sent
+          ? `**${weapon}** live panel <#${announceChannel.id}> mein create ho gaya!\nHar join/leave/pull pe auto-update hoga.`
+          : `Message send karne mein masla aaya.`)
+        .addFields(
+          { name:`${WEAPON_EMOJI[weapon]||'⚔️'} Gamemode`, value: weapon,                     inline:true },
+          { name:'📢 Channel',                              value: `<#${announceChannel.id}>`, inline:true },
         )
-        .addFields({ name:`${emoji} Gamemode`, value:weapon, inline:true },
-                   { name:'📢 Channel', value:`<#${announceChannel.id}>`, inline:true })
         .setFooter({ text:BOT_FOOTER })] });
     }
   },
@@ -1825,6 +1863,7 @@ async function handleButtonClick(i) {
         createQueueTicket(i.client, i.guild, player, weapon, i.user.id).catch(()=>{});
 
       broadcast({ type:'queue_updated', queues:MEM.queues });
+      refreshLivePanel(i.client, weapon).catch(() => {});
       const q   = LDB.getQ(weapon);
       const pos = q.findIndex(e=>e.discordId===i.user.id)+1;
 
@@ -1848,6 +1887,7 @@ async function handleButtonClick(i) {
 
       LDB.leaveQ(i.user.id, weapon);
       broadcast({ type:'queue_updated', queues:MEM.queues });
+      refreshLivePanel(i.client, weapon).catch(() => {});
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
         .setDescription(`👋 Tum **${weapon}** queue se nikal gaye.`)] });
     }
@@ -1874,6 +1914,16 @@ async function handleButtonClick(i) {
       // Remove player from queue
       LDB.leaveQ(entry.discordId, weapon);
       broadcast({ type:'queue_updated', queues:MEM.queues });
+
+      // Active tester update karo
+      const pnls = loadLivePanels();
+      if (pnls[weapon]) {
+        if (!pnls[weapon].activeTesters) pnls[weapon].activeTesters = [];
+        if (!pnls[weapon].activeTesters.includes(i.user.id))
+          pnls[weapon].activeTesters.push(i.user.id);
+        saveLivePanels(pnls);
+      }
+      refreshLivePanel(i.client, weapon).catch(() => {});
 
       // Open ticket for pulled player
       let ticketChannel = null;
