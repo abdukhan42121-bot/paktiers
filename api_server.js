@@ -791,6 +791,30 @@ async function sendWaitlistPanel(channel) {
 }
 
 // ════════════════════════════════════════════════════════════
+//  QUEUE ACCESS CHECK
+//  Player queue join kar sakta hai agar:
+//  (a) us weapon ka tier hai, YA
+//  (b) us weapon ki Waitlist-<weapon> role hai
+// ════════════════════════════════════════════════════════════
+async function hasQueueAccess(guild, discordId, player, weapon) {
+  // (a) tier check
+  if (player?.tiers?.[weapon]) return { allowed: true, via: 'tier', tier: player.tiers[weapon] };
+
+  // (b) waitlist role check
+  try {
+    const roleName = `Waitlist-${weapon}`;
+    const role = guild.roles.cache.find(r => r.name === roleName);
+    if (role) {
+      const member = await guild.members.fetch(discordId).catch(() => null);
+      if (member && member.roles.cache.has(role.id))
+        return { allowed: true, via: 'waitlist', tier: 'Waitlist' };
+    }
+  } catch(_) {}
+
+  return { allowed: false };
+}
+
+// ════════════════════════════════════════════════════════════
 //  COMMANDS
 // ════════════════════════════════════════════════════════════
 const CMDS = {};
@@ -1076,12 +1100,19 @@ CMDS.queue = {
       if (!player) return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Registered nahi. `/register` use karo.')] });
 
-      if (!player.tiers?.[weapon]) return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setTitle('No Tier for this Weapon')
-        .setDescription(`Tumhara **${weapon}** tier nahi. Pehle kisi **Tierer** se evaluate karwao.`)
+      const access = await hasQueueAccess(i.guild, i.user.id, player, weapon);
+      if (!access.allowed) return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('❌ Access Nahi — No Tier & No Waitlist Role')
+        .setDescription(
+          `Tum **${weapon}** queue join nahi kar sakte.\n\n` +
+          `**2 tarike hain join karne ke:**\n` +
+          `• Kisi **Tierer** se apna ${weapon} tier karwao, **YA**\n` +
+          `• Panel mein **${weapon}** gamemode select karo — Waitlist role lo`
+        )
         .addFields({ name:'Tumhare Tiers', value:Object.keys(player.tiers||{}).length
           ? Object.entries(player.tiers).map(([w,t])=>`${WEAPON_EMOJI[w]} ${w}: \`${t}\``).join('\n')
-          : '*Abhi koi tier nahi*' })] });
+          : '*Koi tier nahi*' })
+        .setFooter({ text:'PakTiers · Pakistan Minecraft Community' })] });
 
       // ── COOLDOWN CHECK ─────────────────────────────────────
       const cd = isOnCooldown(i.user.id, weapon);
@@ -1143,7 +1174,7 @@ CMDS.queue = {
         .setTitle(`${WEAPON_EMOJI[weapon]} Joined Queue — ${weapon}`)
         .addFields(
           { name:'Player',      value:`**${player.ign}**`,              inline:true },
-          { name:'Your Tier',   value:`\`${player.tiers[weapon]}\``,    inline:true },
+          { name:'Your Tier',   value:`\`${player.tiers?.[weapon] || 'Waitlist'}\``, inline:true },
           { name:'Position',    value:`**#${pos}** in queue`,           inline:true },
           { name:'🎫 Ticket',   value:'Ticket create ho gaya! Staff ko notification gaya.', inline:false },
           { name:'⏳ Status',   value:'1 aur player ka wait hai…' },
@@ -1673,9 +1704,16 @@ async function handleButtonClick(i) {
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setDescription('❌ Pehle `/register` karo.')] });
 
-      if (!player.tiers?.[weapon])
+      const access = await hasQueueAccess(i.guild, i.user.id, player, weapon);
+      if (!access.allowed)
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-          .setDescription(`❌ Tumhara **${weapon}** tier nahi hai. Pehle kisi Tierer se evaluate karwao.`)] });
+          .setTitle('❌ Access Nahi')
+          .setDescription(
+            `Tum **${weapon}** queue join nahi kar sakte.\n\n` +
+            `**2 tarike hain:**\n` +
+            `• Kisi **Tierer** se tier karwao, **YA**\n` +
+            `• Panel mein **${weapon}** select karo — Waitlist role lo`
+          )] });
 
       const cd = isOnCooldown(i.user.id, weapon);
       if (cd.onCooldown)
@@ -1699,7 +1737,7 @@ async function handleButtonClick(i) {
         .setTitle(`${WEAPON_EMOJI[weapon]} Queue Joined — ${weapon}`)
         .addFields(
           { name:'Player',    value:`**${player.ign}**`,           inline:true },
-          { name:'Your Tier', value:`\`${player.tiers[weapon]}\``, inline:true },
+          { name:'Your Tier', value:`\`${player.tiers?.[weapon] || 'Waitlist'}\``, inline:true },
           { name:'Position',  value:`**#${pos}** in queue`,        inline:true },
           { name:'🎫 Ticket', value:'Staff ko ticket gaya!',       inline:false },
         )
