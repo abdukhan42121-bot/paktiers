@@ -7,22 +7,22 @@
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
   :root {
-    --green: #01411C;
-    --green-light: #0a6e30;
-    --green-neon: #00ff6a;
+    --green: #1a0a3d;
+    --green-light: #2d1a6e;
+    --green-neon: #bf7fff;
     --white: #ffffff;
     --gold: #FFD700;
     --silver: #C0C0C0;
     --bronze: #CD7F32;
-    --bg-dark: #050f07;
-    --bg-card: #0a1a0d;
-    --bg-card2: #0d2214;
-    --text-main: #e8ffe8;
-    --text-dim: #7aad7a;
-    --border: #1a4d22;
-    --accent: #00c94a;
+    --bg-dark: #07050f;
+    --bg-card: #0f0a1e;
+    --bg-card2: #160e2a;
+    --text-main: #ede8ff;
+    --text-dim: #7a6aad;
+    --border: #2d1a55;
+    --accent: #a855f7;
     --red: #ff3b3b;
-    --na-color: #00c94a;
+    --na-color: #a855f7;
     --eu-color: #4a9eff;
     --as-color: #ff9d00;
     /* Tier colors from index__2_ */
@@ -48,7 +48,7 @@
     position: fixed;
     top: -200px; right: -200px;
     width: 600px; height: 600px;
-    background: radial-gradient(circle, rgba(0,201,74,0.04) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(168,85,247,0.06) 0%, transparent 70%);
     pointer-events: none; z-index: 0;
   }
 
@@ -56,11 +56,11 @@
     content: '';
     position: fixed; inset: 0;
     background-image:
-      radial-gradient(1px 1px at 10% 20%, rgba(0,255,106,0.3) 0%, transparent 100%),
-      radial-gradient(1px 1px at 80% 15%, rgba(0,255,106,0.2) 0%, transparent 100%),
-      radial-gradient(1px 1px at 50% 80%, rgba(0,255,106,0.15) 0%, transparent 100%),
-      radial-gradient(1px 1px at 30% 60%, rgba(0,255,106,0.2) 0%, transparent 100%),
-      radial-gradient(1px 1px at 90% 70%, rgba(255,255,255,0.1) 0%, transparent 100%);
+      radial-gradient(1px 1px at 10% 20%, rgba(168,85,247,0.35) 0%, transparent 100%),
+      radial-gradient(1px 1px at 80% 15%, rgba(168,85,247,0.25) 0%, transparent 100%),
+      radial-gradient(1px 1px at 50% 80%, rgba(100,60,200,0.2) 0%, transparent 100%),
+      radial-gradient(1px 1px at 30% 60%, rgba(168,85,247,0.2) 0%, transparent 100%),
+      radial-gradient(1px 1px at 90% 70%, rgba(255,255,255,0.08) 0%, transparent 100%);
     pointer-events: none; z-index: 0;
   }
 
@@ -80,7 +80,7 @@
     font-weight: 900; font-size: 22px; letter-spacing: 2px;
     color: var(--white); text-decoration: none; margin-right: 30px;
   }
-  .logo span { color: var(--accent); text-shadow: 0 0 20px rgba(0,201,74,0.8); }
+  .logo span { color: var(--accent); text-shadow: 0 0 20px rgba(168,85,247,.8); }
   .logo .flag-dot {
     display: inline-block; width: 10px; height: 10px;
     background: var(--accent); border-radius: 50%; margin-left: 4px;
@@ -138,7 +138,7 @@
     font-size: clamp(28px,6vw,48px); font-weight: 900;
     letter-spacing: 4px; color: var(--white); line-height: 1.1;
   }
-  .hero-title .pak { color: var(--accent); text-shadow: 0 0 40px rgba(0,201,74,.5); }
+  .hero-title .pak { color: var(--accent); text-shadow: 0 0 40px rgba(168,85,247,.6); }
   .hero-sub {
     font-size: 13px; color: var(--text-dim); margin-top: 6px;
     letter-spacing: 2px; font-family: 'Rajdhani', sans-serif; font-weight: 500;
@@ -148,14 +148,14 @@
     gap: 12px; margin-top: 16px; margin-bottom: 20px;
   }
   .flag-stripe { height: 4px; width: 80px; border-radius: 2px; }
-  .flag-stripe.green { background: linear-gradient(90deg, var(--green), var(--accent)); }
+  .flag-stripe.green { background: linear-gradient(90deg, var(--green-light), var(--accent)); }
   .flag-stripe.white { background: rgba(255,255,255,.6); }
-  .crescent-star { font-size: 20px; color: var(--accent); text-shadow: 0 0 16px rgba(0,201,74,.8); }
+  .crescent-star { font-size: 20px; color: var(--accent); text-shadow: 0 0 16px rgba(168,85,247,.8); }
 
   /* ── STATS ── */
   .stats-row {
     position: relative; z-index: 1;
-    display: grid; grid-template-columns: repeat(4,1fr);
+    display: grid; grid-template-columns: repeat(5,1fr);
     gap: 10px; padding: 0 16px 16px;
   }
   .stat-card {
@@ -166,7 +166,7 @@
   .stat-card.flash { border-color: var(--accent); }
   .stat-num {
     font-family: 'Orbitron', monospace; font-size: 22px; font-weight: 700;
-    color: var(--accent); text-shadow: 0 0 20px rgba(0,201,74,.4);
+    color: var(--accent); text-shadow: 0 0 20px rgba(168,85,247,.45);
   }
   .stat-label {
     font-size: 10px; color: var(--text-dim); font-family: 'Rajdhani', sans-serif;
@@ -269,7 +269,7 @@
   .player-row.rank-2 { background: linear-gradient(135deg,rgba(192,192,192,.07),rgba(5,15,7,.95)); border-color: rgba(192,192,192,.15); }
   .player-row.rank-3 { background: linear-gradient(135deg,rgba(205,127,50,.07),rgba(5,15,7,.95)); border-color: rgba(205,127,50,.15); }
   .player-row.highlight { animation: highlightRow .8s ease; }
-  @keyframes highlightRow { 0%{background:rgba(0,201,74,.12);}100%{background:var(--bg-card);} }
+  @keyframes highlightRow { 0%{background:rgba(168,85,247,.12);}100%{background:var(--bg-card);} }
 
   .rank-num {
     font-family: 'Orbitron', monospace; font-weight: 700; font-size: 15px; text-align: center;
@@ -291,7 +291,7 @@
   .avatar img { width: 100%; height: 100%; border-radius: 6px; image-rendering: pixelated; }
   .avatar::after {
     content: ''; position: absolute; inset: 0;
-    background: linear-gradient(135deg,rgba(0,201,74,.1),transparent);
+    background: linear-gradient(135deg,rgba(168,85,247,.1),transparent);
   }
 
   .player-name {
@@ -307,8 +307,8 @@
     font-family: 'Rajdhani', sans-serif; font-size: 11px; font-weight: 700;
     padding: 3px 8px; border-radius: 5px; letter-spacing: .5px; width: fit-content;
   }
-  .region-PAK { background: rgba(0,201,74,.15); color: var(--accent); border: 1px solid rgba(0,201,74,.3); }
-  .region-NA  { background: rgba(0,201,74,.1);  color: #5dde8f;       border: 1px solid rgba(93,222,143,.2); }
+  .region-PAK { background: rgba(168,85,247,.15); color: var(--accent); border: 1px solid rgba(168,85,247,.3); }
+  .region-NA  { background: rgba(168,85,247,.1);  color: #c084fc;       border: 1px solid rgba(192,132,252,.2); }
   .region-EU  { background: rgba(74,158,255,.1); color: #4a9eff;      border: 1px solid rgba(74,158,255,.2); }
   .region-AS  { background: rgba(255,157,0,.1);  color: #ff9d00;      border: 1px solid rgba(255,157,0,.2); }
 
@@ -420,7 +420,7 @@
     background: var(--bg-card); border: 1px solid var(--accent);
     width: 420px; max-width: 95vw; padding: 28px; border-radius: 12px;
     position: relative; max-height: 90vh; overflow-y: auto;
-    box-shadow: 0 0 40px rgba(0,201,74,.2); animation: modalIn .2s ease;
+    box-shadow: 0 0 40px rgba(168,85,247,.25); animation: modalIn .2s ease;
   }
   @keyframes modalIn { from{opacity:0;transform:scale(.96) translateY(10px);}to{opacity:1;transform:scale(1) translateY(0);} }
   .modal-close-btn {
@@ -474,7 +474,7 @@
     background: var(--bg-card); border: 1px solid var(--accent); color: var(--accent);
     font-family: 'Share Tech Mono', monospace; font-size: .8rem; padding: 12px 20px;
     border-radius: 8px; z-index: 999; animation: toastIn .3s ease;
-    box-shadow: 0 0 20px rgba(0,201,74,.2);
+    box-shadow: 0 0 20px rgba(168,85,247,.25);
   }
   @keyframes toastIn { from{transform:translateY(20px);opacity:0;}to{transform:translateY(0);opacity:1;} }
 
@@ -695,7 +695,7 @@
 
   /* ── RESPONSIVE ── */
   @media (max-width: 600px) {
-    .stats-row { grid-template-columns: repeat(2,1fr); }
+    .stats-row { grid-template-columns: repeat(3,1fr); }
     .table-header,.player-row { grid-template-columns: 40px 1fr 60px; }
     .tiers-display { display: none; }
     .th-tiers { display: none; }
@@ -748,6 +748,7 @@
   <div class="stat-card"><div class="stat-num skeleton" style="width:60px;height:28px;margin:0 auto"></div><div class="stat-label" style="margin-top:10px">Tiered</div></div>
   <div class="stat-card"><div class="stat-num skeleton" style="width:60px;height:28px;margin:0 auto"></div><div class="stat-label" style="margin-top:10px">In Queue</div></div>
   <div class="stat-card"><div class="stat-num skeleton" style="width:60px;height:28px;margin:0 auto"></div><div class="stat-label" style="margin-top:10px">Matches Played</div></div>
+  <div class="stat-card"><div class="stat-num skeleton" style="width:60px;height:28px;margin:0 auto"></div><div class="stat-label" style="margin-top:10px">OverAll</div></div>
 </div>
 
 <!-- SERVER BAR -->
@@ -885,11 +886,16 @@ async function fetchStats() {
 }
 
 function renderStats(d) {
+  // OverAll = agar server ne overallScore diya ho toh woh, warna totalPlayers (sabse meaningful overall count)
+  const overall = (d.overallScore != null)
+    ? d.overallScore
+    : (d.totalPlayers != null ? d.totalPlayers : null);
   document.getElementById('statsRow').innerHTML = `
-    <div class="stat-card"><div class="stat-num">${d.totalPlayers}</div><div class="stat-label">Total Players</div></div>
-    <div class="stat-card"><div class="stat-num">${d.tieredPlayers}</div><div class="stat-label">Tiered</div></div>
-    <div class="stat-card"><div class="stat-num">${d.queuedNow}</div><div class="stat-label">In Queue</div></div>
-    <div class="stat-card"><div class="stat-num">${d.totalMatches}</div><div class="stat-label">Matches Played</div></div>
+    <div class="stat-card"><div class="stat-num">${d.totalPlayers ?? '—'}</div><div class="stat-label">Total Players</div></div>
+    <div class="stat-card"><div class="stat-num">${d.tieredPlayers ?? '—'}</div><div class="stat-label">Tiered</div></div>
+    <div class="stat-card"><div class="stat-num">${d.queuedNow ?? '—'}</div><div class="stat-label">In Queue</div></div>
+    <div class="stat-card"><div class="stat-num">${d.totalMatches ?? '—'}</div><div class="stat-label">Matches Played</div></div>
+    <div class="stat-card"><div class="stat-num">${overall ?? '—'}</div><div class="stat-label">OverAll</div></div>
   `;
 }
 
@@ -910,11 +916,8 @@ async function fetchLeaderboard(weapon = 'all') {
   } catch (_) {
     document.getElementById('lbContainer').innerHTML = `
       <div class="empty-state">
-        <div class="big">⚠️</div>
-        API server se connect nahi ho pa raha.<br>
-        <span style="font-size:.75rem;margin-top:8px;display:block;color:var(--text-dim)">
-          Make sure api_server.js Railway pe chal raha hai.
-        </span>
+        <div class="big">🏆</div>
+        No ranked players yet
       </div>`;
   }
 }
@@ -1063,8 +1066,11 @@ async function lookupPlayer() {
   try {
     const p = await apiFetch(`/api/player/${encodeURIComponent(ign)}`);
     renderProfile(p);
-  } catch (_) {
-    empty.innerHTML = `<div class="big">❌</div>Player "<b>${ign}</b>" not found or not registered.`;
+  } catch (err) {
+    const msg = (err && err.message && err.message.includes('404'))
+      ? `Player "<b>${ign}</b>" not found or not registered.`
+      : `Player "<b>${ign}</b>" not found or not registered.`;
+    empty.innerHTML = `<div class="big">❌</div>${msg}`;
   }
 }
 
@@ -1099,8 +1105,10 @@ function renderProfile(p) {
 async function fetchQueue() {
   try {
     const d = await apiFetch('/api/queue');
-    renderQueue(d.queues);
-  } catch (_) {}
+    renderQueue(d.queues || {});
+  } catch (_) {
+    renderQueue({});
+  }
 }
 
 function renderQueue(queues) {
