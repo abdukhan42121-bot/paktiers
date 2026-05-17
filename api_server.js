@@ -761,11 +761,10 @@ function saveLivePanels(data) {
   try { fs.writeFileSync(LIVE_PANEL_FILE, JSON.stringify(data, null, 2)); } catch(_) {}
 }
 
-function buildLivePanelEmbed(weapon, region) {
-  const q       = LDB.getQ(weapon);
-  const panels  = loadLivePanels();
+function buildLivePanelEmbed(weapon) {
+  const q      = LDB.getQ(weapon);
+  const panels = loadLivePanels();
   const testers = panels[weapon]?.activeTesters || [];
-  const reg     = region || panels[weapon]?.region || 'AS/AU';
 
   const queueTxt  = q.length
     ? q.map((e, idx) => `${idx + 1}. <@${e.discordId}>`).join('\n')
@@ -781,14 +780,14 @@ function buildLivePanelEmbed(weapon, region) {
     .setColor(0x57F287)
     .setTitle(`✅  ${weapon} Tester Available!`)
     .setDescription(
-      `@here a **${weapon}** queue is open for the **${reg}** region!\n\n` +
+      `@here a **${weapon}** queue is open for the **PK** region!\n\n` +
       `The queue is now open and updates in real-time.`
     )
     .addFields(
       { name: '📋  Queue',          value: queueTxt,  inline: false },
       { name: '👥  Active Testers', value: testerTxt, inline: false },
     )
-    .setFooter({ text: `🌍 Region: ${reg}  |  🕐 Last Refresh: ${now}` });
+    .setFooter({ text: `🌍 Region: PK  |  🕐 Last Refresh: ${now}` });
 }
 
 async function refreshLivePanel(client, weapon) {
@@ -801,7 +800,7 @@ async function refreshLivePanel(client, weapon) {
     const msg = await ch.messages.fetch(info.messageId).catch(() => null);
     if (!msg) return;
 
-    const embed   = buildLivePanelEmbed(weapon, info.region);
+    const embed   = buildLivePanelEmbed(weapon);
     const joinBtn = new ButtonBuilder().setCustomId(`wl_join_${weapon}`).setLabel('Join').setStyle(ButtonStyle.Success);
     const leavBtn = new ButtonBuilder().setCustomId(`wl_leave_${weapon}`).setLabel('Leave').setStyle(ButtonStyle.Danger);
     const pullBtn = new ButtonBuilder().setCustomId(`wl_pull_${weapon}`).setLabel('🎫 Pull').setStyle(ButtonStyle.Primary);
@@ -1139,14 +1138,6 @@ CMDS.queue = {
     .addSubcommand(s=>s.setName('start').setDescription('Queue open karo — waitlist channel me @everyone ping (Testers only)')
       .addStringOption(o=>o.setName('gamemode').setDescription('Gamemode select karo').setRequired(true)
         .addChoices(...WEAPONS.map(w=>({name:`${WEAPON_EMOJI[w]} ${w}`,value:w}))))
-      .addStringOption(o=>o.setName('region').setDescription('Region (default: AS/AU)').setRequired(false)
-        .addChoices(
-          { name:'AS/AU', value:'AS/AU' },
-          { name:'PK', value:'PK' },
-          { name:'EU', value:'EU' },
-          { name:'NA', value:'NA' },
-          { name:'SA', value:'SA' },
-        ))
       .addStringOption(o=>o.setName('message').setDescription('Extra message (optional)').setRequired(false))),
 
   async execute(i) {
@@ -1290,7 +1281,6 @@ CMDS.queue = {
 
       const weapon   = i.options.getString('gamemode');
       const extraMsg = i.options.getString('message') || null;
-      const region   = i.options.getString('region') || 'AS/AU';
       const emoji    = WEAPON_EMOJI[weapon] || '⚔️';
 
       // ── Auto-find waitlist-<weapon> channel in guild ──────
@@ -1309,24 +1299,6 @@ CMDS.queue = {
       }
       if (!announceChannel) announceChannel = i.channel;
 
-      // ── Check bot has permission to send in that channel ──
-      const botMember = i.guild.members.me;
-      const permsInCh = announceChannel.permissionsFor(botMember);
-      if (!permsInCh?.has(PermissionFlagsBits.SendMessages) || !permsInCh?.has(PermissionFlagsBits.ViewChannel)) {
-        return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
-          .setTitle('❌ Bot Permission Error')
-          .setDescription(
-            `Bot ko <#${announceChannel.id}> mein message send karne ki permission nahi.\n\n` +
-            `**Fix karo:**\n• <#${announceChannel.id}> channel ki settings mein bot ko **View Channel** aur **Send Messages** permission do.\n` +
-            `• Ya ek admin se kaho ke bot role ko yeh permissions dein.`
-          )
-          .addFields(
-            { name:'Channel', value:`<#${announceChannel.id}>`, inline:true },
-            { name:'Gamemode', value:`${emoji} ${weapon}`, inline:true },
-          )
-          .setFooter({ text:BOT_FOOTER })] });
-      }
-
       // ── CTL-style live panel ──────────────────────────────
       const panels = loadLivePanels();
 
@@ -1339,10 +1311,10 @@ CMDS.queue = {
         } catch(_) {}
       }
 
-      panels[weapon] = { channelId: announceChannel.id, messageId: null, activeTesters: [], region, lastRefresh: Date.now() };
+      panels[weapon] = { channelId: announceChannel.id, messageId: null, activeTesters: [], lastRefresh: Date.now() };
       saveLivePanels(panels);
 
-      const embed   = buildLivePanelEmbed(weapon, region);
+      const embed   = buildLivePanelEmbed(weapon);
       const joinBtn = new ButtonBuilder().setCustomId(`wl_join_${weapon}`).setLabel('Join').setStyle(ButtonStyle.Success);
       const leavBtn = new ButtonBuilder().setCustomId(`wl_leave_${weapon}`).setLabel('Leave').setStyle(ButtonStyle.Danger);
       const pullBtn = new ButtonBuilder().setCustomId(`wl_pull_${weapon}`).setLabel('🎫 Pull').setStyle(ButtonStyle.Primary);
@@ -1361,7 +1333,7 @@ CMDS.queue = {
         saveLivePanels(panels);
         sent = true;
       } catch(err) {
-        console.error('[QUEUE START ERROR]', err.message, err.code);
+        console.error('[QUEUE START ERROR]', err);
       }
 
       return i.editReply({ embeds:[new EmbedBuilder()
@@ -1369,11 +1341,10 @@ CMDS.queue = {
         .setTitle(sent ? '✅ Live Queue Panel Create Ho Gaya!' : '⚠️ Announcement Failed')
         .setDescription(sent
           ? `**${weapon}** live panel <#${announceChannel.id}> mein create ho gaya!\nHar join/leave/pull pe auto-update hoga.`
-          : `Message send karne mein masla aaya. Check karo ke bot ko <#${announceChannel.id}> mein **Send Messages** permission hai.`)
+          : `Message send karne mein masla aaya.`)
         .addFields(
-          { name:`${emoji} Gamemode`, value: weapon,                     inline:true },
-          { name:'📢 Channel',        value: `<#${announceChannel.id}>`, inline:true },
-          { name:'🌍 Region',         value: region,                     inline:true },
+          { name:`${WEAPON_EMOJI[weapon]||'⚔️'} Gamemode`, value: weapon,                     inline:true },
+          { name:'📢 Channel',                              value: `<#${announceChannel.id}>`, inline:true },
         )
         .setFooter({ text:BOT_FOOTER })] });
     }
@@ -1635,6 +1606,214 @@ CMDS.setuppanel = {
   },
 };
 
+
+// ════════════════════════════════════════════════════════════
+//  /startqueue — CTL-STYLE LIVE QUEUE PANEL (NEW COMMAND)
+//  Usage: /startqueue gamemode:Axe region:AS/AU
+// ════════════════════════════════════════════════════════════
+
+// Storage for active startqueue panels: weapon -> { channelId, messageId, testerId, region }
+const SQ_PANEL_FILE = path.join(__dirname, 'paktiers_data', 'sq_panels.json');
+function loadSQPanels() {
+  try { if (fs.existsSync(SQ_PANEL_FILE)) return JSON.parse(fs.readFileSync(SQ_PANEL_FILE, 'utf8')); } catch(_) {}
+  return {};
+}
+function saveSQPanels(data) {
+  try { fs.writeFileSync(SQ_PANEL_FILE, JSON.stringify(data, null, 2)); } catch(_) {}
+}
+
+// Build the exact CTL-style embed
+function buildSQEmbed(weapon, region, testerIds) {
+  const q   = LDB.getQ(weapon);
+  const reg = region || 'AS/AU';
+
+  // Queue list — numbered mentions
+  const queueLines = q.length
+    ? q.map((e, idx) => `${idx + 1}. <@${e.discordId}>`).join('\n')
+    : '*Queue mein koi nahi.*';
+
+  // Active testers list
+  const testerLines = (testerIds && testerIds.length)
+    ? testerIds.map((id, idx) => `${idx + 1}. <@${id}>`).join('\n')
+    : '*Koi active tester nahi.*';
+
+  const now = new Date().toLocaleTimeString('en-PK', {
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
+  });
+
+  return new EmbedBuilder()
+    .setColor(0x57F287)  // CTL green
+    .setTitle(`✅  ${weapon} Tester Available!`)
+    .setDescription(
+      `@here a **${weapon}** queue is open for the **${reg}** region!\n\n` +
+      `The queue is now open and updates in real-time.`
+    )
+    .addFields(
+      { name: '📋  Queue',          value: queueLines,  inline: false },
+      { name: '👥  Active Testers', value: testerLines, inline: false },
+    )
+    .setFooter({ text: `🌍 Region: ${reg}  |  🕐 Last Refresh: ${now}` });
+}
+
+// Build Join / Leave / Pull buttons row
+function buildSQButtons(weapon) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`sq_join_${weapon}`).setLabel('Join').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`sq_leave_${weapon}`).setLabel('Leave').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`sq_pull_${weapon}`).setLabel('🎫 Pull').setStyle(ButtonStyle.Primary),
+  );
+}
+
+// Refresh the live panel message in-place
+async function refreshSQPanel(client, weapon) {
+  const panels = loadSQPanels();
+  const info   = panels[weapon];
+  if (!info?.channelId || !info?.messageId) return;
+  try {
+    const ch  = await client.channels.fetch(info.channelId).catch(() => null);
+    if (!ch) return;
+    const msg = await ch.messages.fetch(info.messageId).catch(() => null);
+    if (!msg) return;
+    await msg.edit({
+      content:    '',
+      embeds:     [buildSQEmbed(weapon, info.region, info.testers || [])],
+      components: [buildSQButtons(weapon)],
+    });
+    panels[weapon].lastRefresh = Date.now();
+    saveSQPanels(panels);
+  } catch(err) {
+    console.error(`[SQ PANEL] refresh error (${weapon}):`, err.message);
+  }
+}
+
+CMDS.startqueue = {
+  data: new SlashCommandBuilder()
+    .setName('startqueue')
+    .setDescription('CTL-style live queue panel kholo (Testers only)')
+    .addStringOption(o => o
+      .setName('gamemode')
+      .setDescription('Gamemode chunno')
+      .setRequired(true)
+      .addChoices(...WEAPONS.map(w => ({ name: `${WEAPON_EMOJI[w]} ${w}`, value: w })))
+    )
+    .addStringOption(o => o
+      .setName('region')
+      .setDescription('Region (default: AS/AU)')
+      .setRequired(false)
+      .addChoices(
+        { name: 'AS/AU', value: 'AS/AU' },
+        { name: 'PK',    value: 'PK'    },
+        { name: 'EU',    value: 'EU'    },
+        { name: 'NA',    value: 'NA'    },
+        { name: 'SA',    value: 'SA'    },
+      )
+    ),
+
+  async execute(i) {
+    // ── Permission check ─────────────────────────────────────
+    if (!hasQueuePerm(i.member))
+      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('❌ Permission Nahi')
+        .setDescription('Yeh command sirf **Testers** ya queue-perm wale roles use kar sakte hain.')
+        .setFooter({ text: BOT_FOOTER })] });
+
+    await i.deferReply({ ephemeral: true });
+
+    const weapon = i.options.getString('gamemode');
+    const region = i.options.getString('region') || 'AS/AU';
+    const emoji  = WEAPON_EMOJI[weapon] || '⚔️';
+
+    // ── Find target channel: waitlist-<weapon> ────────────────
+    const targetName = `waitlist-${weapon.toLowerCase()}`;
+    let targetCh = null;
+
+    try {
+      const all = await i.guild.channels.fetch();
+      targetCh = all.find(c => c?.isTextBased?.() && c.name.toLowerCase() === targetName) || null;
+    } catch(_) {}
+
+    // Fallback chain: env var → current channel
+    if (!targetCh && CONFIG.QUEUE_ANNOUNCE_CHANNEL_ID) {
+      try { targetCh = await i.client.channels.fetch(CONFIG.QUEUE_ANNOUNCE_CHANNEL_ID).catch(() => null); } catch(_) {}
+    }
+    if (!targetCh) targetCh = i.channel;
+
+    // ── Bot permission check ──────────────────────────────────
+    const me    = i.guild.members.me;
+    const perms = targetCh.permissionsFor(me);
+    if (!perms?.has(PermissionFlagsBits.SendMessages) || !perms?.has(PermissionFlagsBits.ViewChannel)) {
+      return i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('❌ Bot Ko Permission Nahi')
+        .setDescription(
+          `Bot ko <#${targetCh.id}> mein message send karne ki permission nahi hai.\n\n` +
+          `**Fix:** Channel settings → Permissions → Bot role → ✅ View Channel + ✅ Send Messages`
+        )
+        .setFooter({ text: BOT_FOOTER })] });
+    }
+
+    // ── Delete old panel for this weapon if exists ────────────
+    const panels = loadSQPanels();
+    if (panels[weapon]?.channelId && panels[weapon]?.messageId) {
+      try {
+        const oldCh  = await i.client.channels.fetch(panels[weapon].channelId).catch(() => null);
+        const oldMsg = oldCh ? await oldCh.messages.fetch(panels[weapon].messageId).catch(() => null) : null;
+        if (oldMsg) await oldMsg.delete().catch(() => {});
+      } catch(_) {}
+    }
+
+    // ── Send the live panel ───────────────────────────────────
+    let sentMsg = null;
+    try {
+      sentMsg = await targetCh.send({
+        content:           '@here',
+        embeds:            [buildSQEmbed(weapon, region, [i.user.id])],
+        components:        [buildSQButtons(weapon)],
+        allowedMentions:   { parse: ['here'] },
+      });
+    } catch(err) {
+      console.error('[STARTQUEUE SEND ERROR]', err.message, 'Code:', err.code);
+      return i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('⚠️ Panel Send Nahi Hua')
+        .setDescription(
+          `<#${targetCh.id}> mein message send nahi hua.\n\n` +
+          `**Error:** \`${err.message}\` (Code: ${err.code || 'N/A'})\n\n` +
+          `Check karo:\n• Bot ko channel mein **Send Messages** permission hai?\n• Channel ki permission override toh nahi?`
+        )
+        .addFields(
+          { name: `${emoji} Gamemode`, value: weapon,              inline: true },
+          { name: '📢 Channel',        value: `<#${targetCh.id}>`, inline: true },
+        )
+        .setFooter({ text: BOT_FOOTER })] });
+    }
+
+    // ── Save panel info ───────────────────────────────────────
+    panels[weapon] = {
+      channelId:   targetCh.id,
+      messageId:   sentMsg.id,
+      testers:     [i.user.id],   // tester jo ne start kiya
+      region,
+      startedBy:   i.user.id,
+      startedAt:   Date.now(),
+      lastRefresh: Date.now(),
+    };
+    saveSQPanels(panels);
+
+    // ── Confirm to tester (ephemeral) ─────────────────────────
+    return i.editReply({ embeds: [new EmbedBuilder().setColor(0x00C864)
+      .setTitle('✅ Live Queue Panel Shuru Ho Gaya!')
+      .setDescription(
+        `**${emoji} ${weapon}** ka CTL-style live panel <#${targetCh.id}> mein send ho gaya!\n\n` +
+        `Panel khud update hoga jab bhi koi Join / Leave / Pull kare.`
+      )
+      .addFields(
+        { name: `${emoji} Gamemode`, value: weapon,              inline: true },
+        { name: '📢 Channel',        value: `<#${targetCh.id}>`, inline: true },
+        { name: '🌍 Region',         value: region,              inline: true },
+      )
+      .setFooter({ text: BOT_FOOTER })
+      .setTimestamp()] });
+  },
+};
 
 // ════════════════════════════════════════════════════════════
 //  INTERACTION HANDLER — Registration Flow (Select Menus)
@@ -2022,7 +2201,187 @@ async function handleButtonClick(i) {
     return; // unknown wl_ sub-action
   }
 
-  // IGN button — show modal
+  // ── /startqueue BUTTONS: sq_join_ / sq_leave_ / sq_pull_ ──────────────────
+  if (i.customId.startsWith('sq_')) {
+    // customId format: sq_join_Axe / sq_leave_Axe / sq_pull_Axe
+    const withoutPrefix = i.customId.slice(3);           // "join_Axe"
+    const underIdx      = withoutPrefix.indexOf('_');
+    const action        = withoutPrefix.slice(0, underIdx);   // "join"
+    const weapon        = withoutPrefix.slice(underIdx + 1);  // "Axe"
+
+    const player = LDB.get(i.user.id);
+
+    // ── SQ JOIN ───────────────────────────────────────────────
+    if (action === 'join') {
+      if (!player)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setTitle('❌ Registered Nahi')
+          .setDescription('Queue join karne ke liye pehle `/register` karo ya **Register Profile** button dabao.')
+          .setFooter({ text: BOT_FOOTER })] });
+
+      const access = await hasQueueAccess(i.guild, i.user.id, player, weapon);
+      if (!access.allowed)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setTitle('❌ Access Nahi')
+          .setDescription(
+            `Tum **${weapon}** queue join nahi kar sakte.\n\n` +
+            `**Queue join karne ke 2 tarike:**\n` +
+            `• Kisi **Tierer** se apna ${weapon} tier karwao\n` +
+            `• Panel mein **${weapon}** select karo — Waitlist role lo`
+          )
+          .setFooter({ text: BOT_FOOTER })] });
+
+      const cd = isOnCooldown(i.user.id, weapon);
+      if (cd.onCooldown)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setTitle(`⏳ Cooldown Active — ${weapon}`)
+          .setDescription(`Tumhara **${weapon}** cooldown abhi active hai.\n**${cd.hours}h ${cd.mins}m** baad try karo.`)
+          .setFooter({ text: BOT_FOOTER })] });
+
+      const result = LDB.joinQ(i.user.id, weapon);
+      if (!result.ok && result.reason === 'dupe')
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+          .setDescription(`⚠️ Tum already **${weapon}** queue mein ho.`)] });
+
+      // Ticket create
+      if (i.guild && CONFIG.TICKET_CATEGORY_ID)
+        createQueueTicket(i.client, i.guild, player, weapon, i.user.id).catch(() => {});
+
+      broadcast({ type:'queue_updated', queues:MEM.queues });
+      refreshSQPanel(i.client, weapon).catch(() => {});
+
+      const q   = LDB.getQ(weapon);
+      const pos = q.findIndex(e => e.discordId === i.user.id) + 1;
+
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x57F287)
+        .setTitle(`${WEAPON_EMOJI[weapon]} Queue Joined — ${weapon}`)
+        .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
+        .addFields(
+          { name:'🎮 Player',    value:`**${player.ign}**`,                               inline:true },
+          { name:'⚔️ Tier',     value:`\`${player.tiers?.[weapon] || 'Waitlist'}\``,      inline:true },
+          { name:'📋 Position', value:`**#${pos}** in queue`,                             inline:true },
+          { name:'🎫 Ticket',   value:'Staff ko ticket notification gaya!',               inline:false },
+        )
+        .setFooter({ text:'Queue chhodni ho to "Leave" button dabao · PakTiers' })
+        .setTimestamp()] });
+    }
+
+    // ── SQ LEAVE ──────────────────────────────────────────────
+    if (action === 'leave') {
+      if (!player)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription('❌ Tum registered nahi ho.')] });
+
+      const q = LDB.getQ(weapon);
+      const inQ = q.find(e => e.discordId === i.user.id);
+      if (!inQ)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+          .setDescription(`⚠️ Tum **${weapon}** queue mein nahi ho.`)] });
+
+      LDB.leaveQ(i.user.id, weapon);
+      broadcast({ type:'queue_updated', queues:MEM.queues });
+      refreshSQPanel(i.client, weapon).catch(() => {});
+
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setTitle(`👋 Queue Chod Di — ${weapon}`)
+        .setDescription(`**${player.ign}** ne **${weapon}** queue chod di.`)
+        .setFooter({ text: BOT_FOOTER })] });
+    }
+
+    // ── SQ PULL (Testers only) ────────────────────────────────
+    if (action === 'pull') {
+      if (!hasQueuePerm(i.member))
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setTitle('❌ Permission Nahi')
+          .setDescription('Yeh button sirf **Testers** ya queue-perm wale roles use kar sakte hain.')
+          .setFooter({ text: BOT_FOOTER })] });
+
+      const q = LDB.getQ(weapon);
+      if (!q.length)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+          .setTitle(`📭 Queue Khali — ${weapon}`)
+          .setDescription(`**${weapon}** queue mein abhi koi player nahi hai.`)] });
+
+      // Pull first player
+      const entry  = q[0];
+      const target = LDB.get(entry.discordId);
+
+      if (!target)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription('❌ Queue entry mili lekin player data nahi mila.')] });
+
+      LDB.leaveQ(entry.discordId, weapon);
+      broadcast({ type:'queue_updated', queues:MEM.queues });
+
+      // Update active testers list in SQ panel
+      const sqPanels = loadSQPanels();
+      if (sqPanels[weapon]) {
+        if (!sqPanels[weapon].testers) sqPanels[weapon].testers = [];
+        if (!sqPanels[weapon].testers.includes(i.user.id))
+          sqPanels[weapon].testers.push(i.user.id);
+        saveSQPanels(sqPanels);
+      }
+      refreshSQPanel(i.client, weapon).catch(() => {});
+
+      // Create / fetch ticket
+      let ticketChannel = null;
+      if (i.guild && CONFIG.TICKET_CATEGORY_ID) {
+        ticketChannel = await createQueueTicket(i.client, i.guild, target, weapon, entry.discordId).catch(() => null);
+      }
+
+      const joinedAt = entry.joinedAt ? `<t:${Math.floor(entry.joinedAt/1000)}:R>` : 'Unknown';
+
+      const pullEmbed = new EmbedBuilder()
+        .setColor(BRAND_COLOR)
+        .setTitle(`🎫 Player Pulled — ${WEAPON_EMOJI[weapon]} ${weapon}`)
+        .setThumbnail(`https://mc-heads.net/avatar/${target.ign}/128`)
+        .setDescription(
+          `**${weapon}** queue ka next player pull ho gaya.\n` +
+          (ticketChannel ? `Ticket: <#${ticketChannel.id}>` : '⚠️ Ticket create nahi hua — player ko DM gaya.')
+        )
+        .addFields(
+          { name:'1. 🎮 IGN',         value:`**${target.ign}**`,                                         inline:true },
+          { name:'2. 👤 Discord',      value:`<@${entry.discordId}>`,                                     inline:true },
+          { name:'3. 💻 Platform',     value:target.platform    || 'Java Edition',                        inline:true },
+          { name:'4. 🔑 Account',      value:target.accountType || 'Premium',                             inline:true },
+          { name:'5. 🌍 Region',       value:target.region      || 'PK',                                  inline:true },
+          { name:`6. ${WEAPON_EMOJI[weapon]} Tier`, value:`\`${target.tiers?.[weapon] || 'N/A'}\``,       inline:true },
+          { name:'7. ⏱️ Joined Queue', value:joinedAt,                                                    inline:true },
+          { name:'8. 📅 Registered',   value:`<t:${Math.floor(target.registeredAt/1000)}:D>`,             inline:true },
+        )
+        .setFooter({ text:`Pulled by ${i.user.username} · PakTiers` })
+        .setTimestamp();
+
+      // Notify in ticket OR DM
+      if (ticketChannel) {
+        try {
+          await ticketChannel.send({
+            content: `📢 <@${entry.discordId}> — <@${i.user.id}> ne tumhe pull kiya! Test ke liye ready ho jao.`,
+            embeds:  [new EmbedBuilder().setColor(0x57F287)
+              .setTitle('🎫 Pulled!')
+              .setDescription(`**${i.user.username}** (Tester) ne tujhe **${weapon}** queue se pull kiya!\nServer pe aao aur ready ho jao. 🇵🇰`)
+              .setFooter({ text: BOT_FOOTER })
+              .setTimestamp()],
+          });
+        } catch(_) {}
+      } else {
+        try {
+          const pulledMember = await i.guild.members.fetch(entry.discordId).catch(() => null);
+          if (pulledMember) {
+            await pulledMember.send({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+              .setTitle(`🎫 ${weapon} Queue — Pulled!`)
+              .setDescription(`**${i.user.username}** (Tester) ne tumhe **${weapon}** queue se pull kiya!\nServer pe aao aur test ke liye ready ho jao. 🇵🇰`)
+              .setFooter({ text: BOT_FOOTER })
+              .setTimestamp()] }).catch(() => {});
+          }
+        } catch(_) {}
+      }
+
+      return i.reply({ ephemeral:true, embeds:[pullEmbed] });
+    }
+
+    return; // unknown sq_ sub-action
+  }
   if (i.customId.startsWith('reg_ignbtn_')) {
     const uid = i.customId.replace('reg_ignbtn_','');
     if (uid !== i.user.id)
