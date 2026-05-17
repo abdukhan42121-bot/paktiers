@@ -780,7 +780,7 @@ function buildLivePanelEmbed(weapon) {
     .setColor(0x57F287)
     .setTitle(`✅  ${weapon} Tester Available!`)
     .setDescription(
-      `@here a **${weapon}** queue is open for the **PK** region!\n\n` +
+      `A **${weapon}** queue is open for the **PK** region!\n\n` +
       `The queue is now open and updates in real-time.`
     )
     .addFields(
@@ -1324,10 +1324,10 @@ CMDS.queue = {
       let sentMsg = null;
       try {
         sentMsg = await announceChannel.send({
-          content: `@here`,
+          content: '',
           embeds: [embed],
           components: [liveRow],
-          allowedMentions: { parse: ['here'] },
+          allowedMentions: { parse: [] },
         });
         panels[weapon].messageId = sentMsg.id;
         saveLivePanels(panels);
@@ -1645,7 +1645,7 @@ function buildSQEmbed(weapon, region, testerIds) {
     .setColor(0x57F287)  // CTL green
     .setTitle(`✅  ${weapon} Tester Available!`)
     .setDescription(
-      `@here a **${weapon}** queue is open for the **${reg}** region!\n\n` +
+      `A **${weapon}** queue is open for the **${reg}** region!\n\n` +
       `The queue is now open and updates in real-time.`
     )
     .addFields(
@@ -1765,10 +1765,10 @@ CMDS.startqueue = {
     let sentMsg = null;
     try {
       sentMsg = await targetCh.send({
-        content:           '@here',
+        content:           '',
         embeds:            [buildSQEmbed(weapon, region, [i.user.id])],
         components:        [buildSQButtons(weapon)],
-        allowedMentions:   { parse: ['here'] },
+        allowedMentions:   { parse: [] },
       });
     } catch(err) {
       console.error('[STARTQUEUE SEND ERROR]', err.message, 'Code:', err.code);
