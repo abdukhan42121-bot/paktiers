@@ -52,6 +52,29 @@ const CONFIG = {
   TIER_COOLDOWN_DAYS: 2,
 };
 
+// ── QUEUE PERM ROLES — runtime mein /queueperm se set hote hain ──────────────
+const QUEUE_PERM_FILE = path.join(__dirname, 'paktiers_data', 'queue_perms.json');
+function loadQueuePerms() {
+  try {
+    if (fs.existsSync(QUEUE_PERM_FILE)) return JSON.parse(fs.readFileSync(QUEUE_PERM_FILE, 'utf8'));
+  } catch(_) {}
+  return { roles: [] };
+}
+function saveQueuePerms(data) {
+  try {
+    if (!fs.existsSync(path.join(__dirname, 'paktiers_data')))
+      fs.mkdirSync(path.join(__dirname, 'paktiers_data'), { recursive: true });
+    fs.writeFileSync(QUEUE_PERM_FILE, JSON.stringify(data, null, 2));
+  } catch(_) {}
+}
+function hasQueuePerm(member) {
+  if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
+  if (CONFIG.TESTERS_ROLE_ID && member.roles.cache.has(CONFIG.TESTERS_ROLE_ID)) return true;
+  const perms = loadQueuePerms();
+  return perms.roles.some(rid => member.roles.cache.has(rid));
+}
+
+
 // ════════════════════════════════════════════════════════════
 //  EXPRESS + WEBSOCKET
 // ════════════════════════════════════════════════════════════
@@ -521,7 +544,8 @@ const LDB = {
   joinQ(id, weapon) {
     const db = rDB(QF); if (!db[weapon]) db[weapon]=[];
     if (db[weapon].find(e=>e.discordId===id)) return { ok:false, reason:'dupe' };
-    db[weapon].push({ discordId:id, joinedAt:Date.now() });
+    const pData = rDB(PF)[id];
+    db[weapon].push({ discordId:id, ign: pData?.ign || null, joinedAt:Date.now() });
     wDB(QF, db); MEM.queues[weapon]=db[weapon];
     if (db[weapon].length>=2) {
       const p1=db[weapon].shift(), p2=db[weapon].shift();
@@ -1066,7 +1090,7 @@ CMDS.queue = {
       const fields=WEAPONS.map(w=>{
         const q=queues[w]||[];
         return { name:`${WEAPON_EMOJI[w]} ${w} — ${q.length}/2`,
-          value:q.length ? q.map((e,idx)=>`${idx+1}. **${all[e.discordId]?.ign||'Unknown'}** (<@${e.discordId}>)`).join('\n') : '*Empty*',
+          value:q.length ? q.map((e,idx)=>`${idx+1}. **${all[e.discordId]?.ign||e.ign||'Unknown'}** (<@${e.discordId}>)`).join('\n') : '*Empty*',
           inline:false };
       });
       return i.reply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
@@ -1183,14 +1207,10 @@ CMDS.queue = {
 
     // ── START (Testers only) ─────────────────────────────────
     if (sub === 'start') {
-      const isAdmin    = i.member.permissions.has(PermissionFlagsBits.Administrator);
-      const hasTesters = CONFIG.TESTERS_ROLE_ID
-        ? i.member.roles.cache.has(CONFIG.TESTERS_ROLE_ID) : false;
-
-      if (!isAdmin && !hasTesters)
+      if (!hasQueuePerm(i.member))
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setTitle('❌ Permission Denied')
-          .setDescription('Yeh command sirf **Testers** role wale use kar sakte hain.')
+          .setDescription('Yeh command sirf **Testers** ya queue permission wale roles use kar sakte hain.')
           .setFooter({ text:BOT_FOOTER })] });
 
       await i.deferReply({ ephemeral:true });
@@ -1441,6 +1461,83 @@ CMDS.syncroles = {
   },
 };
 
+
+// ── /queueperm ────────────────────────────────────────────
+CMDS.queueperm = {
+  data: new SlashCommandBuilder()
+    .setName('queueperm')
+    .setDescription('Queue start/stop/pull permission kisi role ko do ya lo (Admin only)')
+    .addSubcommand(s => s
+      .setName('add')
+      .setDescription('Role ko queue permission do')
+      .addRoleOption(o => o.setName('role').setDescription('Role jise permission deni hai').setRequired(true)))
+    .addSubcommand(s => s
+      .setName('remove')
+      .setDescription('Role ki queue permission hato')
+      .addRoleOption(o => o.setName('role').setDescription('Role jis ki permission hatani hai').setRequired(true)))
+    .addSubcommand(s => s
+      .setName('list')
+      .setDescription('Queue permission wale saare roles dekho')),
+
+  async execute(i) {
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isAdmin)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Sirf **Admin** yeh command use kar sakta hai.')] });
+
+    const sub   = i.options.getSubcommand();
+    const perms = loadQueuePerms();
+
+    if (sub === 'list') {
+      const roles = perms.roles;
+      const builtinLines = [];
+      if (CONFIG.TESTERS_ROLE_ID) builtinLines.push(`• <@&${CONFIG.TESTERS_ROLE_ID}> *(built-in: TESTERS_ROLE_ID)*`);
+
+      const customLines = roles.length
+        ? roles.map(rid => `• <@&${rid}>`).join('\n')
+        : '*Koi custom role nahi*';
+
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+        .setTitle('🔑 Queue Permission Roles')
+        .addFields(
+          { name:'Built-in', value: builtinLines.length ? builtinLines.join('\n') : '*None set*', inline:false },
+          { name:'Custom (/queueperm add)', value: customLines, inline:false },
+        )
+        .setDescription('Ye saare roles **/queue start**, **Pull button**, aur **/queue join** (testers) use kar sakte hain.')
+        .setFooter({ text: BOT_FOOTER })] });
+    }
+
+    const role = i.options.getRole('role');
+
+    if (sub === 'add') {
+      if (perms.roles.includes(role.id))
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+          .setDescription(`⚠️ **${role.name}** ke paas pehle se queue permission hai.`)] });
+
+      perms.roles.push(role.id);
+      saveQueuePerms(perms);
+      return i.reply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+        .setTitle('✅ Queue Permission Di Gayi')
+        .setDescription(`<@&${role.id}> (**${role.name}**) ab yeh sab kar sakta hai:\n• \`/queue start\` — queue announce karna\n• 🎫 **Pull** button — player pull karna\n• Queue join karna (waitlist flow)`)
+        .setFooter({ text: BOT_FOOTER })
+        .setTimestamp()] });
+    }
+
+    if (sub === 'remove') {
+      if (!perms.roles.includes(role.id))
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+          .setDescription(`⚠️ **${role.name}** ke paas queue permission nahi hai.`)] });
+
+      perms.roles = perms.roles.filter(rid => rid !== role.id);
+      saveQueuePerms(perms);
+      return i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('🗑️ Queue Permission Hatayi Gayi')
+        .setDescription(`<@&${role.id}> (**${role.name}**) ki queue permission hata di gayi.`)
+        .setFooter({ text: BOT_FOOTER })
+        .setTimestamp()] });
+    }
+  },
+};
 
 // ── /setuppanel ────────────────────────────────────────────
 CMDS.setuppanel = {
@@ -1759,13 +1856,9 @@ async function handleButtonClick(i) {
 
     // ── PULL (Testers only) ───────────────────────────────────
     if (action === 'pull') {
-      const isAdmin    = i.member.permissions.has(PermissionFlagsBits.Administrator);
-      const hasTesters = CONFIG.TESTERS_ROLE_ID
-        ? i.member.roles.cache.has(CONFIG.TESTERS_ROLE_ID) : false;
-
-      if (!isAdmin && !hasTesters)
+      if (!hasQueuePerm(i.member))
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-          .setDescription('❌ Yeh button sirf **Testers** use kar sakte hain.')] });
+          .setDescription('❌ Yeh button sirf **Testers** ya queue permission wale roles use kar sakte hain.')] });
 
       const q = LDB.getQ(weapon);
       if (!q.length)
@@ -1788,6 +1881,8 @@ async function handleButtonClick(i) {
       let ticketChannel = null;
       if (i.guild && CONFIG.TICKET_CATEGORY_ID) {
         ticketChannel = await createQueueTicket(i.client, i.guild, target, weapon, entry.discordId).catch(()=>null);
+      } else if (!CONFIG.TICKET_CATEGORY_ID) {
+        console.warn('[PULL] TICKET_CATEGORY_ID not set — ticket nahi banega. Railway env vars check karo.');
       }
 
       const joinedAt = entry.joinedAt
@@ -1816,7 +1911,7 @@ async function handleButtonClick(i) {
         .setFooter({ text:`Pulled by ${i.user.username} · PakTiers` })
         .setTimestamp();
 
-      // Notify inside ticket channel
+      // Notify inside ticket channel OR DM player as fallback
       if (ticketChannel) {
         try {
           await ticketChannel.send({
@@ -1827,6 +1922,20 @@ async function handleButtonClick(i) {
               .setFooter({ text:BOT_FOOTER })
               .setTimestamp()],
           });
+        } catch(_) {}
+      } else {
+        // Ticket nahi bana — player ko DM karo
+        try {
+          const pulledMember = await i.guild.members.fetch(entry.discordId).catch(()=>null);
+          if (pulledMember) {
+            await pulledMember.send({
+              embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+                .setTitle(`🎫 ${weapon} Queue — Pulled!`)
+                .setDescription(`**${i.user.username}** (Tester) ne tumhe **${weapon}** queue se pull kiya hai!\nServer pe aao aur test ke liye ready ho jao. 🇵🇰`)
+                .setFooter({ text:BOT_FOOTER })
+                .setTimestamp()],
+            }).catch(()=>{});
+          }
         } catch(_) {}
       }
 
