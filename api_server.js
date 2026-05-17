@@ -1816,6 +1816,133 @@ CMDS.startqueue = {
 };
 
 // ════════════════════════════════════════════════════════════
+//  /closequeue — CTL-STYLE QUEUE CLOSED EMBED
+//  Usage: /closequeue gamemode:Sword reason:Last tester left
+// ════════════════════════════════════════════════════════════
+CMDS.closequeue = {
+  data: new SlashCommandBuilder()
+    .setName('closequeue')
+    .setDescription('Queue band karo — CTL-style closed embed bhejo (Testers only)')
+    .addStringOption(o => o
+      .setName('gamemode')
+      .setDescription('Gamemode chunno')
+      .setRequired(true)
+      .addChoices(...WEAPONS.map(w => ({ name: `${WEAPON_EMOJI[w]} ${w}`, value: w })))
+    )
+    .addStringOption(o => o
+      .setName('reason')
+      .setDescription('Band karne ki wajah (default: Last tester left the queue)')
+      .setRequired(false)
+    ),
+
+  async execute(i) {
+    // ── Permission check ──────────────────────────────────────
+    if (!hasQueuePerm(i.member))
+      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('❌ Permission Nahi')
+        .setDescription('Yeh command sirf **Testers** ya queue-perm wale roles use kar sakte hain.')
+        .setFooter({ text: BOT_FOOTER })] });
+
+    await i.deferReply({ ephemeral: true });
+
+    const weapon = i.options.getString('gamemode');
+    const reason = i.options.getString('reason') || 'Last tester left the queue';
+    const emoji  = WEAPON_EMOJI[weapon] || '⚔️';
+
+    // ── Find waitlist channel ─────────────────────────────────
+    const targetName = `waitlist-${weapon.toLowerCase()}`;
+    let targetCh = null;
+    try {
+      const all = await i.guild.channels.fetch();
+      targetCh = all.find(c => c?.isTextBased?.() && c.name.toLowerCase() === targetName) || null;
+    } catch(_) {}
+    if (!targetCh && CONFIG.QUEUE_ANNOUNCE_CHANNEL_ID) {
+      try { targetCh = await i.client.channels.fetch(CONFIG.QUEUE_ANNOUNCE_CHANNEL_ID).catch(() => null); } catch(_) {}
+    }
+    if (!targetCh) targetCh = i.channel;
+
+    // ── Delete the live panel message if it exists ────────────
+    const sqPanels = loadSQPanels();
+    if (sqPanels[weapon]?.channelId && sqPanels[weapon]?.messageId) {
+      try {
+        const oldCh  = await i.client.channels.fetch(sqPanels[weapon].channelId).catch(() => null);
+        const oldMsg = oldCh ? await oldCh.messages.fetch(sqPanels[weapon].messageId).catch(() => null) : null;
+        if (oldMsg) await oldMsg.delete().catch(() => {});
+      } catch(_) {}
+      // Clear panel record
+      delete sqPanels[weapon];
+      saveSQPanels(sqPanels);
+    }
+
+    // Also clear old live panel if exists
+    const livePanels = loadLivePanels();
+    if (livePanels[weapon]?.channelId && livePanels[weapon]?.messageId) {
+      try {
+        const oldCh  = await i.client.channels.fetch(livePanels[weapon].channelId).catch(() => null);
+        const oldMsg = oldCh ? await oldCh.messages.fetch(livePanels[weapon].messageId).catch(() => null) : null;
+        if (oldMsg) await oldMsg.delete().catch(() => {});
+      } catch(_) {}
+      delete livePanels[weapon];
+      saveLivePanels(livePanels);
+    }
+
+    // ── Clear the queue for this weapon ──────────────────────
+    LDB.leaveAllQ && (() => {
+      const db = JSON.parse(fs.existsSync(QF) ? fs.readFileSync(QF,'utf8') : '{}');
+      db[weapon] = [];
+      fs.writeFileSync(QF, JSON.stringify(db, null, 2));
+      MEM.queues[weapon] = [];
+    })();
+    broadcast({ type: 'queue_updated', queues: MEM.queues });
+
+    // ── Build CTL-style "Queue Closed" embed ──────────────────
+    const now = new Date();
+    const sessionTime = now.toLocaleDateString('en-PK', {
+      day: '2-digit', month: 'long', year: 'numeric',
+    }) + ' at ' + now.toLocaleTimeString('en-PK', {
+      hour: '2-digit', minute: '2-digit', hour12: true,
+    });
+
+    const closedEmbed = new EmbedBuilder()
+      .setColor(0xFF4444)
+      .setTitle(`🔒  ${weapon} Queue Closed`)
+      .setDescription(
+        `This testing session has ended. You will be notified here when a new queue opens.`
+      )
+      .addFields(
+        { name: '📋  Reason',       value: reason,      inline: false },
+        { name: '🕐  Session Ended', value: sessionTime, inline: false },
+      )
+      .setFooter({ text: 'Thank you for testing!' });
+
+    // ── Send closed embed to waitlist channel ─────────────────
+    let sent = false;
+    try {
+      await targetCh.send({ embeds: [closedEmbed] });
+      sent = true;
+    } catch(err) {
+      console.error('[CLOSEQUEUE SEND ERROR]', err.message);
+    }
+
+    // ── Confirm to tester ─────────────────────────────────────
+    return i.editReply({ embeds: [new EmbedBuilder()
+      .setColor(sent ? 0xFF4444 : 0xFF9933)
+      .setTitle(sent ? `🔒 ${weapon} Queue Band Ho Gaya!` : '⚠️ Send Nahi Hua')
+      .setDescription(sent
+        ? `**${emoji} ${weapon}** queue band kar di gayi.\nClosed embed <#${targetCh.id}> mein send ho gaya.\nQueue clear ho gayi.`
+        : `Closed embed send nahi hua. Bot permission check karo.`
+      )
+      .addFields(
+        { name: `${emoji} Gamemode`, value: weapon,              inline: true },
+        { name: '📢 Channel',        value: `<#${targetCh.id}>`, inline: true },
+        { name: '📋 Reason',         value: reason,              inline: true },
+      )
+      .setFooter({ text: BOT_FOOTER })
+      .setTimestamp()] });
+  },
+};
+
+// ════════════════════════════════════════════════════════════
 //  INTERACTION HANDLER — Registration Flow (Select Menus)
 // ════════════════════════════════════════════════════════════
 
