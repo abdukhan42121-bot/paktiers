@@ -241,16 +241,59 @@
     margin-top: 2px;
   }
 
-  .tiers-cell { display: flex; flex-wrap: wrap; gap: 5px; }
-
-  .tier-badge {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: .7rem; padding: 3px 8px;
-    border-radius: 2px; font-weight: 700;
-    border: 1px solid currentColor;
-    opacity: .9;
-    white-space: nowrap;
+  .tiers-cell {
+    display: grid;
+    grid-template-columns: repeat(8, minmax(42px, 1fr));
+    gap: 10px;
+    align-items: start;
+    width: 100%;
+    min-width: 420px;
   }
+
+  .tier-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .tier-circle {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    background: #0b1118;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .tier-circle img {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    display: block;
+  }
+
+  .tier-slot.empty .tier-circle {
+    border-style: dashed;
+    opacity: .38;
+  }
+
+  .tier-value {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .62rem;
+    line-height: 1;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--muted);
+    text-align: center;
+  }
+
 
   .pts-cell {
     font-family: 'Orbitron', sans-serif;
@@ -662,7 +705,7 @@
             <th class="lb-header">#</th>
             <th class="lb-header">Player</th>
             <th class="lb-header">Tiers</th>
-            <th class="lb-header" style="text-align:right">Points</th>
+            <th class="lb-header" style="text-align:right">Region</th>
           </tr>
         </thead>
         <tbody id="lbBody">
@@ -729,6 +772,34 @@ const TIER_COLOR = {
   HT1:'#FF6B00', LT1:'#FF9933', HT2:'#FFB800', LT2:'#FFD700',
   HT3:'#00C864', LT3:'#00A550', HT4:'#4FC3F7', LT4:'#29B6F6',
   HT5:'#888888', LT5:'#555555'};
+
+const GAMEMODE_ORDER = ['Sword', 'Axe', 'Mace', 'Crystal', 'Netherite', 'UHC', 'Pot', 'SMP'];
+
+function getGamemodeIconHTML(mode) {
+  const btn = [...document.querySelectorAll('.weapon-btn')].find(
+    b => (b.getAttribute('onclick') || '').includes(`filterWeapon('${mode}'`)
+  );
+  const src = btn?.querySelector('img')?.getAttribute('src');
+  return src ? `<img src="${src}" alt="${mode}">` : '🎮';
+}
+
+function renderTierSlots(tiers = {}) {
+  return GAMEMODE_ORDER.map(mode => {
+    const tier = tiers[mode];
+    const iconHTML = getGamemodeIconHTML(mode);
+    const color = tier ? (TIER_COLOR[tier] || '#888') : 'var(--dim)';
+    const emptyClass = tier ? '' : ' empty';
+    const title = tier ? `${mode}: ${tier}` : `${mode}: —`;
+
+    return `
+      <div class="tier-slot${emptyClass}" title="${title}">
+        <div class="tier-circle" style="border-color:${color};${tier ? `box-shadow:0 0 0 1px ${color} inset, 0 0 10px ${color}22;` : ''}">
+          ${iconHTML}
+        </div>
+        <div class="tier-value" style="color:${color}">${tier || '—'}</div>
+      </div>`;
+  }).join('');
+}
 
 // ─────────────────────────────────────────────────────────────
 //  TABS
@@ -823,9 +894,7 @@ function renderLeaderboard(players, highlightIgn = null) {
     const globalIdx = players.indexOf(p);
     const rankClass = globalIdx === 0 ? 'gold' : globalIdx === 1 ? 'silver' : globalIdx === 2 ? 'bronze' : '';
     const medal     = globalIdx === 0 ? '🥇'  : globalIdx === 1 ? '🥈'     : globalIdx === 2 ? '🥉'     : `${globalIdx+1}`;
-    const tierBadges = Object.entries(p.tiers || {}).map(([w, t]) =>
-      `<span class="tier-badge" style="color:${TIER_COLOR[t]||'#888'}">${w[0]} ${t}</span>`
-    ).join('');
+    const tierGrid = renderTierSlots(p.tiers || {});
     const highlight = highlightIgn && p.ign === highlightIgn ? ' highlight' : '';
 
     // Build serialized player data for modal
@@ -850,8 +919,8 @@ function renderLeaderboard(players, highlightIgn = null) {
             </div>
           </div>
         </td>
-        <td class="lb-cell"><div class="tiers-cell">${tierBadges || '<span style="color:var(--dim);font-size:.8rem">—</span>'}</div></td>
-        <td class="lb-cell"><div class="pts-cell">${p.totalPts}</div></td>
+        <td class="lb-cell"><div class="tiers-cell">${tierGrid}</div></td>
+        <td class="lb-cell"><div class="pts-cell">${p.region || p.regionName || "—"}</div></td>
       </tr>`;
   }).join('');
 }
