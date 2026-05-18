@@ -1988,7 +1988,82 @@ CMDS.closequeue = {
 };
 
 // ════════════════════════════════════════════════════════════
-//  /logs — TESTER KE DAILY TIER LOGS (Tierer/Admin only)
+//  /synclogs — PURANE TIERS KO LOGS MEIN ADD KARO
+//  players.json se saare existing tiers sync karta hai
+// ════════════════════════════════════════════════════════════
+CMDS.synclogs = {
+  data: new SlashCommandBuilder()
+    .setName('synclogs')
+    .setDescription('Purane saare tiers ko tier_logs mein sync karo (Admin only)'),
+
+  async execute(i) {
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isAdmin)
+      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Sirf **Admin** yeh command use kar sakta hai.')] });
+
+    await i.deferReply({ ephemeral: true });
+
+    const allPlayers = LDB.all();
+    const existing   = loadTierLogs();
+
+    // Existing logs mein already synced entries mark karo (duplicate avoid)
+    const alreadySynced = new Set(
+      existing.filter(l => l.synced).map(l => `${l.playerId}_${l.weapon}`)
+    );
+
+    let added = 0;
+    const newEntries = [];
+
+    for (const player of Object.values(allPlayers)) {
+      for (const [weapon, tier] of Object.entries(player.tiers || {})) {
+        const key = `${player.discordId}_${weapon}`;
+        if (alreadySynced.has(key)) continue;
+
+        newEntries.push({
+          tieredBy:    'SYNC',
+          tieredByTag: 'synced-from-db',
+          playerId:    player.discordId,
+          playerIGN:   player.ign,
+          weapon,
+          tier,
+          oldTier:     null,
+          timestamp:   player.registeredAt || Date.now(),
+          synced:      true,  // flag — yeh manually synced entry hai
+        });
+        added++;
+      }
+    }
+
+    // Save all new entries
+    if (newEntries.length) {
+      const merged = [...existing, ...newEntries];
+      try {
+        fs.writeFileSync(TIER_LOG_FILE, JSON.stringify(merged, null, 2));
+      } catch(err) {
+        return i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF4444)
+          .setDescription(`❌ File save error: ${err.message}`)] });
+      }
+    }
+
+    return i.editReply({ embeds: [new EmbedBuilder()
+      .setColor(BRAND_COLOR)
+      .setTitle('✅ Logs Sync Ho Gaye!')
+      .addFields(
+        { name: '👥 Players Scanned', value: `**${Object.keys(allPlayers).length}**`, inline: true },
+        { name: '📋 Entries Added',   value: `**${added}**`,                          inline: true },
+        { name: '⏭️ Already Synced',  value: `**${alreadySynced.size}**`,             inline: true },
+      )
+      .setDescription(added > 0
+        ? `${added} tier entries sync ho gayi hain. Ab \`/logs\` use karo kisi bhi tester ke logs dekhne ke liye.`
+        : `Saare entries pehle se sync hain. Koi naya entry nahi mila.`
+      )
+      .setFooter({ text: BOT_FOOTER })
+      .setTimestamp()] });
+  },
+};
+
+
 //  Usage: /logs user:<discord_user>
 //         /logs username:"XYZ"
 // ════════════════════════════════════════════════════════════
