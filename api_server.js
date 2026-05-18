@@ -464,23 +464,7 @@ function getCooldown(discordId, weapon) {
   return db[discordId]?.[weapon] || null;
 }
 
-// ── TIER LOGS — /logs command ke liye ────────────────────────
-const TIER_LOG_FILE = path.join(DATA_DIR, 'tier_logs.json');
-function loadTierLogs() {
-  try {
-    if (fs.existsSync(TIER_LOG_FILE)) return JSON.parse(fs.readFileSync(TIER_LOG_FILE, 'utf8'));
-  } catch(_) {}
-  return [];
-}
-function saveTierLog(entry) {
-  try {
-    const logs = loadTierLogs();
-    logs.push(entry);
-    // Sirf last 5000 entries rakhte hain memory save karne ke liye
-    if (logs.length > 5000) logs.splice(0, logs.length - 5000);
-    fs.writeFileSync(TIER_LOG_FILE, JSON.stringify(logs, null, 2));
-  } catch(_) {}
-}
+
 
 function isOnCooldown(discordId, weapon) {
   const ts = getCooldown(discordId, weapon);
@@ -499,6 +483,23 @@ function isOnCooldown(discordId, weapon) {
 // ── LOCAL FILE DB ─────────────────────────────────────────
 const DATA_DIR = path.join(__dirname, 'paktiers_data');
 const PF = path.join(DATA_DIR, 'players.json');
+
+// ── TIER LOGS — /logs command ke liye ────────────────────────
+const TIER_LOG_FILE = path.join(DATA_DIR, 'tier_logs.json');
+function loadTierLogs() {
+  try {
+    if (fs.existsSync(TIER_LOG_FILE)) return JSON.parse(fs.readFileSync(TIER_LOG_FILE, 'utf8'));
+  } catch(_) {}
+  return [];
+}
+function saveTierLog(entry) {
+  try {
+    const logs = loadTierLogs();
+    logs.push(entry);
+    if (logs.length > 5000) logs.splice(0, logs.length - 5000);
+    fs.writeFileSync(TIER_LOG_FILE, JSON.stringify(logs, null, 2));
+  } catch(_) {}
+}
 const QF = path.join(DATA_DIR, 'queue.json');
 const MF = path.join(DATA_DIR, 'matches.json');
 const TF = path.join(DATA_DIR, 'tickets.json');
