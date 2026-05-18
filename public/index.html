@@ -709,13 +709,13 @@
 
 <script>
 // ─────────────────────────────────────────────────────────────
-//  CONFIG
-//  Railway deploy ke baad apna URL yahan daalo:
-const API = 'https://paktiers-api.up.railway.app';
-const WS  = 'wss://paktiers-api.up.railway.app';
+//  CONFIG — Auto-detect: same server pe chal raha hai (Railway + local dono)
+const API = window.location.origin;
+const WS  = window.location.origin.replace(/^https/, 'wss').replace(/^http/, 'ws');
 // ─────────────────────────────────────────────────────────────
-//  const API = window.location.origin;
-//  const WS  = window.location.origin.replace(/^http/, 'ws');
+//  Agar alag server pe deploy karo to neeche hardcode karo:
+//  const API = 'https://paktiers-api.up.railway.app';
+//  const WS  = 'wss://paktiers-api.up.railway.app';
 
 // ─────────────────────────────────────────────────────────────
 //  STATE
