@@ -464,6 +464,24 @@ function getCooldown(discordId, weapon) {
   return db[discordId]?.[weapon] || null;
 }
 
+// ── TIER LOGS — /logs command ke liye ────────────────────────
+const TIER_LOG_FILE = path.join(DATA_DIR, 'tier_logs.json');
+function loadTierLogs() {
+  try {
+    if (fs.existsSync(TIER_LOG_FILE)) return JSON.parse(fs.readFileSync(TIER_LOG_FILE, 'utf8'));
+  } catch(_) {}
+  return [];
+}
+function saveTierLog(entry) {
+  try {
+    const logs = loadTierLogs();
+    logs.push(entry);
+    // Sirf last 5000 entries rakhte hain memory save karne ke liye
+    if (logs.length > 5000) logs.splice(0, logs.length - 5000);
+    fs.writeFileSync(TIER_LOG_FILE, JSON.stringify(logs, null, 2));
+  } catch(_) {}
+}
+
 function isOnCooldown(discordId, weapon) {
   const ts = getCooldown(discordId, weapon);
   if (!ts) return { onCooldown: false };
@@ -1055,6 +1073,17 @@ CMDS.tier = {
       LDB.setTier(target.id, weapon, tier);
       // Set cooldown
       saveCooldown(target.id, weapon);
+      // Log the tier action
+      saveTierLog({
+        tieredBy:     i.user.id,
+        tieredByTag:  i.user.username,
+        playerId:     target.id,
+        playerIGN:    player.ign,
+        weapon,
+        tier,
+        oldTier:      oldTier || null,
+        timestamp:    Date.now(),
+      });
       broadcast({ type:'tier_updated', discordId:target.id, ign:player.ign, weapon, tier, oldTier });
 
       // Auto assign Discord role
@@ -1761,6 +1790,17 @@ CMDS.startqueue = {
       } catch(_) {}
     }
 
+    // ── Delete "Queue Closed" embed if it exists ──────────────
+    if (panels[`closed_${weapon}`]?.channelId && panels[`closed_${weapon}`]?.messageId) {
+      try {
+        const closedCh  = await i.client.channels.fetch(panels[`closed_${weapon}`].channelId).catch(() => null);
+        const closedMsg = closedCh ? await closedCh.messages.fetch(panels[`closed_${weapon}`].messageId).catch(() => null) : null;
+        if (closedMsg) await closedMsg.delete().catch(() => {});
+      } catch(_) {}
+      delete panels[`closed_${weapon}`];
+      saveSQPanels(panels);
+    }
+
     // ── Send the live panel ───────────────────────────────────
     let sentMsg = null;
     try {
@@ -1918,8 +1958,12 @@ CMDS.closequeue = {
     // ── Send closed embed to waitlist channel ─────────────────
     let sent = false;
     try {
-      await targetCh.send({ embeds: [closedEmbed] });
+      const closedMsg = await targetCh.send({ embeds: [closedEmbed] });
       sent = true;
+      // Save closed message ID so /startqueue can delete it later
+      const sqPanelsAfter = loadSQPanels();
+      sqPanelsAfter[`closed_${weapon}`] = { channelId: targetCh.id, messageId: closedMsg.id };
+      saveSQPanels(sqPanelsAfter);
     } catch(err) {
       console.error('[CLOSEQUEUE SEND ERROR]', err.message);
     }
@@ -1939,6 +1983,145 @@ CMDS.closequeue = {
       )
       .setFooter({ text: BOT_FOOTER })
       .setTimestamp()] });
+  },
+};
+
+// ════════════════════════════════════════════════════════════
+//  /logs — TESTER KE DAILY TIER LOGS (Tierer/Admin only)
+//  Usage: /logs user:<discord_user>
+//         /logs username:"XYZ"
+// ════════════════════════════════════════════════════════════
+CMDS.logs = {
+  data: new SlashCommandBuilder()
+    .setName('logs')
+    .setDescription('Kisi tester ke aaj ke tier logs dekho (Tierer/Admin only)')
+    .addUserOption(o => o
+      .setName('user')
+      .setDescription('Tester ka Discord mention')
+      .setRequired(false)
+    )
+    .addStringOption(o => o
+      .setName('username')
+      .setDescription('Tester ka Discord username (agar mention nahi kar sakte)')
+      .setRequired(false)
+    )
+    .addStringOption(o => o
+      .setName('date')
+      .setDescription('Din chunno: today / yesterday / all (default: today)')
+      .setRequired(false)
+      .addChoices(
+        { name: 'Today (Aaj)',        value: 'today'     },
+        { name: 'Yesterday (Kal)',    value: 'yesterday' },
+        { name: 'All Time (Saare)',   value: 'all'       },
+      )
+    ),
+
+  async execute(i) {
+    // ── Permission check ─────────────────────────────────────
+    const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasTierer = CONFIG.TIERER_ROLE_ID ? i.member.roles.cache.has(CONFIG.TIERER_ROLE_ID) : false;
+    if (!isAdmin && !hasTierer)
+      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ **Tierer** ya **Admin** role chahiye yeh command use karne ke liye.')] });
+
+    await i.deferReply();
+
+    const targetUser     = i.options.getUser('user');
+    const targetUsername = i.options.getString('username');
+    const dateFilter     = i.options.getString('date') || 'today';
+
+    // ── Load all logs ─────────────────────────────────────────
+    const allLogs = loadTierLogs();
+
+    if (!allLogs.length)
+      return i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF9933)
+        .setTitle('📋 Tier Logs')
+        .setDescription('⚠️ Abhi tak koi tier log nahi. Logs tabhi bante hain jab `/tier set` use hota hai.')
+        .setFooter({ text: BOT_FOOTER })] });
+
+    // ── Filter by tester ──────────────────────────────────────
+    let filtered = allLogs;
+    let labelName = 'Saare Testers';
+
+    if (targetUser) {
+      filtered  = allLogs.filter(l => l.tieredBy === targetUser.id);
+      labelName = targetUser.username;
+    } else if (targetUsername) {
+      const q = targetUsername.toLowerCase();
+      filtered  = allLogs.filter(l => (l.tieredByTag || '').toLowerCase().includes(q));
+      labelName = targetUsername;
+    }
+
+    // ── Filter by date ────────────────────────────────────────
+    const now       = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const yestStart  = todayStart - 86400000;
+
+    if (dateFilter === 'today') {
+      filtered = filtered.filter(l => l.timestamp >= todayStart);
+    } else if (dateFilter === 'yesterday') {
+      filtered = filtered.filter(l => l.timestamp >= yestStart && l.timestamp < todayStart);
+    }
+    // 'all' = no date filter
+
+    // ── No results ────────────────────────────────────────────
+    if (!filtered.length) {
+      const dateLabel = dateFilter === 'today' ? 'aaj' : dateFilter === 'yesterday' ? 'kal' : 'kabhi';
+      return i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF9933)
+        .setTitle(`📋 Logs — ${labelName}`)
+        .setDescription(`⚠️ **${labelName}** ne ${dateLabel} koi tier set nahi kiya.`)
+        .setFooter({ text: BOT_FOOTER })] });
+    }
+
+    // ── Build stats ───────────────────────────────────────────
+    const totalTests = filtered.length;
+
+    // Per-weapon breakdown
+    const weaponCount = {};
+    for (const l of filtered) {
+      weaponCount[l.weapon] = (weaponCount[l.weapon] || 0) + 1;
+    }
+    const weaponLines = Object.entries(weaponCount)
+      .sort((a, b) => b[1] - a[1])
+      .map(([w, c]) => `${WEAPON_EMOJI[w] || '⚔️'} **${w}** — ${c} test${c > 1 ? 's' : ''}`)
+      .join('\n');
+
+    // Per-tier breakdown
+    const tierCount = {};
+    for (const l of filtered) {
+      tierCount[l.tier] = (tierCount[l.tier] || 0) + 1;
+    }
+    const tierLines = Object.entries(tierCount)
+      .sort((a, b) => (TIER_PTS[b[0]] || 0) - (TIER_PTS[a[0]] || 0))
+      .map(([t, c]) => `\`${t}\` — ${c}x`)
+      .join('  ');
+
+    // Recent 10 entries (latest first)
+    const recent = [...filtered].reverse().slice(0, 10);
+    const recentLines = recent.map(l => {
+      const time = new Date(l.timestamp).toLocaleTimeString('en-PK', {
+        hour: '2-digit', minute: '2-digit', hour12: true,
+      });
+      const arrow = l.oldTier ? `~~${l.oldTier}~~ → ` : '';
+      return `• \`${time}\` **${l.playerIGN}** — ${WEAPON_EMOJI[l.weapon] || '⚔️'} ${l.weapon} ${arrow}**${l.tier}**`;
+    }).join('\n');
+
+    // Date label for embed title
+    const dateLabelMap = { today: 'Aaj', yesterday: 'Kal', all: 'All Time' };
+
+    const embed = new EmbedBuilder()
+      .setColor(BRAND_COLOR)
+      .setTitle(`📊 Tier Logs — ${labelName} (${dateLabelMap[dateFilter]})`)
+      .addFields(
+        { name: '🔢 Total Tests', value: `**${totalTests}**`, inline: true },
+        { name: '⚔️ Weapons',    value: weaponLines || '*N/A*', inline: false },
+        { name: '🏅 Tiers Given', value: tierLines  || '*N/A*', inline: false },
+        { name: `📋 Recent ${Math.min(10, filtered.length)} Entries`, value: recentLines, inline: false },
+      )
+      .setFooter({ text: `${BOT_FOOTER} · /logs` })
+      .setTimestamp();
+
+    return i.editReply({ embeds: [embed] });
   },
 };
 
