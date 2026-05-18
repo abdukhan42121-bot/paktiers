@@ -1783,6 +1783,8 @@ CMDS.startqueue = {
 
     // ── Delete old panel for this weapon if exists ────────────
     const panels = loadSQPanels();
+    console.log(`[STARTQUEUE] panels keys: ${Object.keys(panels).join(', ')}`);
+
     if (panels[weapon]?.channelId && panels[weapon]?.messageId) {
       try {
         const oldCh  = await i.client.channels.fetch(panels[weapon].channelId).catch(() => null);
@@ -1792,13 +1794,22 @@ CMDS.startqueue = {
     }
 
     // ── Delete "Queue Closed" embed if it exists ──────────────
-    if (panels[`closed_${weapon}`]?.channelId && panels[`closed_${weapon}`]?.messageId) {
+    const closedKey = `closed_${weapon}`;
+    console.log(`[STARTQUEUE] closedKey: ${closedKey}, exists: ${!!panels[closedKey]}`);
+    if (panels[closedKey]?.channelId && panels[closedKey]?.messageId) {
       try {
-        const closedCh  = await i.client.channels.fetch(panels[`closed_${weapon}`].channelId).catch(() => null);
-        const closedMsg = closedCh ? await closedCh.messages.fetch(panels[`closed_${weapon}`].messageId).catch(() => null) : null;
-        if (closedMsg) await closedMsg.delete().catch(() => {});
-      } catch(_) {}
-      delete panels[`closed_${weapon}`];
+        const closedCh  = await i.client.channels.fetch(panels[closedKey].channelId).catch(() => null);
+        const closedMsg = closedCh ? await closedCh.messages.fetch(panels[closedKey].messageId).catch(() => null) : null;
+        if (closedMsg) {
+          await closedMsg.delete().catch(() => {});
+          console.log(`[STARTQUEUE] Deleted closed embed for ${weapon}`);
+        } else {
+          console.log(`[STARTQUEUE] Closed msg not found in channel (may be already deleted)`);
+        }
+      } catch(e) {
+        console.error(`[STARTQUEUE] Error deleting closed msg:`, e.message);
+      }
+      delete panels[closedKey];
       saveSQPanels(panels);
     }
 
@@ -1961,10 +1972,11 @@ CMDS.closequeue = {
     try {
       const closedMsg = await targetCh.send({ embeds: [closedEmbed] });
       sent = true;
-      // Save closed message ID so /startqueue can delete it later
-      const sqPanelsAfter = loadSQPanels();
-      sqPanelsAfter[`closed_${weapon}`] = { channelId: targetCh.id, messageId: closedMsg.id };
-      saveSQPanels(sqPanelsAfter);
+      // Save closed message ID — fresh load karo taake koi key miss na ho
+      const freshPanels = loadSQPanels();
+      freshPanels[`closed_${weapon}`] = { channelId: targetCh.id, messageId: closedMsg.id };
+      saveSQPanels(freshPanels);
+      console.log(`[CLOSEQUEUE] Saved closed_${weapon} messageId: ${closedMsg.id}`);
     } catch(err) {
       console.error('[CLOSEQUEUE SEND ERROR]', err.message);
     }
@@ -2118,14 +2130,27 @@ CMDS.logs = {
     // ── Filter by tester ──────────────────────────────────────
     let filtered = allLogs;
     let labelName = 'Saare Testers';
+    let searchedByPlayer = false;
 
     if (targetUser) {
-      filtered  = allLogs.filter(l => l.tieredBy === targetUser.id);
+      // Discord mention — match by ID, exclude synced entries
+      filtered  = allLogs.filter(l => l.tieredBy === targetUser.id && !l.synced);
       labelName = targetUser.username;
     } else if (targetUsername) {
       const q = targetUsername.toLowerCase();
-      filtered  = allLogs.filter(l => (l.tieredByTag || '').toLowerCase().includes(q));
-      labelName = targetUsername;
+      // Pehle tester username se dhundo (non-synced)
+      const byTester = allLogs.filter(l =>
+        !l.synced && (l.tieredByTag || '').toLowerCase().includes(q)
+      );
+      if (byTester.length > 0) {
+        filtered  = byTester;
+        labelName = targetUsername;
+      } else {
+        // Tester nahi mila — player IGN se try karo (synced data)
+        filtered  = allLogs.filter(l => (l.playerIGN || '').toLowerCase().includes(q));
+        labelName = targetUsername;
+        searchedByPlayer = filtered.length > 0;
+      }
     }
 
     // ── Filter by date ────────────────────────────────────────
@@ -2145,7 +2170,11 @@ CMDS.logs = {
       const dateLabel = dateFilter === 'today' ? 'aaj' : dateFilter === 'yesterday' ? 'kal' : 'kabhi';
       return i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF9933)
         .setTitle(`📋 Logs — ${labelName}`)
-        .setDescription(`⚠️ **${labelName}** ne ${dateLabel} koi tier set nahi kiya.`)
+        .setDescription(
+          `⚠️ **${labelName}** ke naam se koi log nahi mila.\n\n` +
+          `• Agar tester hai: \`/logs user:@mention\` try karo\n` +
+          `• Purane data ke liye: \`date:all\` option use karo`
+        )
         .setFooter({ text: BOT_FOOTER })] });
     }
 
@@ -2184,10 +2213,14 @@ CMDS.logs = {
 
     // Date label for embed title
     const dateLabelMap = { today: 'Aaj', yesterday: 'Kal', all: 'All Time' };
+    const syncNotice = searchedByPlayer
+      ? '\n⚠️ *Yeh purana synced data hai — tester naam available nahi tha.*'
+      : '';
 
     const embed = new EmbedBuilder()
       .setColor(BRAND_COLOR)
       .setTitle(`📊 Tier Logs — ${labelName} (${dateLabelMap[dateFilter]})`)
+      .setDescription(syncNotice || null)
       .addFields(
         { name: '🔢 Total Tests', value: `**${totalTests}**`, inline: true },
         { name: '⚔️ Weapons',    value: weaponLines || '*N/A*', inline: false },
