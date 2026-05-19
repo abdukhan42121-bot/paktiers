@@ -325,9 +325,16 @@ function findPlayerByUuidOrIgn(query) {
 
 app.get('/v2/mode/list', (req,res) => {
   res.json({
-    mace:'Mace', crystal:'Crystal', sword:'Sword', axe:'Axe',
-    netherite:'Netherite', vanilla:'Vanilla', uhc:'UHC',
-    pot:'Pot', nethop:'NethOP', smp:'SMP',
+    mace:      { title:'Mace' },
+    crystal:   { title:'Crystal' },
+    sword:     { title:'Sword' },
+    axe:       { title:'Axe' },
+    netherite: { title:'Netherite' },
+    vanilla:   { title:'Vanilla' },
+    uhc:       { title:'UHC' },
+    pot:       { title:'Pot' },
+    nethop:    { title:'NethOP' },
+    smp:       { title:'SMP' },
   });
 });
 
