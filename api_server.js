@@ -90,7 +90,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ── IN-MEMORY DB ──────────────────────────────────────────
 const MEM = {
   players:   {},
-  queues:    { Mace:[], Crystal:[], Sword:[], Axe:[], Netherite:[], Vanilla:[], UHC:[], Pot:[], NethOP:[], SMP:[] },
+  queues:    { Mace:[], Crystal:[], Sword:[], Axe:[], Netherite:[], Vanilla:[], UHC:[], Pot:[], NethOP:[], SMP:[], Carting:[] },
   matches:   [],
   cooldowns: {},   // { discordId: { weapon: timestamp } }
   tickets:   {},   // { discordId: channelId }
@@ -258,7 +258,7 @@ app.get('/api/queue', (req,res) => {
 const WEAPON_TO_MOD_GAMEMODE = {
   Mace:'mace', Crystal:'crystal', Sword:'sword', Axe:'axe',
   Netherite:'netherite', Vanilla:'vanilla', UHC:'uhc',
-  Pot:'pot', NethOP:'nethop', SMP:'smp',
+  Pot:'pot', NethOP:'nethop', SMP:'smp', Carting:'carting',
 };
 const TIER_TO_MOD_VALUE = {
   HT1:100,LT1:90,HT2:80,LT2:70,HT3:60,LT3:50,HT4:40,LT4:30,HT5:20,LT5:10,
@@ -325,16 +325,9 @@ function findPlayerByUuidOrIgn(query) {
 
 app.get('/v2/mode/list', (req,res) => {
   res.json({
-    mace:      { title:'Mace' },
-    crystal:   { title:'Crystal' },
-    sword:     { title:'Sword' },
-    axe:       { title:'Axe' },
-    netherite: { title:'Netherite' },
-    vanilla:   { title:'Vanilla' },
-    uhc:       { title:'UHC' },
-    pot:       { title:'Pot' },
-    nethop:    { title:'NethOP' },
-    smp:       { title:'SMP' },
+    mace:'Mace', crystal:'Crystal', sword:'Sword', axe:'Axe',
+    netherite:'Netherite', vanilla:'Vanilla', uhc:'UHC',
+    pot:'Pot', nethop:'NethOP', smp:'SMP', carting:'Carting',
   });
 });
 
@@ -371,15 +364,15 @@ app.get('/v2/profile/:uuid', (req,res) => {
 // ════════════════════════════════════════════════════════════
 //  DISCORD BOT
 // ════════════════════════════════════════════════════════════
-const WEAPONS = ['Mace','Crystal','Sword','Axe','Netherite','Vanilla','UHC','Pot','NethOP','SMP'];
+const WEAPONS = ['Mace','Crystal','Sword','Axe','Netherite','Vanilla','UHC','Pot','NethOP','SMP','Carting'];
 const TIERS   = ['HT1','LT1','HT2','LT2','HT3','LT3','HT4','LT4','HT5','LT5'];
 const WEAPON_EMOJI = {
   Mace:'🔨', Crystal:'💠', Sword:'⚔️', Axe:'🪓', Netherite:'🪨',
-  Vanilla:'🔮', UHC:'🔥', Pot:'🧪', NethOP:'⚫', SMP:'🟢',
+  Vanilla:'🔮', UHC:'🔥', Pot:'🧪', NethOP:'⚫', SMP:'🟢', Carting:'🛒',
 };
 const WEAPON_TO_MCTIERS = {
   Mace:'mace', Crystal:'vanilla', Sword:'sword', Axe:'axe', Netherite:'netherite',
-  Vanilla:'vanilla', UHC:'uhc', Pot:'pot', NethOP:'nethop', SMP:'smp',
+  Vanilla:'vanilla', UHC:'uhc', Pot:'pot', NethOP:'nethop', SMP:'smp', Carting:'carting',
 };
 const TIER_COLOR = {
   HT1:0xFF6B00, LT1:0xFF9933, HT2:0xFFB800, LT2:0xFFD700,
@@ -514,7 +507,7 @@ const TF = path.join(DATA_DIR, 'tickets.json');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive:true });
 const initF = (f, d) => { if (!fs.existsSync(f)) fs.writeFileSync(f, JSON.stringify(d, null, 2)); };
 initF(PF, {});
-initF(QF, { Mace:[],Crystal:[],Sword:[],Axe:[],Netherite:[],Vanilla:[],UHC:[],Pot:[],NethOP:[],SMP:[] });
+initF(QF, { Mace:[],Crystal:[],Sword:[],Axe:[],Netherite:[],Vanilla:[],UHC:[],Pot:[],NethOP:[],SMP:[],Carting:[] });
 initF(MF, []);
 initF(TF, {});
 
@@ -757,7 +750,7 @@ async function assignTierRole(guild, member, weapon, tier, oldTier) {
 
 // Pre-warm role cache on bot ready (ensure all 100 roles exist)
 async function ensureAllRoles(guild) {
-  const WEAPONS_LIST = ['Mace','Crystal','Sword','Axe','Netherite','Vanilla','UHC','Pot','NethOP','SMP'];
+  const WEAPONS_LIST = ['Mace','Crystal','Sword','Axe','Netherite','Vanilla','UHC','Pot','NethOP','SMP','Carting'];
   const TIERS_LIST   = ['HT1','LT1','HT2','LT2','HT3','LT3','HT4','LT4','HT5','LT5'];
   console.log('[ROLE] Ensuring all tier roles exist...');
   for (const w of WEAPONS_LIST) {
