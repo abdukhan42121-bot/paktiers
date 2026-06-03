@@ -42,8 +42,9 @@ const CONFIG = {
   TICKET_STAFF_ROLE_ID: process.env.TICKET_STAFF_ROLE_ID || '',   // Staff role jo tickets me ping ho
   VERIFIED_ROLE_ID:          process.env.VERIFIED_ROLE_ID          || '',   // Role jo register ke baad mile
   TESTERS_ROLE_ID:           process.env.TESTERS_ROLE_ID           || '',   // "﹂Tᴇsᴛᴇʀs ﹁ 👥" role — /startqueue use kar sakta hai
-  QUEUE_ANNOUNCE_CHANNEL_ID: process.env.QUEUE_ANNOUNCE_CHANNEL_ID || '',   // Channel jahan @everyone ping jayega
-  PANEL_CHANNEL_ID:          process.env.PANEL_CHANNEL_ID          || '',   // Channel jahan waitlist panel msg rahega (for /setuppanel)
+  QUEUE_ANNOUNCE_CHANNEL_ID: process.env.QUEUE_ANNOUNCE_CHANNEL_ID || '',   // Channel where @everyone ping will be sent
+  PANEL_CHANNEL_ID:          process.env.PANEL_CHANNEL_ID          || '',   // Channel where waitlist panel message stays (for /setuppanel)
+  REG_LOGS_CHANNEL_ID:       process.env.REG_LOGS_CHANNEL_ID       || '',   // Channel for registration logs
 
   API_SECRET: process.env.API_SECRET || 'paktiers-secret-change-me',
   PORT:       process.env.PORT       || 3001,
@@ -90,11 +91,30 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ── IN-MEMORY DB ──────────────────────────────────────────
 const MEM = {
   players:   {},
-  queues:    { Mace:[], Crystal:[], Sword:[], Axe:[], Netherite:[], Vanilla:[], UHC:[], Pot:[], NethOP:[], SMP:[], Carting:[] },
+  queues:    { Mace:[], SpearMace:[], Crystal:[], Sword:[], Axe:[], Netherite:[], UHC:[], Pot:[], SMP:[], Cart:[] },
   matches:   [],
   cooldowns: {},   // { discordId: { weapon: timestamp } }
   tickets:   {},   // { discordId: channelId }
 };
+
+const REMOVED_GAMEMODES = new Set(['Vanilla', 'NethOP']);
+const GAMEMODE_ALIASES = { Carting: 'Cart' };
+
+function normalizeGamemodeName(name) {
+  if (!name) return name;
+  if (REMOVED_GAMEMODES.has(name)) return null;
+  return GAMEMODE_ALIASES[name] || name;
+}
+
+function sanitizeGamemodeObject(obj) {
+  const out = {};
+  for (const [key, value] of Object.entries(obj || {})) {
+    const normalized = normalizeGamemodeName(key);
+    if (!normalized) continue;
+    out[normalized] = value;
+  }
+  return out;
+}
 
 function requireSecret(req, res, next) {
   if (req.headers['x-api-secret'] !== CONFIG.API_SECRET)
@@ -364,15 +384,15 @@ app.get('/v2/profile/:uuid', (req,res) => {
 // ════════════════════════════════════════════════════════════
 //  DISCORD BOT
 // ════════════════════════════════════════════════════════════
-const WEAPONS = ['Mace','Crystal','Sword','Axe','Netherite','Vanilla','UHC','Pot','NethOP','SMP','Carting'];
+const WEAPONS = ['Mace','SpearMace','Crystal','Sword','Axe','Netherite','UHC','Pot','SMP','Cart'];
 const TIERS   = ['HT1','LT1','HT2','LT2','HT3','LT3','HT4','LT4','HT5','LT5'];
 const WEAPON_EMOJI = {
-  Mace:'🔨', Crystal:'💠', Sword:'⚔️', Axe:'🪓', Netherite:'🪨',
-  Vanilla:'🔮', UHC:'🔥', Pot:'🧪', NethOP:'⚫', SMP:'🟢', Carting:'🛒',
+  Mace:'🔨', SpearMace:'🔱', Crystal:'💠', Sword:'⚔️', Axe:'🪓', Netherite:'🪨',
+  UHC:'🔥', Pot:'🧪', SMP:'🟢', Cart:'🛒',
 };
 const WEAPON_TO_MCTIERS = {
-  Mace:'mace', Crystal:'vanilla', Sword:'sword', Axe:'axe', Netherite:'netherite',
-  Vanilla:'vanilla', UHC:'uhc', Pot:'pot', NethOP:'nethop', SMP:'smp', Carting:'carting',
+  Mace:'mace', SpearMace:'spearmace', Crystal:'crystal', Sword:'sword', Axe:'axe', Netherite:'netherite',
+  UHC:'uhc', Pot:'pot', SMP:'smp', Cart:'cart',
 };
 const TIER_COLOR = {
   HT1:0xFF6B00, LT1:0xFF9933, HT2:0xFFB800, LT2:0xFFD700,
@@ -436,6 +456,18 @@ async function ensureRole(guild, weapon, tier) {
 
   roleCache[weapon][tier] = role.id;
   return role;
+}
+
+function getGamemodeRoleId(guild, weapon, tier) {
+  if (!guild || !weapon || !tier) return null;
+  const cached = roleCache[weapon]?.[tier];
+  if (cached) return cached;
+  const name = roleName(weapon, tier);
+  const role = guild.roles.cache.find(r => r.name === name);
+  if (!role) return null;
+  if (!roleCache[weapon]) roleCache[weapon] = {};
+  roleCache[weapon][tier] = role.id;
+  return role.id;
 }
 
 function getTierLabel(t) {
@@ -503,22 +535,42 @@ function saveTierLog(entry) {
 const QF = path.join(DATA_DIR, 'queue.json');
 const MF = path.join(DATA_DIR, 'matches.json');
 const TF = path.join(DATA_DIR, 'tickets.json');
+const SF = path.join(DATA_DIR, 'settings.json');
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive:true });
 const initF = (f, d) => { if (!fs.existsSync(f)) fs.writeFileSync(f, JSON.stringify(d, null, 2)); };
 initF(PF, {});
-initF(QF, { Mace:[],Crystal:[],Sword:[],Axe:[],Netherite:[],Vanilla:[],UHC:[],Pot:[],NethOP:[],SMP:[],Carting:[] });
+initF(QF, { Mace:[], SpearMace:[], Crystal:[], Sword:[], Axe:[], Netherite:[], UHC:[], Pot:[], SMP:[], Cart:[] });
 initF(MF, []);
 initF(TF, {});
+initF(SF, { regLogsChannelId: '' });
 
 const rDB = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
 const wDB = (f, d) => fs.writeFileSync(f, JSON.stringify(d, null, 2));
 
+function loadSettings() {
+  try { return rDB(SF); } catch(_) { return { regLogsChannelId: '' }; }
+}
+function saveSettings(data) {
+  try { wDB(SF, data); } catch(_) {}
+}
+
+const persistedSettings = loadSettings();
+if (persistedSettings?.regLogsChannelId) {
+  CONFIG.REG_LOGS_CHANNEL_ID = persistedSettings.regLogsChannelId;
+}
+
 function syncToMem() {
   try {
     const p=rDB(PF), q=rDB(QF), m=rDB(MF);
-    Object.assign(MEM.players, p);
-    Object.assign(MEM.queues, q);
+    const cleanPlayers = {};
+    for (const [id, player] of Object.entries(p)) {
+      const tiers = sanitizeGamemodeObject(player.tiers || {});
+      cleanPlayers[id] = { ...player, tiers };
+    }
+    const cleanQueues = sanitizeGamemodeObject(q);
+    Object.assign(MEM.players, cleanPlayers);
+    Object.assign(MEM.queues, cleanQueues);
     m.forEach(match => { if (!MEM.matches.find(x=>x.id===match.id)) MEM.matches.push(match); });
     if (fs.existsSync(getCooldownFile()))
       Object.assign(MEM.cooldowns, rDB(getCooldownFile()));
@@ -628,6 +680,29 @@ async function syncEmbed(client, player, weapon, tier, byId) {
         {name:'Tier',     value:tier,                               inline:true},
         {name:'Tiered By',value:`<@${byId}>`,                       inline:true},
       ).setTimestamp().setFooter({text:BOT_FOOTER})]});
+  } catch(_) {}
+}
+
+async function sendRegistrationLog(client, player) {
+  if (!CONFIG.REG_LOGS_CHANNEL_ID) return;
+  try {
+    const ch = await client.channels.fetch(CONFIG.REG_LOGS_CHANNEL_ID).catch(() => null);
+    if (!ch) return;
+    await ch.send({
+      embeds: [new EmbedBuilder()
+        .setColor(BRAND_COLOR)
+        .setTitle('📝 New Registration')
+        .addFields(
+          { name: 'Player', value: `${player.ign} (<@${player.discordId}>)`, inline: false },
+          { name: 'Platform', value: player.platform || 'Java Edition', inline: true },
+          { name: 'Account', value: player.accountType || 'Premium (Paid)', inline: true },
+          { name: 'Region', value: player.region || 'Pakistan 🇵🇰', inline: true },
+          { name: 'Registered At', value: `<t:${Math.floor((player.registeredAt || Date.now()) / 1000)}:F>`, inline: false },
+        )
+        .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
+        .setFooter({ text: BOT_FOOTER })
+        .setTimestamp()],
+    });
   } catch(_) {}
 }
 
@@ -750,7 +825,7 @@ async function assignTierRole(guild, member, weapon, tier, oldTier) {
 
 // Pre-warm role cache on bot ready (ensure all 100 roles exist)
 async function ensureAllRoles(guild) {
-  const WEAPONS_LIST = ['Mace','Crystal','Sword','Axe','Netherite','Vanilla','UHC','Pot','NethOP','SMP','Carting'];
+  const WEAPONS_LIST = ['Mace','SpearMace','Crystal','Sword','Axe','Netherite','UHC','Pot','SMP','Cart'];
   const TIERS_LIST   = ['HT1','LT1','HT2','LT2','HT3','LT3','HT4','LT4','HT5','LT5'];
   console.log('[ROLE] Ensuring all tier roles exist...');
   for (const w of WEAPONS_LIST) {
@@ -787,11 +862,11 @@ function buildLivePanelEmbed(weapon) {
 
   const queueTxt  = q.length
     ? q.map((e, idx) => `${idx + 1}. <@${e.discordId}>`).join('\n')
-    : '*Abhi koi queue mein nahi hai.*';
+    : '*There is nobody in the queue yet.*';
 
   const testerTxt = testers.length
     ? testers.map((id, idx) => `${idx + 1}. <@${id}>`).join('\n')
-    : '*Koi active tester nahi*';
+    : '*No active tester*';
 
   const now = new Date().toLocaleTimeString('en-PK', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
 
@@ -869,8 +944,8 @@ async function sendWaitlistPanel(channel) {
       '**Step 2: Get a Waitlist Role**\n' +
       'After registering, select any gamemode below to get the corresponding **Waitlist** role. Each role has a **2-day cooldown**.\n\n' +
       '> • **Region:** Pakistan server\n' +
-      '> • **Username:** Apna Minecraft IGN jo tune register kiya\n\n' +
-      '\u26A0\uFE0F **Failure to provide authentic information will result in a denied test.**'
+      '> • **Username:** Your registered Minecraft IGN\n\n' +
+      '\u26A0\uFE0F **Providing false information will result in a denied test.**'
     )
     .setFooter({ text: 'PakTiers · Pakistan Minecraft Community' })
     .setTimestamp();
@@ -928,33 +1003,81 @@ async function hasQueueAccess(guild, discordId, player, weapon) {
 // ════════════════════════════════════════════════════════════
 const CMDS = {};
 
+// ── /msgsend ───────────────────────────────────────────────
+CMDS.msgsend = {
+  data: new SlashCommandBuilder()
+    .setName('msgsend')
+    .setDescription('Send a message to any channel')
+    .addChannelOption(o => o.setName('channel').setDescription('Target channel').setRequired(true))
+    .addStringOption(o => o.setName('message').setDescription('Message content').setRequired(true)),
+
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Administrator permission required.')] });
+    }
+
+    const channel = i.options.getChannel('channel');
+    const message = i.options.getString('message');
+    try {
+      await channel.send({ content: message });
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x57F287)
+        .setDescription(`✅ Message sent to ${channel}.`)] });
+    } catch (err) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Could not send message: ${err.message}`)] });
+    }
+  },
+};
+
+// ── /setreglogschannel ────────────────────────────────────
+CMDS.setreglogschannel = {
+  data: new SlashCommandBuilder()
+    .setName('setreglogschannel')
+    .setDescription('Set the channel used for registration logs')
+    .addChannelOption(o => o.setName('channel').setDescription('Registration logs channel').setRequired(true)),
+
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Administrator permission required.')] });
+    }
+
+    const channel = i.options.getChannel('channel');
+    const settings = loadSettings();
+    settings.regLogsChannelId = channel.id;
+    saveSettings(settings);
+    CONFIG.REG_LOGS_CHANNEL_ID = channel.id;
+
+    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x57F287)
+      .setDescription(`✅ Registration logs channel set to ${channel}.`)] });
+  },
+};
+
 // ── /register ─────────────────────────────────────────────
 CMDS.register = {
   data: new SlashCommandBuilder()
     .setName('register')
-    .setDescription('Register karo PakTiers me — sirf designated channel me kaam karega'),
+    .setDescription('Register a player in PakTiers — works only in the designated channel'),
 
   async execute(i) {
-    // Channel check
     if (CONFIG.REGISTER_CHANNEL_ID && i.channelId !== CONFIG.REGISTER_CHANNEL_ID) {
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription(`❌ Register karne ke liye <#${CONFIG.REGISTER_CHANNEL_ID}> channel use karo.`)] });
+        .setDescription(`❌ Please use <#${CONFIG.REGISTER_CHANNEL_ID}> for registration.`)] });
     }
 
-    // Already registered?
     const existing = LDB.get(i.user.id);
     if (existing) {
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
-        .setDescription(`⚠️ Tum already **${existing.ign}** ke naam se register ho. \`/profile\` se dekh sakte ho.`)] });
+        .setDescription(`⚠️ You are already registered as **${existing.ign}**. Use \`/profile\` to view it.`)] });
     }
 
-    // Platform fixed as Java Edition — skip straight to account type
     regState.set(i.user.id, { platform: 'Java Edition' });
 
     const accRow = new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder()
         .setCustomId(`reg_account_${i.user.id}`)
-        .setPlaceholder('🔑 Account type chunno...')
+        .setPlaceholder('🔑 Choose your account type...')
         .addOptions(ACCOUNT_TYPES.map(a => ({ label:a, value:a }))),
     );
 
@@ -962,12 +1085,12 @@ CMDS.register = {
       ephemeral: true,
       embeds: [new EmbedBuilder().setColor(BRAND_COLOR)
         .setTitle('📋 PakTiers Registration — Step 1/2')
-        .setDescription('🖥️ **Platform: Java Edition**\n\nApna **account type** chunno:')
+        .setDescription('🖥️ **Platform: Java Edition**\n\nChoose your **account type**:')
         .addFields(
-          { name:'💎 Premium (Paid)', value:'Original bought Minecraft account', inline:false },
-          { name:'🏴\u200d☠️ Cracked (Free)', value:'TLauncher ya koi aur cracked launcher', inline:false },
+          { name:'💎 Premium (Paid)', value:'Official purchased Minecraft account', inline:false },
+          { name:'🏴\u200d☠️ Cracked (Free)', value:'TLauncher or any other cracked launcher', inline:false },
         )
-        .setFooter({ text:'Sirf tujhe dikh raha hai yeh | PakTiers' })],
+        .setFooter({ text:'Only you can see this | PakTiers' })],
       components: [accRow],
     });
   },
@@ -977,9 +1100,9 @@ CMDS.register = {
 CMDS.profile = {
   data: new SlashCommandBuilder()
     .setName('profile')
-    .setDescription("Player ka PakTiers profile dekho")
+    .setDescription("View a player's PakTiers profile")
     .addUserOption(o=>o.setName('user').setDescription('Discord user').setRequired(false))
-    .addStringOption(o=>o.setName('ign').setDescription('IGN se dhundo').setRequired(false)),
+    .addStringOption(o=>o.setName('ign').setDescription('Search by IGN').setRequired(false)),
 
   async execute(i) {
     await i.deferReply();
@@ -987,7 +1110,7 @@ CMDS.profile = {
     const player = ignArg ? LDB.findIGN(ignArg) : userArg ? LDB.get(userArg.id) : LDB.get(i.user.id);
     if (!player) return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
       .setTitle('❌ Player Not Found')
-      .setDescription(ignArg ? `**${ignArg}** naam ka koi player nahi mila.` : 'Tum registered nahi ho. `/register` use karo.')
+      .setDescription(ignArg ? `**${ignArg}** naam ka koi player nahi mila.` : 'You are not registered. Use `/register`.')
       .setFooter({ text:BOT_FOOTER })] });
 
     const tiers   = player.tiers||{};
@@ -996,7 +1119,7 @@ CMDS.profile = {
     const rank    = getRankTitle(pts);
     const color   = entries[0] ? TIER_COLOR[entries[0][1]] : BRAND_COLOR;
     const block   = entries.length===0
-      ? '```\nAbhi koi tier nahi. Tierer se milwao!\n```'
+      ? '```\nThere are no tiers yet. Ask a Tierer to set one!\n```'
       : '```\n'+entries.map(([w,t])=>`${w.padEnd(11)} ${getTierLabel(t).padEnd(8)}  ${TIER_BAR[t]||'▱▱▱▱▱▱▱▱▱▱'}  +${TIER_PTS[t]}pt`).join('\n')+'\n```';
 
     const ranked = Object.values(LDB.all())
@@ -1027,17 +1150,17 @@ CMDS.tier = {
   data: new SlashCommandBuilder()
     .setName('tier')
     .setDescription('Tier management (Tierer role required)')
-    .addSubcommand(s=>s.setName('set').setDescription("Player ka tier set karo")
+    .addSubcommand(s=>s.setName('set').setDescription("Set a player's tier")
       .addUserOption(o=>o.setName('player').setDescription('Discord user').setRequired(true))
       .addStringOption(o=>o.setName('weapon').setDescription('Weapon').setRequired(true)
         .addChoices(...WEAPONS.map(w=>({name:w,value:w}))))
       .addStringOption(o=>o.setName('tier').setDescription('Tier').setRequired(true)
         .addChoices(...TIERS.map(t=>({name:t,value:t})))))
-    .addSubcommand(s=>s.setName('remove').setDescription("Player ka tier hatao")
+    .addSubcommand(s=>s.setName('remove').setDescription("Remove a player's tier")
       .addUserOption(o=>o.setName('player').setDescription('Discord user').setRequired(true))
       .addStringOption(o=>o.setName('weapon').setDescription('Weapon').setRequired(true)
         .addChoices(...WEAPONS.map(w=>({name:w,value:w})))))
-    .addSubcommand(s=>s.setName('view').setDescription('Player ke saare tiers dekho')
+    .addSubcommand(s=>s.setName('view').setDescription('View all tiers for a player')
       .addUserOption(o=>o.setName('player').setDescription('Discord user').setRequired(true))),
 
   async execute(i) {
@@ -1133,7 +1256,7 @@ CMDS.tier = {
         const guild  = i.guild;
         const member = await guild.members.fetch(target.id).catch(()=>null);
         if (member) {
-          const roleId = getGamemodeRoleId(weapon, removed);
+          const roleId = getGamemodeRoleId(guild, weapon, removed);
           if (roleId) {
             const role = guild.roles.cache.get(roleId);
             if (role) await member.roles.remove(role).catch(()=>{});
@@ -1158,15 +1281,15 @@ CMDS.queue = {
   data: new SlashCommandBuilder()
     .setName('queue')
     .setDescription('Queue commands for matchmaking')
-    .addSubcommand(s=>s.setName('join').setDescription('Queue join karo')
+    .addSubcommand(s=>s.setName('join').setDescription('Join the queue')
       .addStringOption(o=>o.setName('weapon').setDescription('Weapon').setRequired(true)
         .addChoices(...WEAPONS.map(w=>({name:`${WEAPON_EMOJI[w]} ${w}`,value:w})))))
-    .addSubcommand(s=>s.setName('leave').setDescription('Queue chodo (ya sab)')
-      .addStringOption(o=>o.setName('weapon').setDescription('Weapon (chodo = sab)').setRequired(false)
+    .addSubcommand(s=>s.setName('leave').setDescription('Leave the queue (or all queues)')
+      .addStringOption(o=>o.setName('weapon').setDescription('Weapon (leave all = all queues)').setRequired(false)
         .addChoices({name:'🚫 Leave ALL',value:'all'},...WEAPONS.map(w=>({name:`${WEAPON_EMOJI[w]} ${w}`,value:w})))))
-    .addSubcommand(s=>s.setName('status').setDescription('Queue status dekho'))
-    .addSubcommand(s=>s.setName('start').setDescription('Queue open karo — waitlist channel me @everyone ping (Testers only)')
-      .addStringOption(o=>o.setName('gamemode').setDescription('Gamemode select karo').setRequired(true)
+    .addSubcommand(s=>s.setName('status').setDescription('View queue status'))
+    .addSubcommand(s=>s.setName('start').setDescription('Open a queue — @everyone ping in the waitlist channel (Testers only)')
+      .addStringOption(o=>o.setName('gamemode').setDescription('Select a gamemode').setRequired(true)
         .addChoices(...WEAPONS.map(w=>({name:`${WEAPON_EMOJI[w]} ${w}`,value:w}))))
       .addStringOption(o=>o.setName('message').setDescription('Extra message (optional)').setRequired(false))),
 
@@ -1176,7 +1299,7 @@ CMDS.queue = {
     // Channel check for join
     if (sub==='join' && CONFIG.QUEUE_CHANNEL_ID && i.channelId !== CONFIG.QUEUE_CHANNEL_ID) {
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription(`❌ Queue join karne ke liye <#${CONFIG.QUEUE_CHANNEL_ID}> channel use karo.`)] });
+        .setDescription(`❌ Please use <#${CONFIG.QUEUE_CHANNEL_ID}> to join the queue.`)] });
     }
 
     if (sub==='status') {
@@ -1196,7 +1319,7 @@ CMDS.queue = {
     if (sub==='leave') {
       const player=LDB.get(i.user.id);
       if (!player) return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription('❌ Registered nahi. `/register` use karo.')] });
+        .setDescription('❌ You are not registered. Use `/register`.')] });
       const weapon=i.options.getString('weapon');
       if (!weapon||weapon==='all') {
         LDB.leaveAllQ(i.user.id);
@@ -1216,7 +1339,7 @@ CMDS.queue = {
       const player = LDB.get(i.user.id);
 
       if (!player) return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription('❌ Registered nahi. `/register` use karo.')] });
+        .setDescription('❌ You are not registered. Use `/register`.')] });
 
       const access = await hasQueueAccess(i.guild, i.user.id, player, weapon);
       if (!access.allowed) return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
@@ -1224,8 +1347,8 @@ CMDS.queue = {
         .setDescription(
           `Tum **${weapon}** queue join nahi kar sakte.\n\n` +
           `**2 tarike hain join karne ke:**\n` +
-          `• Kisi **Tierer** se apna ${weapon} tier karwao, **YA**\n` +
-          `• Panel mein **${weapon}** gamemode select karo — Waitlist role lo`
+          `• Kisi **Tierer** se get your ${weapon} tier, **YA**\n` +
+          `• Select **${weapon}** in the panel — get the waitlist role`
         )
         .addFields({ name:'Tumhare Tiers', value:Object.keys(player.tiers||{}).length
           ? Object.entries(player.tiers).map(([w,t])=>`${WEAPON_EMOJI[w]} ${w}: \`${t}\``).join('\n')
@@ -1296,7 +1419,7 @@ CMDS.queue = {
           { name:'Position',    value:`**#${pos}** in queue`,           inline:true },
           { name:'🎫 Ticket',   value:'Ticket create ho gaya! Staff ko notification gaya.', inline:false },
           { name:'⏳ Status',   value:'1 aur player ka wait hai…' },
-        ).setFooter({ text:'Queue chhodni ho to /queue leave · PakTiers' }).setTimestamp()] });
+        ).setFooter({ text:'Use /queue leave to exit the queue · PakTiers' }).setTimestamp()] });
     }
 
     // ── START (Testers only) ─────────────────────────────────
@@ -1304,7 +1427,7 @@ CMDS.queue = {
       if (!hasQueuePerm(i.member))
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setTitle('❌ Permission Denied')
-          .setDescription('Yeh command sirf **Testers** ya queue permission wale roles use kar sakte hain.')
+          .setDescription('Only **Testers** or roles with queue permission can use this command.')
           .setFooter({ text:BOT_FOOTER })] });
 
       await i.deferReply({ ephemeral:true });
@@ -1665,7 +1788,7 @@ function buildSQEmbed(weapon, region, testerIds) {
   // Active testers list
   const testerLines = (testerIds && testerIds.length)
     ? testerIds.map((id, idx) => `${idx + 1}. <@${id}>`).join('\n')
-    : '*Koi active tester nahi.*';
+    : '*No active tester.*';
 
   const now = new Date().toLocaleTimeString('en-PK', {
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
@@ -1722,7 +1845,7 @@ CMDS.startqueue = {
     .setDescription('CTL-style live queue panel kholo (Testers only)')
     .addStringOption(o => o
       .setName('gamemode')
-      .setDescription('Gamemode chunno')
+      .setDescription('Choose a gamemode')
       .setRequired(true)
       .addChoices(...WEAPONS.map(w => ({ name: `${WEAPON_EMOJI[w]} ${w}`, value: w })))
     )
@@ -1743,8 +1866,8 @@ CMDS.startqueue = {
     // ── Permission check ─────────────────────────────────────
     if (!hasQueuePerm(i.member))
       return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
-        .setTitle('❌ Permission Nahi')
-        .setDescription('Yeh command sirf **Testers** ya queue-perm wale roles use kar sakte hain.')
+        .setTitle('❌ Permission Denied')
+        .setDescription('Only **Testers** or roles with queue permission can use this command.')
         .setFooter({ text: BOT_FOOTER })] });
 
     await i.deferReply({ ephemeral: true });
@@ -1877,7 +2000,7 @@ CMDS.closequeue = {
     .setDescription('Queue band karo — CTL-style closed embed bhejo (Testers only)')
     .addStringOption(o => o
       .setName('gamemode')
-      .setDescription('Gamemode chunno')
+      .setDescription('Choose a gamemode')
       .setRequired(true)
       .addChoices(...WEAPONS.map(w => ({ name: `${WEAPON_EMOJI[w]} ${w}`, value: w })))
     )
@@ -1891,8 +2014,8 @@ CMDS.closequeue = {
     // ── Permission check ──────────────────────────────────────
     if (!hasQueuePerm(i.member))
       return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
-        .setTitle('❌ Permission Nahi')
-        .setDescription('Yeh command sirf **Testers** ya queue-perm wale roles use kar sakte hain.')
+        .setTitle('❌ Permission Denied')
+        .setDescription('Only **Testers** or roles with queue permission can use this command.')
         .setFooter({ text: BOT_FOOTER })] });
 
     await i.deferReply({ ephemeral: true });
@@ -2095,7 +2218,7 @@ CMDS.logs = {
     )
     .addStringOption(o => o
       .setName('date')
-      .setDescription('Din chunno: today / yesterday / all (default: today)')
+      .setDescription('Choose a day: today / yesterday / all (default: today)')
       .setRequired(false)
       .addChoices(
         { name: 'Today (Aaj)',        value: 'today'     },
@@ -2251,7 +2374,7 @@ async function handleSelectMenu(i) {
 
     if (!player)
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription('❌ Pehle **Register / Update Profile** button dabaao aur register karo.')] });
+        .setDescription('❌ First click **Register / Update Profile** and register.')] });
 
     // Cooldown check — reuse tier cooldown per weapon for waitlist
     const WAITLIST_COOLDOWN_MS = CONFIG.TIER_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
@@ -2263,7 +2386,7 @@ async function handleSelectMenu(i) {
         const h = Math.floor(remaining/3600000), m = Math.floor((remaining%3600000)/60000);
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setTitle(`⏳ ${weapon} Waitlist — Cooldown Active`)
-          .setDescription(`**${weapon}** waitlist role ke liye **${h}h ${m}m** baad apply karo.`)] });
+          .setDescription(`**${weapon}** You can apply for the waitlist role again in **${h}h ${m}m**.`)] });
       }
     }
 
@@ -2280,12 +2403,12 @@ async function handleSelectMenu(i) {
         .setTitle(`✅ Waitlist Role Mila — ${WEAPON_EMOJI[weapon]} ${weapon}`)
         .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
         .setDescription(
-          `Tumhe **Waitlist-${weapon}** role mil gaya!
+          `You have received **Waitlist-${weapon}** role received!
 
 ` +
-          `Jab **${weapon}** queue open hogi, tumhe ping milega.
+          `Jab **${weapon}** queue opens, tumhe ping milega.
 ` +
-          `Join karne ke liye queue channel mein **Join** button dabaao.`
+          `To join, click the **Join** button in the queue channel.`
         )
         .addFields(
           { name:'🎮 IGN',      value:`**${player.ign}**`,           inline:true },
@@ -2303,7 +2426,7 @@ async function handleSelectMenu(i) {
 
   if (prefix !== 'reg') return;
   if (uid !== i.user.id) {
-    return i.reply({ ephemeral:true, content:'❌ Yeh tumhara menu nahi hai.' });
+    return i.reply({ ephemeral:true, content:'❌ This is not your menu.' });
   }
 
   const selected = i.values[0];
@@ -2315,19 +2438,19 @@ async function handleSelectMenu(i) {
     const accRow = new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder()
         .setCustomId(`reg_account_${i.user.id}`)
-        .setPlaceholder('🔑 Account type chunno...')
+        .setPlaceholder('🔑 Choose your account type...')
         .addOptions(ACCOUNT_TYPES.map(a => ({ label:a, value:a }))),
     );
 
     return i.update({
       embeds: [new EmbedBuilder().setColor(BRAND_COLOR)
         .setTitle('📋 PakTiers Registration — Step 1/2')
-        .setDescription(`✅ Platform: **${selected}**\n\nAb apna **account type** chunno:`)
+        .setDescription(`✅ Platform: **${selected}**\n\nNow choose your **account type**:`)
         .addFields(
           { name:'💎 Premium (Paid)', value:'Original bought Minecraft account', inline:false },
           { name:'🏴‍☠️ Cracked (Free)', value:'TLauncher ya koi aur cracked launcher', inline:false },
         )
-        .setFooter({ text:'Sirf tujhe dikh raha hai | PakTiers' })],
+        .setFooter({ text:'Only you can see this | PakTiers' })],
       components: [accRow],
     });
   }
@@ -2340,15 +2463,15 @@ async function handleSelectMenu(i) {
     const regionRow = new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder()
         .setCustomId(`reg_region_${i.user.id}`)
-        .setPlaceholder('🌍 Apna region chunno...')
+        .setPlaceholder('🌍 Choose your region...')
         .addOptions(REGIONS_LIST.map(r => ({ label:r, value:r }))),
     );
 
     return i.update({
       embeds: [new EmbedBuilder().setColor(BRAND_COLOR)
         .setTitle('📋 PakTiers Registration — Step 2/2')
-        .setDescription(`✅ Platform: **${state.platform}**\n✅ Account: **${selected}**\n\nAb apna **region** chunno:`)
-        .setFooter({ text:'Sirf tujhe dikh raha hai | PakTiers' })],
+        .setDescription(`✅ Platform: **${state.platform}**\n✅ Account: **${selected}**\n\nNow choose your **region**:`)
+        .setFooter({ text:'Only you can see this | PakTiers' })],
       components: [regionRow],
     });
   }
@@ -2362,15 +2485,15 @@ async function handleSelectMenu(i) {
     const ignRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`reg_ignbtn_${i.user.id}`)
-        .setLabel('✏️ IGN Enter Karo')
+        .setLabel('✏️ Enter IGN')
         .setStyle(ButtonStyle.Primary),
     );
 
     return i.update({
       embeds: [new EmbedBuilder().setColor(BRAND_COLOR)
         .setTitle('📋 PakTiers Registration — IGN')
-        .setDescription(`✅ Platform: **${state.platform}**\n✅ Account: **${state.accountType}**\n✅ Region: **${selected}**\n\n⬇️ Ab niche button dabao aur apna **Minecraft IGN** daalo:`)
-        .setFooter({ text:'Sirf tujhe dikh raha hai | PakTiers' })],
+        .setDescription(`✅ Platform: **${state.platform}**\n✅ Account: **${state.accountType}**\n✅ Region: **${selected}**\n\n⬇️ Now click the button below and enter your **Minecraft IGN**:`)
+        .setFooter({ text:'Only you can see this | PakTiers' })],
       components: [ignRow],
     });
   }
@@ -2392,12 +2515,12 @@ async function handleButtonClick(i) {
         .setTitle('⚠️ Already Registered')
         .setThumbnail(`https://mc-heads.net/avatar/${existing.ign}/128`)
         .setDescription(
-          `Tum already **${existing.ign}** ke naam se registered ho.
+          `You are already registered as **${existing.ign}**.
 
 ` +
           `Apni details update karne ke liye pehle \`/profile\` dekho.
 ` +
-          `Agar IGN change karna ho to staff se rabta karo.`
+          `If you need to change your IGN, contact staff.`
         )
         .addFields(
           { name:'🎮 IGN',      value:`**${existing.ign}**`,          inline:true },
@@ -2411,7 +2534,7 @@ async function handleButtonClick(i) {
     // Not registered — trigger registration flow (same as /register)
     if (CONFIG.REGISTER_CHANNEL_ID && i.channelId !== CONFIG.REGISTER_CHANNEL_ID) {
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription(`❌ Register karne ke liye <#${CONFIG.REGISTER_CHANNEL_ID}> channel use karo.`)] });
+        .setDescription(`❌ Please use <#${CONFIG.REGISTER_CHANNEL_ID}> for registration.`)] });
     }
 
     regState.set(i.user.id, { platform: 'Java Edition' });
@@ -2419,7 +2542,7 @@ async function handleButtonClick(i) {
     const accRow = new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder()
         .setCustomId(`reg_account_${i.user.id}`)
-        .setPlaceholder('🔑 Account type chunno...')
+        .setPlaceholder('🔑 Choose your account type...')
         .addOptions(ACCOUNT_TYPES.map(a => ({ label:a, value:a }))),
     );
 
@@ -2427,12 +2550,12 @@ async function handleButtonClick(i) {
       ephemeral:true,
       embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
         .setTitle('📋 PakTiers Registration — Step 1/2')
-        .setDescription('\uD83D\uDDA5\uFE0F **Platform: Java Edition**\n\nApna **account type** chunno:')
+        .setDescription('\uD83D\uDDA5\uFE0F **Platform: Java Edition**\n\nChoose your **account type**:')
         .addFields(
           { name:'💎 Premium (Paid)', value:'Original bought Minecraft account', inline:false },
           { name:'🏴‍☠️ Cracked (Free)', value:'TLauncher ya koi aur cracked launcher', inline:false },
         )
-        .setFooter({ text:'Sirf tujhe dikh raha hai | PakTiers' })],
+        .setFooter({ text:'Only you can see this | PakTiers' })],
       components:[accRow],
     });
   }
@@ -2462,7 +2585,7 @@ async function handleButtonClick(i) {
     if (action === 'join') {
       if (!player)
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-          .setDescription('❌ Pehle `/register` karo.')] });
+          .setDescription('❌ Please use `/register` first.')] });
 
       const access = await hasQueueAccess(i.guild, i.user.id, player, weapon);
       if (!access.allowed)
@@ -2472,7 +2595,7 @@ async function handleButtonClick(i) {
             `Tum **${weapon}** queue join nahi kar sakte.\n\n` +
             `**2 tarike hain:**\n` +
             `• Kisi **Tierer** se tier karwao, **YA**\n` +
-            `• Panel mein **${weapon}** select karo — Waitlist role lo`
+            `• Select **${weapon}** in the panel — get the waitlist role`
           )] });
 
       const cd = isOnCooldown(i.user.id, weapon);
@@ -2502,7 +2625,7 @@ async function handleButtonClick(i) {
           { name:'Position',  value:`**#${pos}** in queue`,        inline:true },
           { name:'🎫 Ticket', value:'Staff ko ticket gaya!',       inline:false },
         )
-        .setFooter({ text:'Queue chhodni ho to "Leave Queue" button dabao · PakTiers' })
+        .setFooter({ text:'Use the Leave Queue button to exit the queue · PakTiers' })
         .setTimestamp()] });
     }
 
@@ -2510,7 +2633,7 @@ async function handleButtonClick(i) {
     if (action === 'leave') {
       if (!player)
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-          .setDescription('❌ Tum registered nahi ho.')] });
+          .setDescription('❌ You are not registered.')] });
 
       LDB.leaveQ(i.user.id, weapon);
       broadcast({ type:'queue_updated', queues:MEM.queues });
@@ -2523,12 +2646,12 @@ async function handleButtonClick(i) {
     if (action === 'pull') {
       if (!hasQueuePerm(i.member))
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-          .setDescription('❌ Yeh button sirf **Testers** ya queue permission wale roles use kar sakte hain.')] });
+          .setDescription('❌ Only **Testers** or roles with queue permission can use this button.')] });
 
       const q = LDB.getQ(weapon);
       if (!q.length)
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
-          .setDescription(`📭 **${weapon}** queue abhi khali hai — koi player wait nahi kar raha.`)] });
+          .setDescription(`📭 **${weapon}** the queue is currently empty — koi player wait nahi kar raha.`)] });
 
       // Pull = remove first player from queue
       const entry  = q[0];
@@ -2590,7 +2713,7 @@ async function handleButtonClick(i) {
       if (ticketChannel) {
         try {
           await ticketChannel.send({
-            content:`📢 <@${entry.discordId}> — Tester ne tumhe pull kiya! Test ke liye ready ho jao.`,
+            content:`📢 <@${entry.discordId}> — A tester pulled you! Get ready for the test.`,
             embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
               .setTitle('🎫 Pulled by Tester')
               .setDescription(`<@${i.user.id}> (**${i.user.username}**) ne tujhe **${weapon}** queue se pull kiya.\nTest ke liye ready ho jao!`)
@@ -2606,7 +2729,7 @@ async function handleButtonClick(i) {
             await pulledMember.send({
               embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
                 .setTitle(`🎫 ${weapon} Queue — Pulled!`)
-                .setDescription(`**${i.user.username}** (Tester) ne tumhe **${weapon}** queue se pull kiya hai!\nServer pe aao aur test ke liye ready ho jao. 🇵🇰`)
+                .setDescription(`**${i.user.username}** (Tester) ne tumhe **${weapon}** queue se pull kiya hai!\nCome to the server and get ready for the test. 🇵🇰`)
                 .setFooter({ text:BOT_FOOTER })
                 .setTimestamp()],
             }).catch(()=>{});
@@ -2635,7 +2758,7 @@ async function handleButtonClick(i) {
       if (!player)
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setTitle('❌ Registered Nahi')
-          .setDescription('Queue join karne ke liye pehle `/register` karo ya **Register Profile** button dabao.')
+          .setDescription('To join the queue, first use `/register` or click the **Register / Update Profile** button.')
           .setFooter({ text: BOT_FOOTER })] });
 
       const access = await hasQueueAccess(i.guild, i.user.id, player, weapon);
@@ -2645,8 +2768,8 @@ async function handleButtonClick(i) {
           .setDescription(
             `Tum **${weapon}** queue join nahi kar sakte.\n\n` +
             `**Queue join karne ke 2 tarike:**\n` +
-            `• Kisi **Tierer** se apna ${weapon} tier karwao\n` +
-            `• Panel mein **${weapon}** select karo — Waitlist role lo`
+            `• Kisi **Tierer** se get your ${weapon} tier\n` +
+            `• Select **${weapon}** in the panel — get the waitlist role`
           )
           .setFooter({ text: BOT_FOOTER })] });
 
@@ -2681,7 +2804,7 @@ async function handleButtonClick(i) {
           { name:'📋 Position', value:`**#${pos}** in queue`,                             inline:true },
           { name:'🎫 Ticket',   value:'Staff ko ticket notification gaya!',               inline:false },
         )
-        .setFooter({ text:'Queue chhodni ho to "Leave" button dabao · PakTiers' })
+        .setFooter({ text:'Use the Leave button to exit the queue · PakTiers' })
         .setTimestamp()] });
     }
 
@@ -2689,7 +2812,7 @@ async function handleButtonClick(i) {
     if (action === 'leave') {
       if (!player)
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-          .setDescription('❌ Tum registered nahi ho.')] });
+          .setDescription('❌ You are not registered.')] });
 
       const q = LDB.getQ(weapon);
       const inQ = q.find(e => e.discordId === i.user.id);
@@ -2711,8 +2834,8 @@ async function handleButtonClick(i) {
     if (action === 'pull') {
       if (!hasQueuePerm(i.member))
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-          .setTitle('❌ Permission Nahi')
-          .setDescription('Yeh button sirf **Testers** ya queue-perm wale roles use kar sakte hain.')
+          .setTitle('❌ Permission Denied')
+          .setDescription('Only **Testers** or roles with queue permission can use this button.')
           .setFooter({ text: BOT_FOOTER })] });
 
       const q = LDB.getQ(weapon);
@@ -2775,7 +2898,7 @@ async function handleButtonClick(i) {
       if (ticketChannel) {
         try {
           await ticketChannel.send({
-            content: `📢 <@${entry.discordId}> — <@${i.user.id}> ne tumhe pull kiya! Test ke liye ready ho jao.`,
+            content: `📢 <@${entry.discordId}> — <@${i.user.id}> ne tumhe pull kiya! Get ready for the test.`,
             embeds:  [new EmbedBuilder().setColor(0x57F287)
               .setTitle('🎫 Pulled!')
               .setDescription(`**${i.user.username}** (Tester) ne tujhe **${weapon}** queue se pull kiya!\nServer pe aao aur ready ho jao. 🇵🇰`)
@@ -2789,7 +2912,7 @@ async function handleButtonClick(i) {
           if (pulledMember) {
             await pulledMember.send({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
               .setTitle(`🎫 ${weapon} Queue — Pulled!`)
-              .setDescription(`**${i.user.username}** (Tester) ne tumhe **${weapon}** queue se pull kiya!\nServer pe aao aur test ke liye ready ho jao. 🇵🇰`)
+              .setDescription(`**${i.user.username}** (Tester) ne tumhe **${weapon}** queue se pull kiya!\nCome to the server and get ready for the test. 🇵🇰`)
               .setFooter({ text: BOT_FOOTER })
               .setTimestamp()] }).catch(() => {});
           }
@@ -2804,12 +2927,12 @@ async function handleButtonClick(i) {
   if (i.customId.startsWith('reg_ignbtn_')) {
     const uid = i.customId.replace('reg_ignbtn_','');
     if (uid !== i.user.id)
-      return i.reply({ ephemeral:true, content:'❌ Yeh tumhara button nahi.' });
+      return i.reply({ ephemeral:true, content:'❌ This is not your button.' });
 
     const { ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
     const modal = new ModalBuilder()
       .setCustomId(`reg_modal_${i.user.id}`)
-      .setTitle('Apna Minecraft IGN Daalo');
+      .setTitle('Enter your Minecraft IGN');
 
     const ignInput = new TextInputBuilder()
       .setCustomId('ign_input')
@@ -2829,7 +2952,7 @@ async function handleModal(i) {
   if (!i.customId.startsWith('reg_modal_')) return;
   const uid = i.customId.replace('reg_modal_','');
   if (uid !== i.user.id)
-    return i.reply({ ephemeral:true, content:'❌ Yeh tumhara form nahi.' });
+    return i.reply({ ephemeral:true, content:'❌ This is not your form.' });
 
   const ign   = i.fields.getTextInputValue('ign_input').trim();
   const state = regState.get(i.user.id) || {};
@@ -2848,11 +2971,12 @@ async function handleModal(i) {
   if (!result) {
     const ex = LDB.get(i.user.id);
     return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
-      .setDescription(`⚠️ Tum already **${ex.ign}** ke naam se register ho.`)] });
+      .setDescription(`⚠️ You are already registered as **${ex.ign}**.`)] });
   }
 
   regState.delete(i.user.id);
   broadcast({ type:'player_registered', player:MEM.players[i.user.id] });
+  await sendRegistrationLog(i.client, MEM.players[i.user.id]);
 
   // Assign verified role
   if (CONFIG.VERIFIED_ROLE_ID) {
@@ -2957,7 +3081,7 @@ client.on('interactionCreate', async i => {
     }
   } catch(err) {
     console.error(`[ERROR] interaction:`, err);
-    const e = new EmbedBuilder().setColor(0xFF4444).setDescription('❌ Kuch gadbad ho gayi.');
+    const e = new EmbedBuilder().setColor(0xFF4444).setDescription('❌ Something went wrong.');
     try {
       if (i.replied || i.deferred) await i.followUp({ embeds:[e], ephemeral:true }).catch(()=>{});
       else await i.reply({ embeds:[e], ephemeral:true }).catch(()=>{});
