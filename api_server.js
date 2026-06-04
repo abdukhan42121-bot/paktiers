@@ -869,7 +869,7 @@ function buildLivePanelEmbed(weapon) {
     ? testers.map((id, idx) => `${idx + 1}. <@${id}>`).join('\n')
     : '*No active tester*';
 
-  const now = new Date().toLocaleTimeString('en-PK', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
+  const now = new Date().toLocaleTimeString('en-PK', { timeZone: 'Asia/Karachi', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
 
   return new EmbedBuilder()
     .setColor(0x57F287)
@@ -884,7 +884,7 @@ function buildLivePanelEmbed(weapon) {
       { name: '🌍 Region',          value: 'PK',        inline: false },
       { name: '🧪 Current Test',    value: currentTest, inline: false },
     )
-    .setFooter({ text: `🕐 Last Refresh: ${now}` });
+    .setFooter({ text: `🌍 Region: ${reg} | 🕐 Last Refresh: ${now}` });
 }
 
 async function refreshLivePanel(client, weapon) {
@@ -1770,7 +1770,7 @@ CMDS.setuppanel = {
 
 // Storage for active startqueue panels: weapon -> { channelId, messageId, testerId, region }
 const SQ_PANEL_FILE = path.join(__dirname, 'paktiers_data', 'sq_panels.json');
-const SQ_QUEUE_LIMIT = 20;
+const SQ_QUEUE_LIMIT = 15;
 
 function loadSQPanels() {
   try { if (fs.existsSync(SQ_PANEL_FILE)) return JSON.parse(fs.readFileSync(SQ_PANEL_FILE, 'utf8')); } catch(_) {}
@@ -1801,9 +1801,11 @@ function buildSQEmbed(weapon, region, testerIds) {
   const reg = region || 'AS/AU';
   const panels = loadSQPanels();
   const currentTest = panels[weapon]?.currentTest || '*No active test*';
+  const queueCount = q.length;
+  const queueLimit = SQ_QUEUE_LIMIT;
 
   // Queue list — numbered mentions
-  const queueLines = q.length
+  const queueLines = queueCount
     ? q.map((e, idx) => `${idx + 1}. <@${e.discordId}>`).join('\n')
     : '*Queue mein koi nahi.*';
 
@@ -1813,6 +1815,7 @@ function buildSQEmbed(weapon, region, testerIds) {
     : '*No active tester.*';
 
   const now = new Date().toLocaleTimeString('en-PK', {
+    timeZone: 'Asia/Karachi',
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
   });
 
@@ -1824,12 +1827,12 @@ function buildSQEmbed(weapon, region, testerIds) {
       `The queue is now open and updates in real-time.`
     )
     .addFields(
-      { name: '📋  Queue',          value: queueLines,    inline: false },
-      { name: '👥  Active Testers', value: testerLines,   inline: false },
-      { name: '🌍 Region',          value: reg,           inline: false },
-      { name: '🧪 Current Test',    value: currentTest,   inline: false },
+      { name: `📋 Queue (${queueCount}/${queueLimit})`, value: queueLines, inline: false },
+      { name: '👥 Active Testers', value: testerLines, inline: false },
+      { name: '🌍 Region', value: reg, inline: false },
+      { name: '🧪 Current Test', value: currentTest, inline: false },
     )
-    .setFooter({ text: `🕐 Last Refresh: ${now}` });
+    .setFooter({ text: `🌍 Region: ${reg} | 🕐 Last Refresh: ${now}` });
 }
 
 // Build Join / Leave / Pull buttons row
@@ -1964,10 +1967,10 @@ CMDS.startqueue = {
     let sentMsg = null;
     try {
       sentMsg = await targetCh.send({
-        content:           '',
+        content:           `@here a **${weapon}** queue is open for the **${region}** region!`,
         embeds:            [buildSQEmbed(weapon, region, [i.user.id])],
         components:        [buildSQButtons(weapon)],
-        allowedMentions:   { parse: [] },
+        allowedMentions:   { parse: ['everyone'] },
       });
     } catch(err) {
       console.error('[STARTQUEUE SEND ERROR]', err.message, 'Code:', err.code);
