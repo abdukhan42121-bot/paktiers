@@ -856,9 +856,10 @@ function saveLivePanels(data) {
 }
 
 function buildLivePanelEmbed(weapon) {
-  const q      = LDB.getQ(weapon);
-  const panels = loadLivePanels();
+  const q       = LDB.getQ(weapon);
+  const panels  = loadLivePanels();
   const testers = panels[weapon]?.activeTesters || [];
+  const currentTest = panels[weapon]?.currentTest || '*No active test*';
 
   const queueTxt  = q.length
     ? q.map((e, idx) => `${idx + 1}. <@${e.discordId}>`).join('\n')
@@ -878,10 +879,12 @@ function buildLivePanelEmbed(weapon) {
       `The queue is now open and updates in real-time.`
     )
     .addFields(
-      { name: '📋  Queue',          value: queueTxt,  inline: false },
-      { name: '👥  Active Testers', value: testerTxt, inline: false },
+      { name: '📋  Queue',          value: queueTxt,    inline: false },
+      { name: '👥  Active Testers', value: testerTxt,   inline: false },
+      { name: '🌍 Region',          value: 'PK',        inline: false },
+      { name: '🧪 Current Test',    value: currentTest, inline: false },
     )
-    .setFooter({ text: `🌍 Region: PK  |  🕐 Last Refresh: ${now}` });
+    .setFooter({ text: `🕐 Last Refresh: ${now}` });
 }
 
 async function refreshLivePanel(client, weapon) {
@@ -1796,6 +1799,8 @@ function addToSQQueue(discordId, weapon, ign) {
 function buildSQEmbed(weapon, region, testerIds) {
   const q   = LDB.getQ(weapon);
   const reg = region || 'AS/AU';
+  const panels = loadSQPanels();
+  const currentTest = panels[weapon]?.currentTest || '*No active test*';
 
   // Queue list — numbered mentions
   const queueLines = q.length
@@ -1819,10 +1824,12 @@ function buildSQEmbed(weapon, region, testerIds) {
       `The queue is now open and updates in real-time.`
     )
     .addFields(
-      { name: '📋  Queue',          value: queueLines,  inline: false },
-      { name: '👥  Active Testers', value: testerLines, inline: false },
+      { name: '📋  Queue',          value: queueLines,    inline: false },
+      { name: '👥  Active Testers', value: testerLines,   inline: false },
+      { name: '🌍 Region',          value: reg,           inline: false },
+      { name: '🧪 Current Test',    value: currentTest,   inline: false },
     )
-    .setFooter({ text: `🌍 Region: ${reg}  |  🕐 Last Refresh: ${now}` });
+    .setFooter({ text: `🕐 Last Refresh: ${now}` });
 }
 
 // Build Join / Leave / Pull buttons row
@@ -2688,24 +2695,14 @@ async function handleButtonClick(i) {
         if (!pnls[weapon].activeTesters) pnls[weapon].activeTesters = [];
         if (!pnls[weapon].activeTesters.includes(i.user.id))
           pnls[weapon].activeTesters.push(i.user.id);
+        pnls[weapon].currentTest = `<@${i.user.id}> is testing <@${entry.discordId}>`;
+        pnls[weapon].currentTestAt = Date.now();
+        pnls[weapon].currentTesterId = i.user.id;
+        pnls[weapon].currentPlayerId = entry.discordId;
         saveLivePanels(pnls);
       }
       refreshLivePanel(i.client, weapon).catch(() => {});
 
-      // Queue panel ke neeche visible note
-      try {
-        const panels = loadLivePanels();
-        const info = panels[weapon];
-        if (info?.channelId) {
-          const panelCh = await i.client.channels.fetch(info.channelId).catch(() => null);
-          if (panelCh) {
-            await panelCh.send({
-              content: `🧪 <@${i.user.id}> is testing <@${entry.discordId}>`,
-              allowedMentions: { parse: ['users'] },
-            });
-          }
-        }
-      } catch(_) {}
 
       // Open ticket for pulled player
       let ticketChannel = null;
@@ -2899,6 +2896,10 @@ async function handleButtonClick(i) {
         if (!sqPanels[weapon].testers) sqPanels[weapon].testers = [];
         if (!sqPanels[weapon].testers.includes(i.user.id))
           sqPanels[weapon].testers.push(i.user.id);
+        sqPanels[weapon].currentTest = `<@${i.user.id}> is testing <@${entry.discordId}>`;
+        sqPanels[weapon].currentTestAt = Date.now();
+        sqPanels[weapon].currentTesterId = i.user.id;
+        sqPanels[weapon].currentPlayerId = entry.discordId;
         saveSQPanels(sqPanels);
       }
       refreshSQPanel(i.client, weapon).catch(() => {});
