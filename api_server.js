@@ -641,9 +641,19 @@ const LDB = {
     db.push(m); wDB(MF, db); MEM.matches.push(m); return m;
   },
   // Ticket helpers
-  getTicket:   id  => { const db=rDB(TF); return db[id]||null; },
-  setTicket(id, channelId) {
-    const db = rDB(TF); db[id]=channelId; wDB(TF, db); MEM.tickets[id]=channelId;
+  getTicket: id => {
+    const db = rDB(TF);
+    const v = db[id] || null;
+    if (!v) return null;
+    if (typeof v === 'string') return { channelId: v };
+    return v;
+  },
+  setTicket(id, value) {
+    const db = rDB(TF);
+    const normalized = typeof value === 'string' ? { channelId: value } : value;
+    db[id] = normalized;
+    wDB(TF, db);
+    MEM.tickets[id] = normalized;
   },
   delTicket(id) {
     const db = rDB(TF); delete db[id]; wDB(TF, db); delete MEM.tickets[id];
@@ -709,7 +719,7 @@ async function sendRegistrationLog(client, player) {
 // ════════════════════════════════════════════════════════════
 //  TICKET SYSTEM
 // ════════════════════════════════════════════════════════════
-async function createQueueTicket(client, guild, player, weapon, discordId) {
+async function createQueueTicket(client, guild, player, weapon, discordId, pullerId = null) {
   if (!CONFIG.TICKET_CATEGORY_ID) return null;
 
   // Existing ticket check
@@ -736,6 +746,13 @@ async function createQueueTicket(client, guild, player, weapon, discordId) {
       },
     ];
 
+    if (pullerId && pullerId !== discordId) {
+      permOverwrites.push({
+        id: pullerId,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      });
+    }
+
     if (CONFIG.TICKET_STAFF_ROLE_ID) {
       permOverwrites.push({
         id: CONFIG.TICKET_STAFF_ROLE_ID,
@@ -748,10 +765,10 @@ async function createQueueTicket(client, guild, player, weapon, discordId) {
       type: ChannelType.GuildText,
       parent: CONFIG.TICKET_CATEGORY_ID,
       permissionOverwrites: permOverwrites,
-      topic: `Queue Ticket — ${player.ign} | ${weapon} | <@${discordId}>`,
+      topic: `Queue Ticket — ${player.ign} | ${weapon} | <@${discordId}> | pulled by <@${pullerId || discordId}>`,
     });
 
-    LDB.setTicket(discordId, ticketChannel.id);
+    LDB.setTicket(discordId, { channelId: ticketChannel.id, pullerId, weapon, createdAt: Date.now() });
 
     // Send ticket embed
     const staffPing = CONFIG.TICKET_STAFF_ROLE_ID ? `<@&${CONFIG.TICKET_STAFF_ROLE_ID}>` : '';
@@ -763,7 +780,7 @@ async function createQueueTicket(client, guild, player, weapon, discordId) {
     );
 
     await ticketChannel.send({
-      content: `${staffPing} <@${discordId}>`,
+      content: `${staffPing} <@${discordId}> ${pullerId ? `<@${pullerId}>` : ''}`,
       embeds: [new EmbedBuilder()
         .setColor(BRAND_COLOR)
         .setTitle('🎫 Queue Ticket Created')
@@ -776,6 +793,7 @@ async function createQueueTicket(client, guild, player, weapon, discordId) {
           { name:'5. Platform',    value:player.platform||'Java Edition', inline:true },
           { name:'6. Region',      value:player.region||'PK', inline:true },
           { name:'7. Account',     value:player.accountType||'Premium', inline:true },
+          { name:'8. Pulled By',    value:pullerId ? `<@${pullerId}>` : 'N/A', inline:true },
         )
         .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
         .setFooter({ text:'PakTiers Queue Ticket · Close when match is done' })
@@ -791,7 +809,8 @@ async function createQueueTicket(client, guild, player, weapon, discordId) {
 }
 
 async function closeTicket(client, guild, discordId, closedBy) {
-  const channelId = LDB.getTicket(discordId);
+  const ticket = LDB.getTicket(discordId);
+  const channelId = ticket?.channelId || ticket;
   if (!channelId) return false;
   try {
     const ch = await client.channels.fetch(channelId).catch(()=>null);
@@ -2594,7 +2613,11 @@ async function handleButtonClick(i) {
     const hasStaff  = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
     const hasTierer = CONFIG.TIERER_ROLE_ID ? i.member.roles.cache.has(CONFIG.TIERER_ROLE_ID) : false;
     const isOwner   = i.user.id === targetId;
-    if (!isAdmin && !hasStaff && !hasTierer && !isOwner)
+
+    const ticket = LDB.getTicket(targetId);
+    const isPuller = ticket?.pullerId ? i.user.id === ticket.pullerId : false;
+
+    if (!isAdmin && !hasStaff && !hasTierer && !isOwner && !isPuller)
       return i.reply({ ephemeral:true, content:'❌ Tumhe yeh ticket band karne ki permission nahi.' });
     await i.reply({ ephemeral:true, content:'🔒 Ticket band ho raha hai...' });
     return closeTicket(i.client, i.guild, targetId, i.user.id);
