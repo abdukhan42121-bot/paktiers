@@ -1967,7 +1967,7 @@ CMDS.startqueue = {
     let sentMsg = null;
     try {
       sentMsg = await targetCh.send({
-        content:           `@here a **${weapon}** queue is open for the **${region}** region!`,
+        content:           `a **${weapon}** queue is open for the **PK** region!`,
         embeds:            [buildSQEmbed(weapon, region, [i.user.id])],
         components:        [buildSQButtons(weapon)],
         allowedMentions:   { parse: ['everyone'] },
