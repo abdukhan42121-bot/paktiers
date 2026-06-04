@@ -1,5 +1,5 @@
 // ============================================================
-//  PakTiers — ALL IN ONE v5
+//  PakTiers — ALL IN ONE v5 (Combined + Ticket Fix)
 //  NEW FEATURES:
 //  ✅ Android/Bedrock + Java platform selection on register
 //  ✅ Registration: crack/premium, region, IGN (ephemeral to player)
@@ -39,6 +39,7 @@ const CONFIG = {
   REGISTER_CHANNEL_ID:  process.env.REGISTER_CHANNEL_ID  || '',   // Channel jahan /register kaam kare
   QUEUE_CHANNEL_ID:     process.env.QUEUE_CHANNEL_ID     || '',   // Channel jahan /queue join kaam kare
   TICKET_CATEGORY_ID:   process.env.TICKET_CATEGORY_ID   || '',   // Category jahan tickets banenge
+  TICKET_CATEGORY_NAME: 'Tier-TesTing--Tickets',            // Fallback/auto-created ticket category name
   TICKET_STAFF_ROLE_ID: process.env.TICKET_STAFF_ROLE_ID || '',   // Staff role jo tickets me ping ho
   VERIFIED_ROLE_ID:          process.env.VERIFIED_ROLE_ID          || '',   // Role jo register ke baad mile
   TESTERS_ROLE_ID:           process.env.TESTERS_ROLE_ID           || '',   // "﹂Tᴇsᴛᴇʀs ﹁ 👥" role — /startqueue use kar sakta hai
@@ -720,23 +721,113 @@ async function sendRegistrationLog(client, player) {
 // ════════════════════════════════════════════════════════════
 //  TICKET SYSTEM
 // ════════════════════════════════════════════════════════════
+
+const TICKET_CATEGORY_NAME = CONFIG.TICKET_CATEGORY_NAME || 'Tier-TesTing--Tickets';
+
+function sumPlayerPoints(player) {
+  return Object.values(player?.tiers || {}).reduce((s, t) => s + (TIER_PTS[t] || 0), 0);
+}
+
+function formatPlayerTierList(player) {
+  const entries = Object.entries(player?.tiers || {}).sort((a, b) => (TIER_PTS[b[1]] || 0) - (TIER_PTS[a[1]] || 0));
+  if (!entries.length) return '*No tiers yet*';
+  return entries.map(([w, t]) => `${WEAPON_EMOJI[w] || '•'} **${w}** — \`${t}\``).join('\n');
+}
+
+async function resolveTicketCategory(guild) {
+  if (!guild) return null;
+
+  if (CONFIG.TICKET_CATEGORY_ID) {
+    const existing = await guild.channels.fetch(CONFIG.TICKET_CATEGORY_ID).catch(() => null);
+    if (existing && existing.type === ChannelType.GuildCategory) {
+      if (existing.name !== TICKET_CATEGORY_NAME) {
+        await existing.edit({ name: TICKET_CATEGORY_NAME }).catch(() => {});
+      }
+      return existing;
+    }
+  }
+
+  let category = guild.channels.cache.find(
+    ch => ch.type === ChannelType.GuildCategory && ch.name === TICKET_CATEGORY_NAME
+  );
+
+  if (!category) {
+    category = await guild.channels.create({
+      name: TICKET_CATEGORY_NAME,
+      type: ChannelType.GuildCategory,
+      reason: 'PakTiers ticket category auto-created',
+    }).catch(() => null);
+  }
+
+  if (category) CONFIG.TICKET_CATEGORY_ID = category.id;
+  return category;
+}
+
+function buildTicketEmbed({ player, discordId, weapon = null, pullerId = null, openedById = null, mode = 'queue' }) {
+  const totalPts = sumPlayerPoints(player);
+  const rank = getRankTitle(totalPts);
+  const tierList = formatPlayerTierList(player);
+
+  const title = mode === 'manual'
+    ? '🎫 Player Ticket Opened'
+    : '🎫 Queue Ticket Opened';
+
+  const desc = mode === 'manual'
+    ? 'A ticket has been opened for this player.'
+    : `A player has been pulled from the **${weapon}** queue and a ticket has been created.`;
+
+  const fields = [
+    { name: '1. IGN', value: `**${player.ign}**`, inline: true },
+    { name: '2. Discord', value: `<@${discordId}>`, inline: true },
+    { name: '3. Platform', value: player.platform || 'Java Edition', inline: true },
+    { name: '4. Account', value: player.accountType || 'Premium (Paid)', inline: true },
+    { name: '5. Region', value: player.region || 'Pakistan 🇵🇰', inline: true },
+    { name: '6. Registered', value: `<t:${Math.floor((player.registeredAt || Date.now()) / 1000)}:F>`, inline: true },
+    { name: '7. Total Points', value: `**${totalPts}** (${rank.label})`, inline: true },
+    { name: '8. Tiers', value: tierList, inline: false },
+  ];
+
+  if (weapon) {
+    fields.unshift({ name: 'Weapon', value: `${WEAPON_EMOJI[weapon] || '🎮'} **${weapon}**`, inline: true });
+    fields.push({ name: 'Selected Tier', value: `\`${player.tiers?.[weapon] || 'N/A'}\``, inline: true });
+  }
+
+  if (openedById) fields.push({ name: 'Opened By', value: `<@${openedById}>`, inline: true });
+  if (pullerId) fields.push({ name: 'Pulled By', value: `<@${pullerId}>`, inline: true });
+
+  return new EmbedBuilder()
+    .setColor(BRAND_COLOR)
+    .setTitle(title)
+    .setDescription(`${desc}
+
+**Player:** <@${discordId}>`)
+    .addFields(fields)
+    .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
+    .setFooter({ text: 'PakTiers Queue Ticket · Close when testing is done' })
+    .setTimestamp();
+}
+
 async function createQueueTicket(client, guild, player, weapon, discordId, pullerId = null) {
-  if (!CONFIG.TICKET_CATEGORY_ID) return null;
+  if (!guild) return null;
 
   try {
     const existing = LDB.getTicket(discordId);
-    if (existing?.channelId) {
-      const existingCh = await client.channels.fetch(existing.channelId).catch(()=>null);
+    const existingChannelId = existing?.channelId || existing;
+    if (existingChannelId) {
+      const existingCh = await client.channels.fetch(existingChannelId).catch(() => null);
       if (existingCh) return existingCh;
     }
   } catch(_) {}
 
   try {
-    const safeName = player.ign.replace(/[^a-zA-Z0-9]/g,'').toLowerCase();
+    const category = await resolveTicketCategory(guild);
+    if (!category) return null;
+
+    const safeName = (player.ign || `player-${discordId}`).replace(/[^a-zA-Z0-9]/g,'').toLowerCase();
     const channelName = `ticket-${safeName}`;
 
     const permOverwrites = [
-      { id: guild.roles.everyone, deny: [PermissionsBitField.Flags.ViewChannel] },
+      { id: guild.roles.everyone.id, deny: [PermissionsBitField.Flags.ViewChannel] },
       {
         id: discordId,
         allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
@@ -760,7 +851,7 @@ async function createQueueTicket(client, guild, player, weapon, discordId, pulle
     const ticketChannel = await guild.channels.create({
       name: channelName,
       type: ChannelType.GuildText,
-      parent: CONFIG.TICKET_CATEGORY_ID,
+      parent: category.id,
       permissionOverwrites: permOverwrites,
       topic: `Queue Ticket — ${player.ign} | ${weapon} | <@${discordId}> | pulledBy=${pullerId || 'unknown'}`,
     });
@@ -784,25 +875,13 @@ async function createQueueTicket(client, guild, player, weapon, discordId, pulle
 
     await ticketChannel.send({
       content: `${staffPing} <@${discordId}> ${pullerId ? `<@${pullerId}>` : ''}`.trim(),
-      embeds: [new EmbedBuilder()
-        .setColor(BRAND_COLOR)
-        .setTitle('🎫 Queue Ticket Opened')
-        .setDescription(`A player has been **pulled** for **${weapon}** and a testing ticket has been created.
-
-Player aur tester dono mention kiye gaye hain.`)
-        .addFields(
-          { name:'1. Player Name', value:`**${player.ign}**`, inline:true },
-          { name:'2. Discord',     value:`<@${discordId}>`, inline:true },
-          { name:'3. Weapon',      value:`${WEAPON_EMOJI[weapon]} **${weapon}**`, inline:true },
-          { name:'4. Tier',        value:`\`${player.tiers?.[weapon] || 'N/A'}\``, inline:true },
-          { name:'5. Platform',    value:player.platform || 'Java Edition', inline:true },
-          { name:'6. Region',      value:player.region || 'PK', inline:true },
-          { name:'7. Account',     value:player.accountType || 'Premium', inline:true },
-          { name:'8. Pulled By',   value:pullerId ? `<@${pullerId}>` : 'Unknown', inline:true },
-        )
-        .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
-        .setFooter({ text:'PakTiers Queue Ticket · Close when testing is done' })
-        .setTimestamp()],
+      embeds: [buildTicketEmbed({
+        player,
+        discordId,
+        weapon,
+        pullerId,
+        mode: 'queue',
+      })],
       components: [row],
     });
 
@@ -1079,6 +1158,43 @@ CMDS.setreglogschannel = {
 
     return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x57F287)
       .setDescription(`✅ Registration logs channel set to ${channel}.`)] });
+  },
+};
+
+// ── /openticket ───────────────────────────────────────────
+CMDS.openticket = {
+  data: new SlashCommandBuilder()
+    .setName('openticket')
+    .setDescription('Open a ticket for a player and show full details')
+    .addUserOption(o => o.setName('player').setDescription('Player to open ticket for').setRequired(true)),
+
+  async execute(i) {
+    const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasStaff  = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
+    const hasTierer = CONFIG.TIERER_ROLE_ID ? i.member.roles.cache.has(CONFIG.TIERER_ROLE_ID) : false;
+    const canUse    = isAdmin || hasStaff || hasTierer || hasQueuePerm(i.member);
+    if (!canUse) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Tumhe ticket open karne ki permission nahi.')] });
+    }
+
+    const user = i.options.getUser('player');
+    const player = LDB.get(user.id);
+    if (!player) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ **${user.username}** registered nahi hai.`)] });
+    }
+
+    await i.deferReply({ ephemeral:true });
+
+    const ticketChannel = await createQueueTicket(i.client, i.guild, player, 'General', user.id, i.user.id);
+    if (!ticketChannel) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Ticket create nahi ho saka. Category / permissions check karo.')] });
+    }
+
+    return i.editReply({ embeds:[new EmbedBuilder().setColor(0x57F287)
+      .setDescription(`✅ Ticket open ho gaya: ${ticketChannel}`)] });
   },
 };
 
@@ -2732,10 +2848,10 @@ async function handleButtonClick(i) {
 
       // Open ticket for pulled player
       let ticketChannel = null;
-      if (i.guild && CONFIG.TICKET_CATEGORY_ID) {
+      if (i.guild) {
         ticketChannel = await createQueueTicket(i.client, i.guild, target, weapon, entry.discordId, i.user.id).catch(()=>null);
-      } else if (!CONFIG.TICKET_CATEGORY_ID) {
-        console.warn('[PULL] TICKET_CATEGORY_ID not set — ticket nahi banega. Railway env vars check karo.');
+      } else {
+        console.warn('[PULL] Guild unavailable — ticket nahi banega.');
       }
 
       const joinedAt = entry.joinedAt
