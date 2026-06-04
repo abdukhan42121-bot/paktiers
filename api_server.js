@@ -1767,12 +1767,29 @@ CMDS.setuppanel = {
 
 // Storage for active startqueue panels: weapon -> { channelId, messageId, testerId, region }
 const SQ_PANEL_FILE = path.join(__dirname, 'paktiers_data', 'sq_panels.json');
+const SQ_QUEUE_LIMIT = 20;
+
 function loadSQPanels() {
   try { if (fs.existsSync(SQ_PANEL_FILE)) return JSON.parse(fs.readFileSync(SQ_PANEL_FILE, 'utf8')); } catch(_) {}
   return {};
 }
 function saveSQPanels(data) {
   try { fs.writeFileSync(SQ_PANEL_FILE, JSON.stringify(data, null, 2)); } catch(_) {}
+}
+
+function addToSQQueue(discordId, weapon, ign) {
+  const db = rDB(QF);
+  if (!db[weapon]) db[weapon] = [];
+  const q = db[weapon];
+
+  if (q.find(e => e.discordId === discordId)) return { ok: false, reason: 'dupe' };
+  if (q.length >= SQ_QUEUE_LIMIT) return { ok: false, reason: 'full' };
+
+  q.push({ discordId, ign, joinedAt: Date.now() });
+  db[weapon] = q;
+  wDB(QF, db);
+  MEM.queues[weapon] = q;
+  return { ok: true, position: q.length };
 }
 
 // Build the exact CTL-style embed
@@ -2675,6 +2692,21 @@ async function handleButtonClick(i) {
       }
       refreshLivePanel(i.client, weapon).catch(() => {});
 
+      // Queue panel ke neeche visible note
+      try {
+        const panels = loadLivePanels();
+        const info = panels[weapon];
+        if (info?.channelId) {
+          const panelCh = await i.client.channels.fetch(info.channelId).catch(() => null);
+          if (panelCh) {
+            await panelCh.send({
+              content: `🧪 <@${i.user.id}> is testing <@${entry.discordId}>`,
+              allowedMentions: { parse: ['users'] },
+            });
+          }
+        }
+      } catch(_) {}
+
       // Open ticket for pulled player
       let ticketChannel = null;
       if (i.guild && CONFIG.TICKET_CATEGORY_ID) {
@@ -2699,6 +2731,7 @@ async function handleButtonClick(i) {
         .addFields(
           { name:'1. 🎮 IGN',         value:`**${target.ign}**`,                                        inline:true },
           { name:'2. 👤 Discord',      value:`<@${entry.discordId}>`,                                    inline:true },
+          { name:'🧪 Testing',        value:`<@${i.user.id}> is testing <@${entry.discordId}>`,       inline:false },
           { name:'3. 💻 Platform',     value:target.platform    || 'Java Edition',                       inline:true },
           { name:'4. 🔑 Account',      value:target.accountType || 'Premium',                            inline:true },
           { name:'5. 🌍 Region',       value:target.region      || 'PK',                                 inline:true },
@@ -2780,10 +2813,15 @@ async function handleButtonClick(i) {
           .setDescription(`Tumhara **${weapon}** cooldown abhi active hai.\n**${cd.hours}h ${cd.mins}m** baad try karo.`)
           .setFooter({ text: BOT_FOOTER })] });
 
-      const result = LDB.joinQ(i.user.id, weapon);
+      const result = addToSQQueue(i.user.id, weapon, player.ign);
       if (!result.ok && result.reason === 'dupe')
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
           .setDescription(`⚠️ Tum already **${weapon}** queue mein ho.`)] });
+      if (!result.ok && result.reason === 'full')
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setTitle('❌ Queue Full')
+          .setDescription(`Abhi **${weapon}** queue full hai. Max **${SQ_QUEUE_LIMIT}** players at a time join kar sakte hain.`)
+          .setFooter({ text: BOT_FOOTER })] });
 
       // Ticket create
       if (i.guild && CONFIG.TICKET_CATEGORY_ID)
