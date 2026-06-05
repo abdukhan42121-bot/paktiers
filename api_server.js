@@ -1144,7 +1144,22 @@ CMDS.openticket = {
   data: new SlashCommandBuilder()
     .setName('openticket')
     .setDescription('Open a ticket for a player and show full details')
-    .addUserOption(o => o.setName('player').setDescription('Player to open ticket for').setRequired(true)),
+    .addUserOption(o => o.setName('player').setDescription('Player to open ticket for').setRequired(true))
+    .addStringOption(o => o.setName('gamemode')
+      .setDescription('Gamemode jiska ticket open karna hai')
+      .setRequired(true)
+      .addChoices(
+        { name: '🔨 Mace',       value: 'Mace'       },
+        { name: '🔱 SpearMace',  value: 'SpearMace'  },
+        { name: '💠 Crystal',    value: 'Crystal'    },
+        { name: '⚔️ Sword',      value: 'Sword'      },
+        { name: '🪓 Axe',        value: 'Axe'        },
+        { name: '🪨 Netherite',  value: 'Netherite'  },
+        { name: '🔥 UHC',        value: 'UHC'        },
+        { name: '🧪 Pot',        value: 'Pot'        },
+        { name: '🟢 SMP',        value: 'SMP'        },
+        { name: '🛒 Cart',       value: 'Cart'       },
+      )),
 
   async execute(i) {
     const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
@@ -1156,8 +1171,9 @@ CMDS.openticket = {
         .setDescription('❌ Tumhe ticket open karne ki permission nahi.')] });
     }
 
-    const user = i.options.getUser('player');
-    const player = LDB.get(user.id);
+    const user     = i.options.getUser('player');
+    const gamemode = i.options.getString('gamemode');
+    const player   = LDB.get(user.id);
     if (!player) {
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ **${user.username}** registered nahi hai.`)] });
@@ -1165,14 +1181,22 @@ CMDS.openticket = {
 
     await i.deferReply({ ephemeral:true });
 
-    const ticketChannel = await createQueueTicket(i.client, i.guild, player, 'General', user.id, i.user.id);
+    const ticketChannel = await createQueueTicket(i.client, i.guild, player, gamemode, user.id, i.user.id);
     if (!ticketChannel) {
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Ticket create nahi ho saka. Category / permissions check karo.')] });
     }
 
+    const gmEmoji = WEAPON_EMOJI[gamemode] || '🎮';
     return i.editReply({ embeds:[new EmbedBuilder().setColor(0x57F287)
-      .setDescription(`✅ Ticket open ho gaya: ${ticketChannel}`)] });
+      .setTitle('✅ Ticket Open Ho Gaya!')
+      .addFields(
+        { name: '👤 Player',   value: `<@${user.id}> (**${player.ign}**)`, inline: true },
+        { name: '🎮 Gamemode', value: `${gmEmoji} **${gamemode}**`,         inline: true },
+        { name: '📩 Channel',  value: `${ticketChannel}`,                   inline: false },
+      )
+      .setFooter({ text: BOT_FOOTER })
+      .setTimestamp()] });
   },
 };
 
