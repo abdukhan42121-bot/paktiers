@@ -764,46 +764,24 @@ async function resolveTicketCategory(guild) {
 }
 
 function buildTicketEmbed({ player, discordId, weapon = null, pullerId = null, openedById = null, mode = 'queue' }) {
-  const totalPts = sumPlayerPoints(player);
-  const rank = getRankTitle(totalPts);
-  const tierList = formatPlayerTierList(player);
+  const previousTier = weapon ? (player.tiers?.[weapon] || null) : null;
+  const previousRank = previousTier ? getTierLabel(previousTier) : 'Unranked';
 
   const title = mode === 'manual'
     ? '🎫 Player Ticket Opened'
     : '🎫 Queue Ticket Opened';
 
-  const desc = mode === 'manual'
-    ? 'A ticket has been opened for this player.'
-    : `A player has been pulled from the **${weapon}** queue and a ticket has been created.`;
-
-  const fields = [
-    { name: '1. IGN', value: `**${player.ign}**`, inline: true },
-    { name: '2. Discord', value: `<@${discordId}>`, inline: true },
-    { name: '3. Platform', value: player.platform || 'Java Edition', inline: true },
-    { name: '4. Account', value: player.accountType || 'Premium (Paid)', inline: true },
-    { name: '5. Region', value: player.region || 'Pakistan 🇵🇰', inline: true },
-    { name: '6. Registered', value: `<t:${Math.floor((player.registeredAt || Date.now()) / 1000)}:F>`, inline: true },
-    { name: '7. Total Points', value: `**${totalPts}** (${rank.label})`, inline: true },
-    { name: '8. Tiers', value: tierList, inline: false },
-  ];
-
-  if (weapon) {
-    fields.unshift({ name: 'Weapon', value: `${WEAPON_EMOJI[weapon] || '🎮'} **${weapon}**`, inline: true });
-    fields.push({ name: 'Selected Tier', value: `\`${player.tiers?.[weapon] || 'N/A'}\``, inline: true });
-  }
-
-  if (openedById) fields.push({ name: 'Opened By', value: `<@${openedById}>`, inline: true });
-  if (pullerId) fields.push({ name: 'Pulled By', value: `<@${pullerId}>`, inline: true });
-
   return new EmbedBuilder()
     .setColor(BRAND_COLOR)
     .setTitle(title)
-    .setDescription(`${desc}
-
-**Player:** <@${discordId}>`)
-    .addFields(fields)
+    .addFields(
+      { name: 'Minecraft Username', value: `**${player.ign}**`,                    inline: false },
+      { name: 'Game Mode',          value: weapon ? `**${weapon}**` : 'General',   inline: false },
+      { name: 'Previous Rank',      value: previousRank,                           inline: false },
+      { name: 'Region',             value: player.region || 'Pakistan 🇵🇰',        inline: false },
+    )
     .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
-    .setFooter({ text: 'PakTiers Queue Ticket · Close when testing is done' })
+    .setFooter({ text: 'PakTiers Queue Ticket \u00b7 Close when testing is done' })
     .setTimestamp();
 }
 
@@ -1517,12 +1495,6 @@ CMDS.queue = {
         return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF9933)
           .setDescription(`⚠️ Tum already ${WEAPON_EMOJI[weapon]} **${weapon}** queue me ho.`)] });
 
-      // ── CREATE TICKET ──────────────────────────────────────
-      const guild = i.guild;
-      if (guild && CONFIG.TICKET_CATEGORY_ID) {
-        createQueueTicket(i.client, guild, player, weapon, i.user.id).catch(()=>{});
-      }
-
       if (result.match) {
         const [e1,e2] = result.match;
         const p1=LDB.get(e1.discordId), p2=LDB.get(e2.discordId);
@@ -1561,8 +1533,7 @@ CMDS.queue = {
           { name:'Player',      value:`**${player.ign}**`,              inline:true },
           { name:'Your Tier',   value:`\`${player.tiers?.[weapon] || 'Waitlist'}\``, inline:true },
           { name:'Position',    value:`**#${pos}** in queue`,           inline:true },
-          { name:'🎫 Ticket',   value:'Ticket create ho gaya! Staff ko notification gaya.', inline:false },
-          { name:'⏳ Status',   value:'1 aur player ka wait hai…' },
+          { name:'⏳ Status',   value:'Tester ke pull karne ka wait karo…' },
         ).setFooter({ text:'Use /queue leave to exit the queue · PakTiers' }).setTimestamp()] });
     }
 
@@ -2789,7 +2760,7 @@ async function handleButtonClick(i) {
           { name:'Player',    value:`**${player.ign}**`,           inline:true },
           { name:'Your Tier', value:`\`${player.tiers?.[weapon] || 'Waitlist'}\``, inline:true },
           { name:'Position',  value:`**#${pos}** in queue`,        inline:true },
-          { name:'🎫 Ticket', value:'Staff ko ticket gaya!',       inline:false },
+          { name:'⏳ Status',  value:'Tester ke pull karne ka wait karo…', inline:false },
         )
         .setFooter({ text:'Use the Leave Queue button to exit the queue · PakTiers' })
         .setTimestamp()] });
@@ -2962,10 +2933,6 @@ async function handleButtonClick(i) {
           .setDescription(`Abhi **${weapon}** queue full hai. Max **${SQ_QUEUE_LIMIT}** players at a time join kar sakte hain.`)
           .setFooter({ text: BOT_FOOTER })] });
 
-      // Ticket create
-      if (i.guild && CONFIG.TICKET_CATEGORY_ID)
-        createQueueTicket(i.client, i.guild, player, weapon, i.user.id).catch(() => {});
-
       broadcast({ type:'queue_updated', queues:MEM.queues });
       refreshSQPanel(i.client, weapon).catch(() => {});
 
@@ -2979,7 +2946,7 @@ async function handleButtonClick(i) {
           { name:'🎮 Player',    value:`**${player.ign}**`,                               inline:true },
           { name:'⚔️ Tier',     value:`\`${player.tiers?.[weapon] || 'Waitlist'}\``,      inline:true },
           { name:'📋 Position', value:`**#${pos}** in queue`,                             inline:true },
-          { name:'🎫 Ticket',   value:'Staff ko ticket notification gaya!',               inline:false },
+          { name:'⏳ Status',   value:'Tester ke pull karne ka wait karo…',               inline:false },
         )
         .setFooter({ text:'Use the Leave button to exit the queue · PakTiers' })
         .setTimestamp()] });
