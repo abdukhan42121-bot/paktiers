@@ -480,35 +480,45 @@ function getTierLabel(t) {
 // ── COOLDOWN UTILS ────────────────────────────────────────
 function getCooldownFile() { return path.join(DATA_DIR, 'cooldowns.json'); }
 
-function saveCooldown(discordId, weapon) {
+// LT3 ya usse neeche (LT3, LT4, LT5) = 7 din cooldown, baaki = CONFIG.TIER_COOLDOWN_DAYS
+const LT3_OR_BELOW = new Set(['LT3']);
+function getCooldownDays(tier) {
+  return LT3_OR_BELOW.has(tier) ? 7 : CONFIG.TIER_COOLDOWN_DAYS;
+}
+
+function saveCooldown(discordId, weapon, tier) {
   const f = getCooldownFile();
   const db = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f,'utf8')) : {};
   if (!db[discordId]) db[discordId] = {};
-  db[discordId][weapon] = Date.now();
+  db[discordId][weapon] = { ts: Date.now(), tier: tier || null };
   fs.writeFileSync(f, JSON.stringify(db, null, 2));
   if (!MEM.cooldowns[discordId]) MEM.cooldowns[discordId] = {};
-  MEM.cooldowns[discordId][weapon] = Date.now();
+  MEM.cooldowns[discordId][weapon] = db[discordId][weapon];
 }
 
 function getCooldown(discordId, weapon) {
   const f = getCooldownFile();
   if (!fs.existsSync(f)) return null;
   const db = JSON.parse(fs.readFileSync(f,'utf8'));
-  return db[discordId]?.[weapon] || null;
+  const raw = db[discordId]?.[weapon];
+  if (!raw) return null;
+  // backward compat: old format stored plain number
+  if (typeof raw === 'number') return { ts: raw, tier: null };
+  return raw;
 }
 
-
-
 function isOnCooldown(discordId, weapon) {
-  const ts = getCooldown(discordId, weapon);
-  if (!ts) return { onCooldown: false };
+  const entry = getCooldown(discordId, weapon);
+  if (!entry) return { onCooldown: false };
+  const ts = entry.ts;
+  const days = getCooldownDays(entry.tier);
+  const cooldownMs = days * 24 * 60 * 60 * 1000;
   const elapsed = Date.now() - ts;
-  const cooldownMs = CONFIG.TIER_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
   if (elapsed < cooldownMs) {
     const remaining = cooldownMs - elapsed;
     const hours = Math.floor(remaining / 3600000);
     const mins  = Math.floor((remaining % 3600000) / 60000);
-    return { onCooldown: true, hours, mins, endsAt: ts + cooldownMs };
+    return { onCooldown: true, hours, mins, endsAt: ts + cooldownMs, days };
   }
   return { onCooldown: false };
 }
@@ -1341,8 +1351,8 @@ CMDS.tier = {
         .setDescription(`❌ **${target.username}** ko pehle \`/register\` karna hoga.`)] });
       const oldTier = player.tiers?.[weapon];
       LDB.setTier(target.id, weapon, tier);
-      // Set cooldown
-      saveCooldown(target.id, weapon);
+      // Set cooldown (with tier info for LT3 = 1 week logic)
+      saveCooldown(target.id, weapon, tier);
       // Log the tier action
       saveTierLog({
         tieredBy:     i.user.id,
@@ -1360,7 +1370,14 @@ CMDS.tier = {
       try {
         const guild  = i.guild;
         const member = await guild.members.fetch(target.id).catch(()=>null);
-        if (member) await assignTierRole(guild, member, weapon, tier, oldTier);
+        if (member) {
+          await assignTierRole(guild, member, weapon, tier, oldTier);
+          // Remove Waitlist-<weapon> role during cooldown
+          const wlRole = guild.roles.cache.find(r => r.name === `Waitlist-${weapon}`);
+          if (wlRole && member.roles.cache.has(wlRole.id)) {
+            await member.roles.remove(wlRole).catch(() => {});
+          }
+        }
       } catch(_) {}
 
       await i.reply({ embeds:[new EmbedBuilder()
@@ -1381,9 +1398,10 @@ CMDS.tier = {
 
       // DM player
       try {
+        const cdDays = getCooldownDays(tier);
         await target.send({ embeds:[new EmbedBuilder().setColor(TIER_COLOR[tier]||BRAND_COLOR)
           .setTitle(`${WEAPON_EMOJI[weapon]} Tumhara ${weapon} tier ${oldTier?'update':'assign'} ho gaya!`)
-          .setDescription(`**${getTierLabel(tier)}** (\`${tier}\`) · +${TIER_PTS[tier]} pts\n\n⏳ **${CONFIG.TIER_COOLDOWN_DAYS} din** baad \`/queue join\` kar sakte ho ${weapon} ke liye!`)
+          .setDescription(`**${getTierLabel(tier)}** (\`${tier}\`) · +${TIER_PTS[tier]} pts\n\n⏳ **${cdDays} din** baad \`/queue join\` kar sakte ho ${weapon} ke liye!`)
           .setFooter({ text:BOT_FOOTER })] });
       } catch(_) {}
       return;
@@ -1433,11 +1451,7 @@ CMDS.queue = {
     .addSubcommand(s=>s.setName('leave').setDescription('Leave the queue (or all queues)')
       .addStringOption(o=>o.setName('weapon').setDescription('Weapon (leave all = all queues)').setRequired(false)
         .addChoices({name:'🚫 Leave ALL',value:'all'},...WEAPONS.map(w=>({name:`${WEAPON_EMOJI[w]} ${w}`,value:w})))))
-    .addSubcommand(s=>s.setName('status').setDescription('View queue status'))
-    .addSubcommand(s=>s.setName('start').setDescription('Open a queue — @everyone ping in the waitlist channel (Testers only)')
-      .addStringOption(o=>o.setName('gamemode').setDescription('Select a gamemode').setRequired(true)
-        .addChoices(...WEAPONS.map(w=>({name:`${WEAPON_EMOJI[w]} ${w}`,value:w}))))
-      .addStringOption(o=>o.setName('message').setDescription('Extra message (optional)').setRequired(false))),
+    .addSubcommand(s=>s.setName('status').setDescription('View queue status')),
 
   async execute(i) {
     const sub = i.options.getSubcommand();
@@ -1511,7 +1525,7 @@ CMDS.queue = {
             { name:'⏰ Remaining',    value:`**${cd.hours}h ${cd.mins}m**`, inline:true },
             { name:'✅ Available at', value:`<t:${Math.floor(cd.endsAt/1000)}:F>`, inline:true },
           )
-          .setFooter({ text:`${CONFIG.TIER_COOLDOWN_DAYS} din ka cooldown tier milne ke baad · PakTiers` })] });
+          .setFooter({ text:`${cd.days || CONFIG.TIER_COOLDOWN_DAYS} din ka cooldown tier milne ke baad · PakTiers` })] });
       }
 
       const result = LDB.joinQ(i.user.id, weapon);
@@ -1561,85 +1575,6 @@ CMDS.queue = {
         ).setFooter({ text:'Use /queue leave to exit the queue · PakTiers' }).setTimestamp()] });
     }
 
-    // ── START (Testers only) ─────────────────────────────────
-    if (sub === 'start') {
-      if (!hasQueuePerm(i.member))
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-          .setTitle('❌ Permission Denied')
-          .setDescription('Only **Testers** or roles with queue permission can use this command.')
-          .setFooter({ text:BOT_FOOTER })] });
-
-      await i.deferReply({ ephemeral:true });
-
-      const weapon   = i.options.getString('gamemode');
-      const extraMsg = i.options.getString('message') || null;
-      const emoji    = WEAPON_EMOJI[weapon] || '⚔️';
-
-      // ── Auto-find waitlist-<weapon> channel in guild ──────
-      const waitlistName = `waitlist-${weapon.toLowerCase()}`;
-      let announceChannel = null;
-      try {
-        const allChannels = await i.guild.channels.fetch();
-        announceChannel = allChannels.find(c =>
-          c.isTextBased() && c.name.toLowerCase() === waitlistName
-        ) || null;
-      } catch(_) {}
-
-      // Fallback: QUEUE_ANNOUNCE_CHANNEL_ID env, then current channel
-      if (!announceChannel && CONFIG.QUEUE_ANNOUNCE_CHANNEL_ID) {
-        try { announceChannel = await i.client.channels.fetch(CONFIG.QUEUE_ANNOUNCE_CHANNEL_ID).catch(()=>null); } catch(_) {}
-      }
-      if (!announceChannel) announceChannel = i.channel;
-
-      // ── CTL-style live panel ──────────────────────────────
-      const panels = loadLivePanels();
-
-      // Purana panel delete karo
-      if (panels[weapon]?.channelId && panels[weapon]?.messageId) {
-        try {
-          const oldCh  = await i.client.channels.fetch(panels[weapon].channelId).catch(() => null);
-          const oldMsg = oldCh ? await oldCh.messages.fetch(panels[weapon].messageId).catch(() => null) : null;
-          if (oldMsg) await oldMsg.delete().catch(() => {});
-        } catch(_) {}
-      }
-
-      panels[weapon] = { channelId: announceChannel.id, messageId: null, activeTesters: [], lastRefresh: Date.now() };
-      saveLivePanels(panels);
-
-      const embed   = buildLivePanelEmbed(weapon);
-      const joinBtn = new ButtonBuilder().setCustomId(`wl_join_${weapon}`).setLabel('Join').setStyle(ButtonStyle.Success);
-      const leavBtn = new ButtonBuilder().setCustomId(`wl_leave_${weapon}`).setLabel('Leave').setStyle(ButtonStyle.Danger);
-      const pullBtn = new ButtonBuilder().setCustomId(`wl_pull_${weapon}`).setLabel('🎫 Pull').setStyle(ButtonStyle.Primary);
-      const liveRow = new ActionRowBuilder().addComponents(joinBtn, leavBtn, pullBtn);
-
-      let sent = false;
-      let sentMsg = null;
-      try {
-        sentMsg = await announceChannel.send({
-          content: '',
-          embeds: [embed],
-          components: [liveRow],
-          allowedMentions: { parse: [] },
-        });
-        panels[weapon].messageId = sentMsg.id;
-        saveLivePanels(panels);
-        sent = true;
-      } catch(err) {
-        console.error('[QUEUE START ERROR]', err);
-      }
-
-      return i.editReply({ embeds:[new EmbedBuilder()
-        .setColor(sent ? 0x00C864 : 0xFF4444)
-        .setTitle(sent ? '✅ Live Queue Panel Create Ho Gaya!' : '⚠️ Announcement Failed')
-        .setDescription(sent
-          ? `**${weapon}** live panel <#${announceChannel.id}> mein create ho gaya!\nHar join/leave/pull pe auto-update hoga.`
-          : `Message send karne mein masla aaya.`)
-        .addFields(
-          { name:`${WEAPON_EMOJI[weapon]||'⚔️'} Gamemode`, value: weapon,                     inline:true },
-          { name:'📢 Channel',                              value: `<#${announceChannel.id}>`, inline:true },
-        )
-        .setFooter({ text:BOT_FOOTER })] });
-    }
   },
 };
 
@@ -2023,6 +1958,11 @@ CMDS.startqueue = {
         { name: 'NA',    value: 'NA'    },
         { name: 'SA',    value: 'SA'    },
       )
+    )
+    .addStringOption(o => o
+      .setName('message')
+      .setDescription('Extra announcement message (optional)')
+      .setRequired(false)
     ),
 
   async execute(i) {
@@ -2037,6 +1977,7 @@ CMDS.startqueue = {
 
     const weapon = i.options.getString('gamemode');
     const region = i.options.getString('region') || 'AS/AU';
+    const extraMsg = i.options.getString('message') || null;
     const emoji  = WEAPON_EMOJI[weapon] || '⚔️';
 
     // ── Find target channel: waitlist-<weapon> ────────────────
@@ -2102,8 +2043,10 @@ CMDS.startqueue = {
     // ── Send the live panel ───────────────────────────────────
     let sentMsg = null;
     try {
+      const baseContent = `a **${weapon}** queue is open for the **PK** region!`;
+      const fullContent = extraMsg ? `${baseContent}\n\n📢 ${extraMsg}` : baseContent;
       sentMsg = await targetCh.send({
-        content:           `a **${weapon}** queue is open for the **PK** region!`,
+        content:           fullContent,
         embeds:            [buildSQEmbed(weapon, region, [i.user.id])],
         components:        [buildSQButtons(weapon)],
         allowedMentions:   { parse: ['everyone'] },
@@ -2147,6 +2090,7 @@ CMDS.startqueue = {
         { name: `${emoji} Gamemode`, value: weapon,              inline: true },
         { name: '📢 Channel',        value: `<#${targetCh.id}>`, inline: true },
         { name: '🌍 Region',         value: region,              inline: true },
+        ...(extraMsg ? [{ name: '💬 Message', value: extraMsg, inline: false }] : []),
       )
       .setFooter({ text: BOT_FOOTER })
       .setTimestamp()] });
@@ -2669,38 +2613,19 @@ async function handleButtonClick(i) {
   if (i.customId === 'panel_register') {
     // Check if already registered
     const existing = LDB.get(i.user.id);
-    if (existing) {
-      // Already registered — show their current profile ephemeral
-      const tiers   = existing.tiers || {};
-      const entries = Object.entries(tiers).sort((a,b)=>(TIER_PTS[b[1]]||0)-(TIER_PTS[a[1]]||0));
-      const pts     = entries.reduce((s,[,t])=>s+(TIER_PTS[t]||0),0);
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
-        .setTitle('⚠️ Already Registered')
-        .setThumbnail(`https://mc-heads.net/avatar/${existing.ign}/128`)
-        .setDescription(
-          `You are already registered as **${existing.ign}**.
 
-` +
-          `Apni details update karne ke liye pehle \`/profile\` dekho.
-` +
-          `If you need to change your IGN, contact staff.`
-        )
-        .addFields(
-          { name:'🎮 IGN',      value:`**${existing.ign}**`,          inline:true },
-          { name:'💻 Platform', value:existing.platform||'Java',       inline:true },
-          { name:'🌍 Region',   value:existing.region||'PK',          inline:true },
-          { name:'⭐ Points',   value:`**${pts} pts**`,               inline:true },
-        )
-        .setFooter({ text:'PakTiers · Pakistan Minecraft Community' })] });
-    }
-
-    // Not registered — trigger registration flow (same as /register)
     if (CONFIG.REGISTER_CHANNEL_ID && i.channelId !== CONFIG.REGISTER_CHANNEL_ID) {
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ Please use <#${CONFIG.REGISTER_CHANNEL_ID}> for registration.`)] });
     }
 
-    regState.set(i.user.id, { platform: 'Java Edition' });
+    // Start registration/update flow — existing players can re-register (IGN update + tier transfer)
+    if (existing) {
+      // Store flag: this is an UPDATE, not fresh register
+      regState.set(i.user.id, { platform: existing.platform || 'Java Edition', isUpdate: true, oldIgn: existing.ign });
+    } else {
+      regState.set(i.user.id, { platform: 'Java Edition', isUpdate: false });
+    }
 
     const accRow = new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder()
@@ -2709,11 +2634,16 @@ async function handleButtonClick(i) {
         .addOptions(ACCOUNT_TYPES.map(a => ({ label:a, value:a }))),
     );
 
+    const titleTxt = existing ? '📋 PakTiers — Update Profile (Step 1/2)' : '📋 PakTiers Registration — Step 1/2';
+    const descTxt  = existing
+      ? `♻️ **Updating profile for ${existing.ign}**\n\nChoose your **account type**:`
+      : '🖥️ **Platform: Java Edition**\n\nChoose your **account type**:';
+
     return i.reply({
       ephemeral:true,
       embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
-        .setTitle('📋 PakTiers Registration — Step 1/2')
-        .setDescription('\uD83D\uDDA5\uFE0F **Platform: Java Edition**\n\nChoose your **account type**:')
+        .setTitle(titleTxt)
+        .setDescription(descTxt)
         .addFields(
           { name:'💎 Premium (Paid)', value:'Original bought Minecraft account', inline:false },
           { name:'🏴‍☠️ Cracked (Free)', value:'TLauncher ya koi aur cracked launcher', inline:false },
@@ -3133,6 +3063,74 @@ async function handleModal(i) {
     return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
       .setDescription('❌ Invalid IGN. Sirf letters, numbers aur underscore allowed hain.')] });
 
+  // ── UPDATE flow (existing player re-registering) ──────────
+  if (state.isUpdate) {
+    const existing = LDB.get(i.user.id);
+    if (!existing) {
+      regState.delete(i.user.id);
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Player data nahi mila. Pehle register karo.')] });
+    }
+
+    // Check if new IGN already taken by someone else
+    const taken = LDB.findIGN(ign);
+    if (taken && taken.discordId !== i.user.id)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ **${ign}** pehle se kisi aur ke paas register hai.`)] });
+
+    const oldIgn   = existing.ign;
+    const oldTiers = { ...existing.tiers };
+
+    // Update player record — keep tiers intact
+    const db = JSON.parse(fs.readFileSync(PF,'utf8'));
+    db[i.user.id] = {
+      ...db[i.user.id],
+      ign,
+      platform:    state.platform    || existing.platform,
+      accountType: state.accountType || existing.accountType,
+      region:      state.region      || existing.region,
+      updatedAt:   Date.now(),
+    };
+    fs.writeFileSync(PF, JSON.stringify(db, null, 2));
+    if (MEM.players[i.user.id]) Object.assign(MEM.players[i.user.id], db[i.user.id]);
+
+    regState.delete(i.user.id);
+    broadcast({ type:'player_updated', player: db[i.user.id] });
+    await sendRegistrationLog(i.client, db[i.user.id]);
+
+    // Assign verified role
+    if (CONFIG.VERIFIED_ROLE_ID) {
+      try {
+        const member = await i.guild.members.fetch(i.user.id).catch(()=>null);
+        if (member) {
+          const role = i.guild.roles.cache.get(CONFIG.VERIFIED_ROLE_ID);
+          if (role) await member.roles.add(role).catch(()=>{});
+        }
+      } catch(_) {}
+    }
+
+    const tierEntries = Object.entries(oldTiers);
+    const tierSummary = tierEntries.length
+      ? tierEntries.map(([w,t])=>`${WEAPON_EMOJI[w]||'•'} **${w}** — \`${t}\``).join('\n')
+      : '*Koi tier nahi tha*';
+
+    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+      .setTitle('✅ Profile Updated! 🎉')
+      .setDescription(`Profile update ho gaya, **${ign}**! 🇵🇰\nSaare purane tiers transfer ho gaye hain.`)
+      .setThumbnail(`https://mc-heads.net/avatar/${ign}/128`)
+      .addFields(
+        { name:'🔄 Old IGN',    value:`\`${oldIgn}\``,            inline:true },
+        { name:'✅ New IGN',    value:`\`${ign}\``,               inline:true },
+        { name:'💻 Platform',   value:state.platform||'?',        inline:true },
+        { name:'🔑 Account',    value:state.accountType||'?',     inline:true },
+        { name:'🌍 Region',     value:state.region||'?',          inline:true },
+        { name:'⚔️ Tiers Transferred', value: tierSummary,        inline:false },
+      )
+      .setFooter({ text:BOT_FOOTER })
+      .setTimestamp()] });
+  }
+
+  // ── FRESH REGISTRATION flow ───────────────────────────────
   // Check IGN already taken
   const taken = LDB.findIGN(ign);
   if (taken)
@@ -3142,8 +3140,10 @@ async function handleModal(i) {
   const result = LDB.register(i.user.id, ign, state.platform, state.accountType, state.region);
   if (!result) {
     const ex = LDB.get(i.user.id);
+    // Player already exists — treat as update
+    regState.set(i.user.id, { ...state, isUpdate: true, oldIgn: ex.ign });
     return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
-      .setDescription(`⚠️ You are already registered as **${ex.ign}**.`)] });
+      .setDescription(`⚠️ Tum already **${ex.ign}** ke naam se registered ho.\nProfile update ke liye dobara button click karo.`)] });
   }
 
   regState.delete(i.user.id);
