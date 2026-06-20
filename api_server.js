@@ -3223,18 +3223,6 @@ async function handleModal(i) {
     .setFooter({ text:BOT_FOOTER })
     .setTimestamp()] });
 
-  // Public announcement (same channel, non-ephemeral)
-  try {
-    const ch = i.channel;
-    if (ch) {
-      await ch.send({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
-        .setTitle('🆕 New Player Joined PakTiers!')
-        .setDescription(`<@${i.user.id}> (**${ign}**) ne PakTiers join kar liya! 🎉\n\n*Platform:* ${state.platform||'?'} | *Region:* ${state.region||'?'}`)
-        .setThumbnail(`https://mc-heads.net/avatar/${ign}/128`)
-        .setFooter({ text:BOT_FOOTER })
-        .setTimestamp()] });
-    }
-  } catch(_) {}
 }
 
 // ════════════════════════════════════════════════════════════
