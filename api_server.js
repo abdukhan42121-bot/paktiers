@@ -1125,6 +1125,53 @@ CMDS.msgsend = {
   },
 };
 
+// ── /embedsend ─────────────────────────────────────────────
+CMDS.embedsend = {
+  data: new SlashCommandBuilder()
+    .setName('embedsend')
+    .setDescription('Send a formatted embed message to any channel')
+    .addChannelOption(o => o.setName('channel').setDescription('Target channel').setRequired(true))
+    .addStringOption(o => o.setName('description').setDescription('Body text (use \\n for new lines, supports emoji/markdown)').setRequired(true))
+    .addStringOption(o => o.setName('title').setDescription('Embed title').setRequired(false))
+    .addStringOption(o => o.setName('color').setDescription('Hex color e.g. 5865F2').setRequired(false))
+    .addStringOption(o => o.setName('image').setDescription('Image URL (shown big at the bottom)').setRequired(false))
+    .addStringOption(o => o.setName('thumbnail').setDescription('Thumbnail URL (small image top-right)').setRequired(false)),
+
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Administrator permission required.')] });
+    }
+
+    const channel     = i.options.getChannel('channel');
+    const description = i.options.getString('description').replace(/\\n/g, '\n');
+    const title        = i.options.getString('title');
+    const colorInput    = i.options.getString('color');
+    const image        = i.options.getString('image');
+    const thumbnail    = i.options.getString('thumbnail');
+
+    let color = 0x5865F2;
+    if (colorInput) {
+      const parsed = parseInt(colorInput.replace('#',''), 16);
+      if (!isNaN(parsed)) color = parsed;
+    }
+
+    const embed = new EmbedBuilder().setColor(color).setDescription(description);
+    if (title) embed.setTitle(title);
+    if (image) embed.setImage(image);
+    if (thumbnail) embed.setThumbnail(thumbnail);
+
+    try {
+      await channel.send({ embeds: [embed] });
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x57F287)
+        .setDescription(`✅ Embed sent to ${channel}.`)] });
+    } catch (err) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Could not send embed: ${err.message}`)] });
+    }
+  },
+};
+
 // ── /setreglogschannel ────────────────────────────────────
 CMDS.setreglogschannel = {
   data: new SlashCommandBuilder()
