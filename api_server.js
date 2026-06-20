@@ -1134,8 +1134,8 @@ CMDS.embedsend = {
     .addStringOption(o => o.setName('description').setDescription('Body text (use \\n for new lines, supports emoji/markdown)').setRequired(true))
     .addStringOption(o => o.setName('title').setDescription('Embed title').setRequired(false))
     .addStringOption(o => o.setName('color').setDescription('Hex color e.g. 5865F2').setRequired(false))
-    .addStringOption(o => o.setName('image').setDescription('Image URL (shown big at the bottom)').setRequired(false))
-    .addStringOption(o => o.setName('thumbnail').setDescription('Thumbnail URL (small image top-right)').setRequired(false)),
+    .addAttachmentOption(o => o.setName('image').setDescription('Upload image (shown big at the bottom)').setRequired(false))
+    .addAttachmentOption(o => o.setName('thumbnail').setDescription('Upload thumbnail (small image top-right)').setRequired(false)),
 
   async execute(i) {
     if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
@@ -1147,8 +1147,8 @@ CMDS.embedsend = {
     const description = i.options.getString('description').replace(/\\n/g, '\n');
     const title        = i.options.getString('title');
     const colorInput    = i.options.getString('color');
-    const image        = i.options.getString('image');
-    const thumbnail    = i.options.getString('thumbnail');
+    const image        = i.options.getAttachment('image')?.url || null;
+    const thumbnail    = i.options.getAttachment('thumbnail')?.url || null;
 
     let color = 0x5865F2;
     if (colorInput) {
@@ -3016,7 +3016,7 @@ async function handleButtonClick(i) {
 
       // Create / fetch ticket
       let ticketChannel = null;
-      if (i.guild && CONFIG.TICKET_CATEGORY_ID) {
+      if (i.guild) {
         ticketChannel = await createQueueTicket(i.client, i.guild, target, weapon, entry.discordId, i.user.id).catch(() => null);
       }
 
