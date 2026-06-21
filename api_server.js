@@ -562,13 +562,13 @@ initF(PF, {});
 initF(QF, { Mace:[], SpearMace:[], Crystal:[], Sword:[], Axe:[], Netherite:[], UHC:[], Pot:[], SMP:[], Cart:[] });
 initF(MF, []);
 initF(TF, {});
-initF(SF, { regLogsChannelId: '' });
+initF(SF, { regLogsChannelId: '', appManagerRoles: [], appManagerUsers: [], supManagerRoles: [], supManagerUsers: [] });
 
 const rDB = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
 const wDB = (f, d) => fs.writeFileSync(f, JSON.stringify(d, null, 2));
 
 function loadSettings() {
-  try { return rDB(SF); } catch(_) { return { regLogsChannelId: '' }; }
+  try { return rDB(SF); } catch(_) { return { regLogsChannelId: '', appManagerRoles: [], appManagerUsers: [], supManagerRoles: [], supManagerUsers: [] }; }
 }
 function saveSettings(data) {
   try { wDB(SF, data); } catch(_) {}
@@ -677,6 +677,31 @@ const LDB = {
   },
   delTicket(id) {
     const db = rDB(TF); delete db[id]; wDB(TF, db); delete MEM.tickets[id];
+  },
+
+  // Ticket-category manager helpers (appmanager / supmanager)
+  getManagers(type) {
+    const s = rDB(SF);
+    return {
+      roles: s[`${type}ManagerRoles`] || [],
+      users: s[`${type}ManagerUsers`] || [],
+    };
+  },
+  addManagerRole(type, roleId) {
+    const s = rDB(SF);
+    const key = `${type}ManagerRoles`;
+    if (!s[key]) s[key] = [];
+    if (!s[key].includes(roleId)) s[key].push(roleId);
+    wDB(SF, s);
+    return s[key];
+  },
+  addManagerUser(type, userId) {
+    const s = rDB(SF);
+    const key = `${type}ManagerUsers`;
+    if (!s[key]) s[key] = [];
+    if (!s[key].includes(userId)) s[key].push(userId);
+    wDB(SF, s);
+    return s[key];
   },
 };
 
@@ -972,6 +997,20 @@ async function createApplicationTicket(client, guild, member, appType) {
       });
     }
 
+    const { roles: appMgrRoles, users: appMgrUsers } = LDB.getManagers('app');
+    for (const rid of appMgrRoles) {
+      permOverwrites.push({
+        id: rid,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      });
+    }
+    for (const uid of appMgrUsers) {
+      permOverwrites.push({
+        id: uid,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      });
+    }
+
     const ticketChannel = await guild.channels.create({
       name: channelName,
       type: ChannelType.GuildText,
@@ -995,7 +1034,7 @@ async function createApplicationTicket(client, guild, member, appType) {
         .setTitle(`📋 ${label}`)
         .setDescription(
           `<@${member.id}> ne **${label}** ke liye apply kiya hai.\n\n` +
-          `Staff please review karo aur application ke sawalat yahan poochein.`
+          `Staff will visit your ticket soon ✨`
         )
         .setFooter({ text: 'Paktiers Tierlist' })
         .setTimestamp()],
@@ -1118,6 +1157,20 @@ async function createSupportTicket(client, guild, member) {
       });
     }
 
+    const { roles: supMgrRoles, users: supMgrUsers } = LDB.getManagers('sup');
+    for (const rid of supMgrRoles) {
+      permOverwrites.push({
+        id: rid,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      });
+    }
+    for (const uid of supMgrUsers) {
+      permOverwrites.push({
+        id: uid,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      });
+    }
+
     const ticketChannel = await guild.channels.create({
       name: channelName,
       type: ChannelType.GuildText,
@@ -1139,7 +1192,7 @@ async function createSupportTicket(client, guild, member) {
       embeds: [new EmbedBuilder()
         .setColor(0xF5C842)
         .setTitle('🎫 Support Ticket Opened')
-        .setDescription(`<@${member.id}> ne support ticket khola hai.\n\nStaff please jald reply karo.`)
+        .setDescription(`<@${member.id}> ne support ticket khola hai.\n\nStaff will visit your ticket soon ✨`)
         .setFooter({ text: 'Paktiers Support' })
         .setTimestamp()],
       components: [row],
@@ -2232,6 +2285,144 @@ CMDS.setupsupportpnl = {
       console.error('[SUPPORT PANEL ERROR]', err);
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ Panel send karne mein masla: ${err.message}`)] });
+    }
+  },
+};
+
+
+// ── /appmanager ───────────────────────────────────────────────
+CMDS.appmanager = {
+  data: new SlashCommandBuilder()
+    .setName('appmanager')
+    .setDescription('Application tickets ki access do role/member ko (Admin only)')
+    .addRoleOption(o => o
+      .setName('role')
+      .setDescription('Role jisko sab application tickets dikhni chahiye')
+      .setRequired(false)
+    )
+    .addUserOption(o => o
+      .setName('member')
+      .setDescription('Member jisko sab application tickets dikhni chahiye')
+      .setRequired(false)
+    ),
+
+  async execute(i) {
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isAdmin)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Sirf Admin yeh command use kar sakta hai.')] });
+
+    const role   = i.options.getRole('role');
+    const member = i.options.getUser('member');
+    if (!role && !member)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Role ya member mein se kam az kam ek do.')] });
+
+    await i.deferReply({ ephemeral:true });
+
+    try {
+      const category = await resolveApplicationCategory(i.guild);
+      if (!category)
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription('❌ Application category nahi mil saki.')] });
+
+      const targetId = role ? role.id : member.id;
+      if (role)   LDB.addManagerRole('app', role.id);
+      if (member) LDB.addManagerUser('app', member.id);
+
+      const channels = i.guild.channels.cache.filter(
+        ch => ch.parentId === category.id && ch.type === ChannelType.GuildText
+      );
+
+      let updated = 0;
+      for (const ch of channels.values()) {
+        try {
+          await ch.permissionOverwrites.edit(targetId, {
+            ViewChannel: true, SendMessages: true, ReadMessageHistory: true,
+          });
+          updated++;
+        } catch(_) {}
+      }
+
+      const mention = role ? `<@&${role.id}>` : `<@${member.id}>`;
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+        .setDescription(
+          `✅ ${mention} ko ${updated} open application ticket(s) ki access mil gayi.\n` +
+          `Ab se har naye application ticket mein bhi inko automatically access milegi.`
+        )] });
+    } catch(err) {
+      console.error('[APPMANAGER ERROR]', err);
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Masla aa gaya: ${err.message}`)] });
+    }
+  },
+};
+
+
+// ── /supmanager ───────────────────────────────────────────────
+CMDS.supmanager = {
+  data: new SlashCommandBuilder()
+    .setName('supmanager')
+    .setDescription('Support tickets ki access do role/member ko (Admin only)')
+    .addRoleOption(o => o
+      .setName('role')
+      .setDescription('Role jisko sab support tickets dikhni chahiye')
+      .setRequired(false)
+    )
+    .addUserOption(o => o
+      .setName('member')
+      .setDescription('Member jisko sab support tickets dikhni chahiye')
+      .setRequired(false)
+    ),
+
+  async execute(i) {
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isAdmin)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Sirf Admin yeh command use kar sakta hai.')] });
+
+    const role   = i.options.getRole('role');
+    const member = i.options.getUser('member');
+    if (!role && !member)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Role ya member mein se kam az kam ek do.')] });
+
+    await i.deferReply({ ephemeral:true });
+
+    try {
+      const category = await resolveSupportCategory(i.guild);
+      if (!category)
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription('❌ Support category nahi mil saki.')] });
+
+      const targetId = role ? role.id : member.id;
+      if (role)   LDB.addManagerRole('sup', role.id);
+      if (member) LDB.addManagerUser('sup', member.id);
+
+      const channels = i.guild.channels.cache.filter(
+        ch => ch.parentId === category.id && ch.type === ChannelType.GuildText
+      );
+
+      let updated = 0;
+      for (const ch of channels.values()) {
+        try {
+          await ch.permissionOverwrites.edit(targetId, {
+            ViewChannel: true, SendMessages: true, ReadMessageHistory: true,
+          });
+          updated++;
+        } catch(_) {}
+      }
+
+      const mention = role ? `<@&${role.id}>` : `<@${member.id}>`;
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+        .setDescription(
+          `✅ ${mention} ko ${updated} open support ticket(s) ki access mil gayi.\n` +
+          `Ab se har naye support ticket mein bhi inko automatically access milegi.`
+        )] });
+    } catch(err) {
+      console.error('[SUPMANAGER ERROR]', err);
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Masla aa gaya: ${err.message}`)] });
     }
   },
 };
