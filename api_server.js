@@ -47,6 +47,14 @@ const CONFIG = {
   PANEL_CHANNEL_ID:          process.env.PANEL_CHANNEL_ID          || '',   // Channel where waitlist panel message stays (for /setuppanel)
   REG_LOGS_CHANNEL_ID:       process.env.REG_LOGS_CHANNEL_ID       || '',   // Channel for registration logs
 
+  // ── Paktiers Application Panel ──
+  APPLICATION_CHANNEL_ID:    process.env.APPLICATION_CHANNEL_ID    || '1518103705889542274', // Channel where /setupticketpnl sends the panel
+  APPLICATION_CATEGORY_ID:   process.env.APPLICATION_CATEGORY_ID   || '',   // Category where application tickets get created (auto-created if empty)
+
+  // ── Paktiers Support Panel (simple "Open a ticket!" button) ──
+  SUPPORT_CHANNEL_ID:        process.env.SUPPORT_CHANNEL_ID        || '1517571631550038256', // Channel where /setupsupportpnl sends the panel
+  SUPPORT_CATEGORY_ID:       process.env.SUPPORT_CATEGORY_ID       || '',   // Category where support tickets get created (auto-created if empty)
+
   API_SECRET: process.env.API_SECRET || 'paktiers-secret-change-me',
   PORT:       process.env.PORT       || 3001,
 
@@ -894,6 +902,272 @@ async function closeTicket(client, guild, discordId, closedBy) {
     LDB.delTicket(discordId);
     return true;
   } catch(_) { return false; }
+}
+
+// ════════════════════════════════════════════════════════════
+//  PAKTIERS APPLICATION PANEL + TICKETS
+//  (Helper / Tester / Screensharer / Media)
+// ════════════════════════════════════════════════════════════
+const APPLICATION_CATEGORY_NAME = 'Paktiers-Applications';
+const APPLICATION_TYPE_LABELS = {
+  helper:       'Paktiers Helper Application',
+  tester:       'Paktiers Tester Application',
+  screensharer: 'Paktiers Screensharer Application',
+  media:        'Paktiers Media Application',
+};
+
+async function resolveApplicationCategory(guild) {
+  if (!guild) return null;
+
+  if (CONFIG.APPLICATION_CATEGORY_ID) {
+    const existing = await guild.channels.fetch(CONFIG.APPLICATION_CATEGORY_ID).catch(() => null);
+    if (existing && existing.type === ChannelType.GuildCategory) return existing;
+  }
+
+  let category = guild.channels.cache.find(
+    ch => ch.type === ChannelType.GuildCategory && ch.name === APPLICATION_CATEGORY_NAME
+  );
+
+  if (!category) {
+    category = await guild.channels.create({
+      name: APPLICATION_CATEGORY_NAME,
+      type: ChannelType.GuildCategory,
+      reason: 'Paktiers application ticket category auto-created',
+    }).catch(() => null);
+  }
+
+  if (category) CONFIG.APPLICATION_CATEGORY_ID = category.id;
+  return category;
+}
+
+async function createApplicationTicket(client, guild, member, appType) {
+  if (!guild || !member) return null;
+  const label = APPLICATION_TYPE_LABELS[appType] || 'Paktiers Application';
+
+  try {
+    const category = await resolveApplicationCategory(guild);
+    if (!category) return null;
+
+    const safeName   = (member.user?.username || member.id).replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const channelName = `app-${appType}-${safeName}`;
+
+    // Avoid duplicate open application of same type by same user
+    const existingCh = guild.channels.cache.find(
+      ch => ch.parentId === category.id && ch.name === channelName
+    );
+    if (existingCh) return existingCh;
+
+    const permOverwrites = [
+      { id: guild.roles.everyone.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+      {
+        id: member.id,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      },
+    ];
+
+    if (CONFIG.TICKET_STAFF_ROLE_ID) {
+      permOverwrites.push({
+        id: CONFIG.TICKET_STAFF_ROLE_ID,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      });
+    }
+
+    const ticketChannel = await guild.channels.create({
+      name: channelName,
+      type: ChannelType.GuildText,
+      parent: category.id,
+      permissionOverwrites: permOverwrites,
+      topic: `${label} — <@${member.id}>`,
+    });
+
+    const staffPing = CONFIG.TICKET_STAFF_ROLE_ID ? `<@&${CONFIG.TICKET_STAFF_ROLE_ID}>` : '';
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`close_apptkt_${member.id}`)
+        .setLabel('🔒 Close Application')
+        .setStyle(ButtonStyle.Danger),
+    );
+
+    await ticketChannel.send({
+      content: `${staffPing} <@${member.id}>`.trim(),
+      embeds: [new EmbedBuilder()
+        .setColor(BRAND_COLOR)
+        .setTitle(`📋 ${label}`)
+        .setDescription(
+          `<@${member.id}> ne **${label}** ke liye apply kiya hai.\n\n` +
+          `Staff please review karo aur application ke sawalat yahan poochein.`
+        )
+        .setFooter({ text: 'Paktiers Tierlist' })
+        .setTimestamp()],
+      components: [row],
+    });
+
+    return ticketChannel;
+  } catch(err) {
+    console.error('[APPLICATION TICKET ERROR]', err);
+    return null;
+  }
+}
+
+function buildApplicationPanelEmbed() {
+  return new EmbedBuilder()
+    .setColor(BRAND_COLOR)
+    .setAuthor({ name: 'Application Panel' })
+    .setTitle('Paktiers Application')
+    .setDescription(
+      'Thank you for showing interest in **Paktiers** Tierlist. Open an application ticket to apply for tester or moderator !!\n\n' +
+      '__**Helper Application**__\n' +
+      '• Must be 15 years old or above\n' +
+      '• Any moderation experience is not required, but it\'s a plus!\n' +
+      '• Must be active\n' +
+      '• Be active at least 3 hours a day.\n' +
+      '• Joined this server since 1 week or above\n' +
+      '• Must be mature\n' +
+      '• Be professional in handling tickets and in the application\n' +
+      '• Must follow requirements, and rules.\n' +
+      '• Be able to follow higher staffs instructions\n\n' +
+      '__**Tester Application**__\n' +
+      '• Must be 14 years old or above\n' +
+      '• Must be active\n' +
+      '• Must be Low tier 3 or above\n' +
+      '• Must be professional handling tickets\n' +
+      '• 15 Tests for Monthly Quota\n' +
+      '• Must be mature and unbiased to every players\n' +
+      '• Must not be toxic\n' +
+      '• Must follow requirements, and rules\n' +
+      '• Must follow the instructions from higher staffs\n' +
+      '• Must be patient\n\n' +
+      '❗ - Mass Pinging staff members will get you application ban.\n' +
+      '❗ - Troll / Blank applications will get you an application ban.\n' +
+      '❗ - **Application Cooldown: 5 Days**'
+    )
+    .setFooter({ text: 'Paktiers Tierlist' });
+}
+
+function buildApplicationSelectRow() {
+  return new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId('app_apply_select')
+      .setPlaceholder('Make a selection')
+      .addOptions(
+        { label: 'Paktiers Helper Application',       value: 'helper' },
+        { label: 'Paktiers Tester Application',       value: 'tester' },
+        { label: 'Paktiers Screensharer Application', value: 'screensharer' },
+        { label: 'Paktiers Media Application',        value: 'media' },
+      ),
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+//  PAKTIERS SUPPORT PANEL (simple "Open a ticket!" button)
+// ════════════════════════════════════════════════════════════
+const SUPPORT_CATEGORY_NAME = 'Paktiers-Support-Tickets';
+
+async function resolveSupportCategory(guild) {
+  if (!guild) return null;
+
+  if (CONFIG.SUPPORT_CATEGORY_ID) {
+    const existing = await guild.channels.fetch(CONFIG.SUPPORT_CATEGORY_ID).catch(() => null);
+    if (existing && existing.type === ChannelType.GuildCategory) return existing;
+  }
+
+  let category = guild.channels.cache.find(
+    ch => ch.type === ChannelType.GuildCategory && ch.name === SUPPORT_CATEGORY_NAME
+  );
+
+  if (!category) {
+    category = await guild.channels.create({
+      name: SUPPORT_CATEGORY_NAME,
+      type: ChannelType.GuildCategory,
+      reason: 'Paktiers support ticket category auto-created',
+    }).catch(() => null);
+  }
+
+  if (category) CONFIG.SUPPORT_CATEGORY_ID = category.id;
+  return category;
+}
+
+async function createSupportTicket(client, guild, member) {
+  if (!guild || !member) return null;
+
+  try {
+    const category = await resolveSupportCategory(guild);
+    if (!category) return null;
+
+    const safeName    = (member.user?.username || member.id).replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const channelName = `support-${safeName}`;
+
+    // Avoid duplicate open support ticket for same user
+    const existingCh = guild.channels.cache.find(
+      ch => ch.parentId === category.id && ch.name === channelName
+    );
+    if (existingCh) return existingCh;
+
+    const permOverwrites = [
+      { id: guild.roles.everyone.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+      {
+        id: member.id,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      },
+    ];
+
+    if (CONFIG.TICKET_STAFF_ROLE_ID) {
+      permOverwrites.push({
+        id: CONFIG.TICKET_STAFF_ROLE_ID,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      });
+    }
+
+    const ticketChannel = await guild.channels.create({
+      name: channelName,
+      type: ChannelType.GuildText,
+      parent: category.id,
+      permissionOverwrites: permOverwrites,
+      topic: `Paktiers Support Ticket — <@${member.id}>`,
+    });
+
+    const staffPing = CONFIG.TICKET_STAFF_ROLE_ID ? `<@&${CONFIG.TICKET_STAFF_ROLE_ID}>` : '';
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`close_supporttkt_${member.id}`)
+        .setLabel('🔒 Close Ticket')
+        .setStyle(ButtonStyle.Danger),
+    );
+
+    await ticketChannel.send({
+      content: `${staffPing} <@${member.id}>`.trim(),
+      embeds: [new EmbedBuilder()
+        .setColor(0xF5C842)
+        .setTitle('🎫 Support Ticket Opened')
+        .setDescription(`<@${member.id}> ne support ticket khola hai.\n\nStaff please jald reply karo.`)
+        .setFooter({ text: 'Paktiers Support' })
+        .setTimestamp()],
+      components: [row],
+    });
+
+    return ticketChannel;
+  } catch(err) {
+    console.error('[SUPPORT TICKET ERROR]', err);
+    return null;
+  }
+}
+
+function buildSupportPanelEmbed() {
+  return new EmbedBuilder()
+    .setColor(0xF5C842)
+    .setTitle('Open a ticket!')
+    .setDescription('By clicking the button, a ticket will be opened for you.')
+    .setFooter({ text: 'Paktiers Support' });
+}
+
+function buildSupportButtonRow() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('support_open_ticket')
+      .setLabel('Open a ticket!')
+      .setEmoji('📩')
+      .setStyle(ButtonStyle.Primary),
+  );
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1881,6 +2155,88 @@ CMDS.setuppanel = {
 };
 
 
+// ── /setupticketpnl ──────────────────────────────────────────
+CMDS.setupticketpnl = {
+  data: new SlashCommandBuilder()
+    .setName('setupticketpnl')
+    .setDescription('Paktiers Application panel channel mein send karo (Admin only)')
+    .addChannelOption(o => o
+      .setName('channel')
+      .setDescription('Channel jahan panel bhejo (default: configured application channel)')
+      .setRequired(false)
+    ),
+
+  async execute(i) {
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isAdmin)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Sirf Admin yeh command use kar sakta hai.')] });
+
+    await i.deferReply({ ephemeral:true });
+
+    let targetChannel = i.options.getChannel('channel');
+    if (!targetChannel && CONFIG.APPLICATION_CHANNEL_ID) {
+      targetChannel = await i.client.channels.fetch(CONFIG.APPLICATION_CHANNEL_ID).catch(() => null);
+    }
+    if (!targetChannel) targetChannel = i.channel;
+
+    try {
+      await targetChannel.send({
+        embeds: [buildApplicationPanelEmbed()],
+        components: [buildApplicationSelectRow()],
+      });
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+        .setDescription(`✅ Paktiers Application panel <#${targetChannel.id}> mein send ho gaya!`)] });
+    } catch(err) {
+      console.error('[APP PANEL ERROR]', err);
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Panel send karne mein masla: ${err.message}`)] });
+    }
+  },
+};
+
+
+// ── /setupsupportpnl ──────────────────────────────────────────
+CMDS.setupsupportpnl = {
+  data: new SlashCommandBuilder()
+    .setName('setupsupportpnl')
+    .setDescription('Paktiers Support ticket panel channel mein send karo (Admin only)')
+    .addChannelOption(o => o
+      .setName('channel')
+      .setDescription('Channel jahan panel bhejo (default: configured support channel)')
+      .setRequired(false)
+    ),
+
+  async execute(i) {
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isAdmin)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Sirf Admin yeh command use kar sakta hai.')] });
+
+    await i.deferReply({ ephemeral:true });
+
+    let targetChannel = i.options.getChannel('channel');
+    if (!targetChannel && CONFIG.SUPPORT_CHANNEL_ID) {
+      targetChannel = await i.client.channels.fetch(CONFIG.SUPPORT_CHANNEL_ID).catch(() => null);
+    }
+    if (!targetChannel) targetChannel = i.channel;
+
+    try {
+      await targetChannel.send({
+        embeds: [buildSupportPanelEmbed()],
+        components: [buildSupportButtonRow()],
+      });
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+        .setDescription(`✅ Paktiers Support panel <#${targetChannel.id}> mein send ho gaya!`)] });
+    } catch(err) {
+      console.error('[SUPPORT PANEL ERROR]', err);
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Panel send karne mein masla: ${err.message}`)] });
+    }
+  },
+};
+
+
 // ════════════════════════════════════════════════════════════
 //  /startqueue — CTL-STYLE LIVE QUEUE PANEL (NEW COMMAND)
 //  Usage: /startqueue gamemode:Axe region:AS/AU
@@ -2578,6 +2934,30 @@ async function handleSelectMenu(i) {
     }
   }
 
+  // ── Application Panel: type select ────────────────────────
+  if (i.customId === 'app_apply_select') {
+    const appType = i.values[0];
+    const label = APPLICATION_TYPE_LABELS[appType] || 'Paktiers Application';
+
+    await i.deferReply({ ephemeral: true });
+
+    const member = await i.guild.members.fetch(i.user.id).catch(() => null);
+    if (!member) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Member fetch nahi hua, dobara try karo.')] });
+    }
+
+    const ticketChannel = await createApplicationTicket(i.client, i.guild, member, appType);
+    if (!ticketChannel) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Application ticket create nahi ho saka. Staff ko inform karo.')] });
+    }
+
+    return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+      .setTitle(`✅ ${label} Submitted!`)
+      .setDescription(`Tumhara application ticket khul gaya: <#${ticketChannel.id}>`)] });
+  }
+
   if (prefix !== 'reg') return;
   if (uid !== i.user.id) {
     return i.reply({ ephemeral:true, content:'❌ This is not your menu.' });
@@ -2713,6 +3093,52 @@ async function handleButtonClick(i) {
       return i.reply({ ephemeral:true, content:'❌ Tumhe yeh ticket band karne ki permission nahi.' });
     await i.reply({ ephemeral:true, content:'🔒 Ticket band ho raha hai...' });
     return closeTicket(i.client, i.guild, targetId, i.user.id);
+  }
+
+  // Close application ticket button
+  if (i.customId.startsWith('close_apptkt_')) {
+    const targetId = i.customId.replace('close_apptkt_','');
+    const isAdmin  = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasStaff = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
+    const isOwner  = i.user.id === targetId;
+    if (!isAdmin && !hasStaff && !isOwner)
+      return i.reply({ ephemeral:true, content:'❌ Tumhe yeh application band karne ki permission nahi.' });
+    await i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setDescription(`🔒 Application closed by <@${i.user.id}>. Channel 5 second mein delete ho jayega.`)] });
+    return setTimeout(() => i.channel.delete().catch(()=>{}), 5000);
+  }
+
+  // ── Support Panel: "Open a ticket!" button ────────────────
+  if (i.customId === 'support_open_ticket') {
+    await i.deferReply({ ephemeral: true });
+
+    const member = await i.guild.members.fetch(i.user.id).catch(() => null);
+    if (!member) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Member fetch nahi hua, dobara try karo.')] });
+    }
+
+    const ticketChannel = await createSupportTicket(i.client, i.guild, member);
+    if (!ticketChannel) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Support ticket create nahi ho saka. Staff ko inform karo.')] });
+    }
+
+    return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+      .setDescription(`✅ Tumhara support ticket khul gaya: <#${ticketChannel.id}>`)] });
+  }
+
+  // Close support ticket button
+  if (i.customId.startsWith('close_supporttkt_')) {
+    const targetId = i.customId.replace('close_supporttkt_','');
+    const isAdmin  = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasStaff = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
+    const isOwner  = i.user.id === targetId;
+    if (!isAdmin && !hasStaff && !isOwner)
+      return i.reply({ ephemeral:true, content:'❌ Tumhe yeh ticket band karne ki permission nahi.' });
+    await i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setDescription(`🔒 Ticket closed by <@${i.user.id}>. Channel 5 second mein delete ho jayega.`)] });
+    return setTimeout(() => i.channel.delete().catch(()=>{}), 5000);
   }
 
   // ── WAITLIST QUEUE BUTTONS (from /startqueue announce) ────────────────────
