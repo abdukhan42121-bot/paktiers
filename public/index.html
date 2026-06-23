@@ -1761,15 +1761,15 @@ function renderLeaderboard(players, highlightIgn = null) {
 
 const TIER_PTS = {HT1:10,LT1:9,HT2:8,LT2:7,HT3:6,LT3:5,HT4:4,LT4:3,HT5:2,LT5:1};
 const WEAPON_INFO = {
-  Sword:     { emoji: iconSVG('Sword'),     bg: '#0f1f15' },
-  Axe:       { emoji: iconSVG('Axe'),       bg: '#1f150f' },
-  Mace:      { emoji: iconSVG('Mace'),      bg: '#1a1200' },
-  Crystal:   { emoji: iconSVG('Crystal'),   bg: '#141024' },
-  Netherite: { emoji: iconSVG('Netherite'), bg: '#111a16' },
-  UHC:       { emoji: iconSVG('UHC'),       bg: '#1c1710' },
-  Pot:       { emoji: iconSVG('Pot'),       bg: '#11161d' },
-  SMP:       { emoji: iconSVG('SMP'),       bg: '#101a17' },
-  all:       { emoji: iconSVG('all'),       bg: '#1a1a1a' },
+  Sword:     { icon: iconSVG('Sword'),     bg: '#0f1f15' },
+  Axe:       { icon: iconSVG('Axe'),       bg: '#1f150f' },
+  Mace:      { icon: iconSVG('Mace'),      bg: '#1a1200' },
+  Crystal:   { icon: iconSVG('Crystal'),   bg: '#141024' },
+  Netherite: { icon: iconSVG('Netherite'), bg: '#111a16' },
+  UHC:       { icon: iconSVG('UHC'),       bg: '#1c1710' },
+  Pot:       { icon: iconSVG('Pot'),       bg: '#11161d' },
+  SMP:       { icon: iconSVG('SMP'),       bg: '#101a17' },
+  all:       { icon: iconSVG('all'),       bg: '#1a1a1a' },
 };
 
 function openPlayerModal(encodedData) {
@@ -1777,12 +1777,12 @@ function openPlayerModal(encodedData) {
   const content = document.getElementById('playerModalContent');
 
   const tierRows = Object.entries(p.tiers || {}).map(([w, t]) => {
-    const wInfo = WEAPON_INFO[w] || {emoji:'⚔️', bg:'#1a1a1a'};
+    const wInfo = WEAPON_INFO[w] || {icon: iconSVG(w), bg:'#1a1a1a'};
     const pts = TIER_PTS[t] || 0;
     return `
       <div class="modal-disc-row">
         <div class="modal-disc-left">
-          <div class="modal-disc-icon modal-tier-${t}" style="background:${wInfo.bg};">${wInfo.emoji}</div>
+          <div class="modal-disc-icon modal-tier-${t}" style="background:${wInfo.bg};">${wInfo.icon}</div>
           <div class="modal-disc-name">${w}</div>
         </div>
         <div class="modal-disc-right">
