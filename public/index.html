@@ -1706,17 +1706,59 @@ async function fetchLeaderboard(weapon = 'all') {
 
 function renderLeaderboard(players, highlightIgn = null) {
   const tbody = document.getElementById('lbBody');
+  if (!tbody) return;
+
+  const list = Array.isArray(players) ? players : [];
+  const query = lbSearchQuery.trim().toLowerCase();
 
   // Apply search filter
-  let filtered = players;
-  if (lbSearchQuery) {
-    filtered = players.filter(p => p.ign.toLowerCase().includes(lbSearchQuery.toLowerCase()));
-  }
+  const filtered = query
+    ? list.filter(p => (p?.ign || '').toLowerCase().includes(query))
+    : list;
 
-  if (!filtered || !filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="4" class="lb-cell"><div class="empty-state"><div class="big">🏆</div>${lbSearchQuery ? 'No players found' : 'No ranked players yet'}</div></td></tr>`;
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="lb-cell">
+      <div class="empty-state">
+        <div class="big">🏆</div>
+        ${lbSearchQuery ? 'No players found' : 'No ranked players yet'}
+      </div>
+    </td></tr>`;
     return;
   }
+
+  tbody.innerHTML = filtered.map((p, idx) => {
+    const rankNo = idx + 1;
+    const rankClass = rankNo === 1 ? 'gold' : rankNo === 2 ? 'silver' : rankNo === 3 ? 'bronze' : '';
+    const payload = encodeURIComponent(JSON.stringify(p));
+    const region = p?.region || 'PK';
+    const rankText = p?.rankTitle ? `${p.rankTitle.emoji} ${p.rankTitle.label}` : '—';
+    const totalPts = p?.totalPts ?? 0;
+
+    return `
+      <tr class="lb-row${highlightIgn && p?.ign && p.ign.toLowerCase() === highlightIgn.toLowerCase() ? ' highlight' : ''}"
+          data-payload="${payload}"
+          onclick="openPlayerModal(decodeURIComponent(this.dataset.payload))">
+        <td class="lb-cell rank-num ${rankClass}">${rankNo}</td>
+        <td class="lb-cell">
+          <div class="player-cell">
+            <img class="avatar" src="${p?.avatar || 'https://mc-heads.net/avatar/steve/64'}" alt="${p?.ign || 'Player'}"
+                 onerror="this.src='https://mc-heads.net/avatar/steve/64'">
+            <div>
+              <div class="ign">${p?.ign || 'Unknown'}</div>
+              <div class="rank-title">${rankText} · ${totalPts} pts</div>
+            </div>
+          </div>
+        </td>
+        <td class="lb-cell">
+          <div class="tiers-cell">
+            ${renderTierSlots(p?.tiers || {})}
+          </div>
+        </td>
+        <td class="lb-cell pts-cell" style="text-align:right">${region}</td>
+      </tr>`;
+  }).join('');
+}
+
 const TIER_PTS = {HT1:10,LT1:9,HT2:8,LT2:7,HT3:6,LT3:5,HT4:4,LT4:3,HT5:2,LT5:1};
 const WEAPON_INFO = {
   Sword:     { emoji: iconSVG('Sword'),     bg: '#0f1f15' },
@@ -2007,7 +2049,6 @@ setInterval(() => {
     fetchStats();
   }
 }, 30000);
-}
 </script>
 </body>
 </html>
