@@ -38,7 +38,7 @@
     content: '';
     position: fixed;
     inset: 0;
-    background: linear-gradient(160deg, rgba(6,10,16,.55) 0%, rgba(4,8,14,.45) 50%, rgba(4,10,16,.62) 100%);
+    background: linear-gradient(160deg, rgba(6,10,16,.32) 0%, rgba(4,8,14,.22) 50%, rgba(4,10,16,.4) 100%);
     pointer-events: none;
     z-index: 0;
   }
@@ -584,6 +584,49 @@
     font-family: 'Share Tech Mono', monospace;
     font-size: .75rem; color: var(--muted);
     margin-top: 4px;
+    display: flex; align-items: center; gap: 5px;
+  }
+
+  .rank-title-icon { display: inline-flex; width: 13px; height: 13px; }
+  .rank-title-icon svg { width: 13px; height: 13px; display: block; }
+
+  .modal-region {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .72rem; color: var(--dim);
+    margin-top: 6px;
+  }
+
+  .modal-position-bar {
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(0,200,100,.08);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin: 16px 0;
+  }
+
+  .modal-position-num {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.1rem; font-weight: 900;
+    color: #000; background: var(--accent);
+    width: 30px; height: 30px; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .modal-position-label {
+    display: flex; align-items: center; gap: 6px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .8rem; font-weight: 700; color: var(--text);
+    letter-spacing: 1px; text-transform: uppercase;
+  }
+
+  .modal-position-label svg { width: 16px; height: 16px; color: var(--accent); }
+
+  .modal-position-pts {
+    margin-left: auto;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .75rem; color: var(--muted);
   }
 
   .modal-section-label {
@@ -653,6 +696,7 @@
   }
 
   /* Tier background colors for modal icons */
+
   .modal-tier-HT1{background:#3a1500;border-color:#FF6B00;color:#FF6B00;}
   .modal-tier-LT1{background:#3a1e00;border-color:#FF9933;color:#FF9933;}
   .modal-tier-HT2{background:#332400;border-color:#FFB800;color:#FFB800;}
@@ -1734,9 +1778,9 @@ function renderLeaderboard(players, highlightIgn = null) {
   tbody.innerHTML = filtered.map((p, idx) => {
     const rankNo = idx + 1;
     const rankClass = rankNo === 1 ? 'gold' : rankNo === 2 ? 'silver' : rankNo === 3 ? 'bronze' : '';
-    const payload = encodeURIComponent(JSON.stringify(p));
+    const payload = encodeURIComponent(JSON.stringify({...p, rank: rankNo}));
     const region = p?.region || 'PK';
-    const rankText = p?.rankTitle ? `${p.rankTitle.emoji} ${p.rankTitle.label}` : '—';
+    const rankText = rankTitleHTML(p?.rankTitle);
     const totalPts = p?.totalPts ?? 0;
 
     return `
@@ -1764,6 +1808,22 @@ function renderLeaderboard(players, highlightIgn = null) {
   }).join('');
 }
 
+const RANK_TITLE_ICONS = {
+  'Combat Grandmaster': '<svg viewBox="0 0 24 24" width="14" height="14"><path d="M5 9l2.5 2L12 5l4.5 6L19 9l-1.4 9H6.4L5 9Z" fill="currentColor"/></svg>',
+  'Combat Master':      '<svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="14" r="6.2" fill="currentColor"/><path d="M9 3h6l-1 5h-4z" fill="currentColor" opacity=".85"/></svg>',
+  'Combat Ace':         '<svg viewBox="0 0 24 24" width="14" height="14"><path d="M14.8 3.5 20.5 9.2 18.9 10.8 17.1 10.2 12.7 14.6 13.3 16.4 11.7 18 10.1 16.4 8.9 17.6 6.4 15.1 7.6 13.9 6 12.3 7.6 10.7 9.4 11.3 13.8 6.9 13.2 5.1 14.8 3.5Z" fill="currentColor"/></svg>',
+  'Combat Specialist':  '<svg viewBox="0 0 24 24" width="14" height="14"><path d="M12 3.3 17.7 8 12 20.7 6.3 8 12 3.3Z" fill="currentColor"/></svg>',
+  'Combat Cadet':       '<svg viewBox="0 0 24 24" width="14" height="14"><path d="M12 3 19 6v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6l7-3Z" fill="currentColor"/></svg>',
+  'Combat Novice':      '<svg viewBox="0 0 24 24" width="14" height="14"><path d="M12 3.6 13.6 8.1 18.5 8.4 14.7 11.5 16 16.2 12 13.7 8 16.2 9.3 11.5 5.5 8.4 10.4 8.1 12 3.6Z" fill="currentColor"/></svg>',
+  'Rookie':             '<svg viewBox="0 0 24 24" width="14" height="14"><path d="M5 13c0-5 4-9 9-9 1 5-2 9-9 9Z" fill="currentColor"/><path d="M5 13c2 0 4.5-.5 6-2" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>'
+};
+function rankTitleIconSVG(label) {
+  return RANK_TITLE_ICONS[label] || '<svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="5" fill="currentColor"/></svg>';
+}
+function rankTitleHTML(rankTitle) {
+  if (!rankTitle) return '—';
+  return `<span class="rank-title-icon">${rankTitleIconSVG(rankTitle.label)}</span>${rankTitle.label}`;
+}
 const TIER_PTS = {HT1:10,LT1:9,HT2:8,LT2:7,HT3:6,LT3:5,HT4:4,LT4:3,HT5:2,LT5:1};
 const WEAPON_INFO = {
   Sword:     { icon: iconSVG('Sword'),     bg: '#0f1f15' },
@@ -1802,15 +1862,17 @@ function openPlayerModal(encodedData) {
       <img class="modal-avatar" src="${p.avatar}" alt="${p.ign}" onerror="this.src='https://mc-heads.net/avatar/steve/64'">
       <div>
         <div class="modal-player-name">${p.ign}</div>
-        <div class="modal-player-rank">${p.rankTitle.emoji} ${p.rankTitle.label} · Rank #${p.rank}</div>
+        <div class="modal-player-rank">${rankTitleHTML(p.rankTitle)}</div>
+        <div class="modal-region">${p.region || 'Unknown region'}</div>
       </div>
+    </div>
+    <div class="modal-position-bar">
+      <div class="modal-position-num">${p.rank ?? '—'}</div>
+      <div class="modal-position-label"><svg viewBox="0 0 24 24"><path d="M7 4h10v3.2c0 4-2.2 7-5 8.3-2.8-1.3-5-4.3-5-8.3V4Z" fill="currentColor"/><path d="M7 5H4v2c0 1.6 1.2 2.8 3 3M17 5h3v2c0 1.6-1.2 2.8-3 3" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>Overall</div>
+      <div class="modal-position-pts">${p.totalPts ?? 0} points</div>
     </div>
     <div class="modal-section-label">Gamemodes</div>
     ${tierRows || '<div style="color:var(--muted);font-family:\'Share Tech Mono\',monospace;font-size:.8rem;padding:12px 0;">No tiers assigned yet.</div>'}
-    <div class="modal-total-row">
-      <span class="modal-total-label">Total Points</span>
-      <span class="modal-total-pts">${p.totalPts}</span>
-    </div>
   `;
 
   document.getElementById('playerModal').classList.add('open');
@@ -1870,7 +1932,7 @@ function renderProfile(p) {
       <img class="profile-avatar" src="${p.avatar}" alt="${p.ign}" onerror="this.src='https://mc-heads.net/avatar/steve/80'">
       <div>
         <div class="profile-name">${p.ign}</div>
-        <div class="profile-rank">${p.rankTitle.emoji} ${p.rankTitle.label} · ${p.totalPts} pts</div>
+        <div class="profile-rank">${rankTitleHTML(p.rankTitle)} · ${p.totalPts} pts</div>
       </div>
     </div>
     <div class="profile-tiers">
@@ -1931,8 +1993,8 @@ function connectWS() {
     ws = new WebSocket(WS);
 
     ws.onopen = () => {
-      dot.classList.add('connected');
-      status.textContent = 'Live';
+      if (dot) dot.classList.add('connected');
+      if (status) status.textContent = 'Live';
       clearTimeout(reconnectTimer);
     };
 
@@ -1985,14 +2047,14 @@ function connectWS() {
     };
 
     ws.onclose = () => {
-      dot.classList.remove('connected');
-      status.textContent = 'Reconnecting...';
+      if (dot) dot.classList.remove('connected');
+      if (status) status.textContent = 'Reconnecting...';
       reconnectTimer = setTimeout(connectWS, 4000);
     };
 
     ws.onerror = () => {
-      dot.classList.remove('connected');
-      status.textContent = 'Offline';
+      if (dot) dot.classList.remove('connected');
+      if (status) status.textContent = 'Offline';
     };
   } catch (_) {}
 }
