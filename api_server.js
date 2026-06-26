@@ -84,6 +84,29 @@ function hasQueuePerm(member) {
   return perms.roles.some(rid => member.roles.cache.has(rid));
 }
 
+// ── TIERER PERM ROLES + MEMBERS — runtime mein /tiererperm se set hote hain ──
+const TIERER_PERM_FILE = path.join(__dirname, 'paktiers_data', 'tierer_perms.json');
+function loadTiererPerms() {
+  try {
+    if (fs.existsSync(TIERER_PERM_FILE)) return JSON.parse(fs.readFileSync(TIERER_PERM_FILE, 'utf8'));
+  } catch(_) {}
+  return { roles: [], members: [] };
+}
+function saveTiererPerms(data) {
+  try {
+    if (!fs.existsSync(path.join(__dirname, 'paktiers_data')))
+      fs.mkdirSync(path.join(__dirname, 'paktiers_data'), { recursive: true });
+    fs.writeFileSync(TIERER_PERM_FILE, JSON.stringify(data, null, 2));
+  } catch(_) {}
+}
+function hasTiererPerm(member) {
+  if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
+  if (CONFIG.TIERER_ROLE_ID && member.roles.cache.has(CONFIG.TIERER_ROLE_ID)) return true;
+  const perms = loadTiererPerms();
+  if (perms.members.includes(member.id)) return true;
+  return perms.roles.some(rid => member.roles.cache.has(rid));
+}
+
 
 // ════════════════════════════════════════════════════════════
 //  EXPRESS + WEBSOCKET
@@ -1548,7 +1571,7 @@ CMDS.openticket = {
   async execute(i) {
     const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
     const hasStaff  = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
-    const hasTierer = CONFIG.TIERER_ROLE_ID ? i.member.roles.cache.has(CONFIG.TIERER_ROLE_ID) : false;
+    const hasTierer = hasTiererPerm(i.member);
     const canUse    = isAdmin || hasStaff || hasTierer || hasQueuePerm(i.member);
     if (!canUse) {
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
@@ -1695,7 +1718,7 @@ CMDS.tier = {
 
   async execute(i) {
     const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
-    const hasTierer = CONFIG.TIERER_ROLE_ID ? i.member.roles.cache.has(CONFIG.TIERER_ROLE_ID) : false;
+    const hasTierer = hasTiererPerm(i.member);
     if (!isAdmin && !hasTierer)
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ **Tierer** role chahiye.')]});
@@ -2023,7 +2046,7 @@ CMDS.closeticket = {
   async execute(i) {
     const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
     const hasStaff  = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
-    const hasTierer = CONFIG.TIERER_ROLE_ID ? i.member.roles.cache.has(CONFIG.TIERER_ROLE_ID) : false;
+    const hasTierer = hasTiererPerm(i.member);
     if (!isAdmin && !hasStaff && !hasTierer)
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Staff ya Tierer role chahiye.')]});
@@ -2044,7 +2067,7 @@ CMDS.syncroles = {
 
   async execute(i) {
     const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
-    const hasTierer = CONFIG.TIERER_ROLE_ID ? i.member.roles.cache.has(CONFIG.TIERER_ROLE_ID) : false;
+    const hasTierer = hasTiererPerm(i.member);
     if (!isAdmin && !hasTierer)
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Admin ya Tierer role chahiye.')] });
@@ -2170,6 +2193,141 @@ CMDS.queueperm = {
       return i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setTitle('🗑️ Queue Permission Hatayi Gayi')
         .setDescription(`<@&${role.id}> (**${role.name}**) ki queue permission hata di gayi.`)
+        .setFooter({ text: BOT_FOOTER })
+        .setTimestamp()] });
+    }
+  },
+};
+
+// ── /tiererperm ───────────────────────────────────────────
+CMDS.tiererperm = {
+  data: new SlashCommandBuilder()
+    .setName('tiererperm')
+    .setDescription('Tier set karne ki permission kisi role/member ko do ya lo (Admin only)')
+    .addSubcommand(s => s
+      .setName('add')
+      .setDescription('Role ya member ko Tierer permission do')
+      .addRoleOption(o => o.setName('role').setDescription('Role jise Tierer permission deni hai').setRequired(false))
+      .addUserOption(o => o.setName('member').setDescription('Member jise Tierer permission deni hai').setRequired(false)))
+    .addSubcommand(s => s
+      .setName('remove')
+      .setDescription('Role ya member ki Tierer permission hato')
+      .addRoleOption(o => o.setName('role').setDescription('Role jis ki Tierer permission hatani hai').setRequired(false))
+      .addUserOption(o => o.setName('member').setDescription('Member jis ki Tierer permission hatani hai').setRequired(false)))
+    .addSubcommand(s => s
+      .setName('list')
+      .setDescription('Saare roles aur members dekho jinke paas Tierer permission hai')),
+
+  async execute(i) {
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isAdmin)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Sirf **Admin** yeh command use kar sakta hai.')] });
+
+    const sub   = i.options.getSubcommand();
+    const perms = loadTiererPerms();
+
+    // ── LIST ─────────────────────────────────────────────────
+    if (sub === 'list') {
+      const builtinLines = [];
+      if (CONFIG.TIERER_ROLE_ID) builtinLines.push(`• <@&${CONFIG.TIERER_ROLE_ID}> *(built-in: TIERER_ROLE_ID)*`);
+
+      const roleLines = perms.roles.length
+        ? perms.roles.map(rid => `• <@&${rid}>`).join('\n')
+        : '*Koi custom role nahi*';
+
+      const memberLines = perms.members.length
+        ? perms.members.map(uid => `• <@${uid}>`).join('\n')
+        : '*Koi custom member nahi*';
+
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+        .setTitle('🛡️ Tierer Permission List')
+        .addFields(
+          { name:'Built-in Roles', value: builtinLines.length ? builtinLines.join('\n') : '*None set*', inline:false },
+          { name:'Custom Roles (/tiererperm add role)', value: roleLines, inline:false },
+          { name:'Custom Members (/tiererperm add member)', value: memberLines, inline:false },
+        )
+        .setDescription('Yeh saare `/tier set`, `/tier remove`, `/syncroles`, aur dusre Tierer-only commands use kar sakte hain.')
+        .setFooter({ text: BOT_FOOTER })] });
+    }
+
+    const role   = i.options.getRole('role');
+    const member = i.options.getUser('member');
+
+    if (!role && !member)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription('⚠️ Kam se kam ek **role** ya **member** dena zaroori hai.')] });
+
+    // ── ADD ──────────────────────────────────────────────────
+    if (sub === 'add') {
+      const added = [];
+      const already = [];
+
+      if (role) {
+        if (perms.roles.includes(role.id)) {
+          already.push(`<@&${role.id}> (${role.name})`);
+        } else {
+          perms.roles.push(role.id);
+          added.push(`<@&${role.id}> (${role.name})`);
+        }
+      }
+
+      if (member) {
+        if (perms.members.includes(member.id)) {
+          already.push(`<@${member.id}> (${member.username})`);
+        } else {
+          perms.members.push(member.id);
+          added.push(`<@${member.id}> (${member.username})`);
+        }
+      }
+
+      if (added.length) saveTiererPerms(perms);
+
+      const lines = [];
+      if (added.length)   lines.push(`✅ **Permission di gayi:**\n${added.join('\n')}`);
+      if (already.length) lines.push(`⚠️ **Pehle se permission hai:**\n${already.join('\n')}`);
+
+      return i.reply({ embeds:[new EmbedBuilder()
+        .setColor(added.length ? 0x00C864 : 0xFF9933)
+        .setTitle('🛡️ Tierer Permission — Add')
+        .setDescription(lines.join('\n\n') + '\n\nYeh log ab `/tier set`, `/tier remove`, aur baaki Tierer-only commands use kar sakte hain.')
+        .setFooter({ text: BOT_FOOTER })
+        .setTimestamp()] });
+    }
+
+    // ── REMOVE ───────────────────────────────────────────────
+    if (sub === 'remove') {
+      const removed = [];
+      const notFound = [];
+
+      if (role) {
+        if (!perms.roles.includes(role.id)) {
+          notFound.push(`<@&${role.id}> (${role.name})`);
+        } else {
+          perms.roles = perms.roles.filter(rid => rid !== role.id);
+          removed.push(`<@&${role.id}> (${role.name})`);
+        }
+      }
+
+      if (member) {
+        if (!perms.members.includes(member.id)) {
+          notFound.push(`<@${member.id}> (${member.username})`);
+        } else {
+          perms.members = perms.members.filter(uid => uid !== member.id);
+          removed.push(`<@${member.id}> (${member.username})`);
+        }
+      }
+
+      if (removed.length) saveTiererPerms(perms);
+
+      const lines = [];
+      if (removed.length)  lines.push(`🗑️ **Permission hatayi gayi:**\n${removed.join('\n')}`);
+      if (notFound.length) lines.push(`⚠️ **Permission thi hi nahi:**\n${notFound.join('\n')}`);
+
+      return i.reply({ embeds:[new EmbedBuilder()
+        .setColor(removed.length ? 0xFF4444 : 0xFF9933)
+        .setTitle('🛡️ Tierer Permission — Remove')
+        .setDescription(lines.join('\n\n'))
         .setFooter({ text: BOT_FOOTER })
         .setTimestamp()] });
     }
@@ -2931,7 +3089,7 @@ CMDS.logs = {
   async execute(i) {
     // ── Permission check ─────────────────────────────────────
     const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
-    const hasTierer = CONFIG.TIERER_ROLE_ID ? i.member.roles.cache.has(CONFIG.TIERER_ROLE_ID) : false;
+    const hasTierer = hasTiererPerm(i.member);
     if (!isAdmin && !hasTierer)
       return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ **Tierer** ya **Admin** role chahiye yeh command use karne ke liye.')] });
@@ -3277,7 +3435,7 @@ async function handleButtonClick(i) {
     const ticket   = LDB.getTicket(targetId);
     const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
     const hasStaff  = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
-    const hasTierer = CONFIG.TIERER_ROLE_ID ? i.member.roles.cache.has(CONFIG.TIERER_ROLE_ID) : false;
+    const hasTierer = hasTiererPerm(i.member);
     const isOwner   = i.user.id === targetId;
     const isPuller  = ticket?.testerId && ticket.testerId === i.user.id;
     if (!isAdmin && !hasStaff && !hasTierer && !isOwner && !isPuller)
