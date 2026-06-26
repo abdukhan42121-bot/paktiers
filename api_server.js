@@ -123,14 +123,14 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ── IN-MEMORY DB ──────────────────────────────────────────
 const MEM = {
   players:   {},
-  queues:    { Mace:[], SpearMace:[], Crystal:[], Sword:[], Axe:[], Netherite:[], UHC:[], Pot:[], SMP:[], Cart:[] },
+  queues:    { Mace:[], Crystal:[], Sword:[], Axe:[], Netherite:[], UHC:[], Pot:[], SMP:[], DiaSMP:[] },
   matches:   [],
   cooldowns: {},   // { discordId: { weapon: timestamp } }
   tickets:   {},   // { discordId: channelId }
 };
 
-const REMOVED_GAMEMODES = new Set(['Vanilla', 'NethOP']);
-const GAMEMODE_ALIASES = { Carting: 'Cart' };
+const REMOVED_GAMEMODES = new Set(['Vanilla', 'NethOP', 'Cart', 'Carting', 'SpearMace']);
+const GAMEMODE_ALIASES = {};
 
 function normalizeGamemodeName(name) {
   if (!name) return name;
@@ -310,7 +310,7 @@ app.get('/api/queue', (req,res) => {
 const WEAPON_TO_MOD_GAMEMODE = {
   Mace:'mace', Crystal:'crystal', Sword:'sword', Axe:'axe',
   Netherite:'netherite', Vanilla:'vanilla', UHC:'uhc',
-  Pot:'pot', NethOP:'nethop', SMP:'smp', Carting:'carting',
+  Pot:'pot', NethOP:'nethop', SMP:'smp', DiaSMP:'diasmp',
 };
 const TIER_TO_MOD_VALUE = {
   HT1:100,LT1:90,HT2:80,LT2:70,HT3:60,LT3:50,HT4:40,LT4:30,HT5:20,LT5:10,
@@ -379,7 +379,7 @@ app.get('/v2/mode/list', (req,res) => {
   res.json({
     mace:'Mace', crystal:'Crystal', sword:'Sword', axe:'Axe',
     netherite:'Netherite', vanilla:'Vanilla', uhc:'UHC',
-    pot:'Pot', nethop:'NethOP', smp:'SMP', carting:'Carting',
+    pot:'Pot', nethop:'NethOP', smp:'SMP', diasmp:'DiaSMP',
   });
 });
 
@@ -416,15 +416,15 @@ app.get('/v2/profile/:uuid', (req,res) => {
 // ════════════════════════════════════════════════════════════
 //  DISCORD BOT
 // ════════════════════════════════════════════════════════════
-const WEAPONS = ['Mace','SpearMace','Crystal','Sword','Axe','Netherite','UHC','Pot','SMP','Cart'];
+const WEAPONS = ['Mace','Crystal','Sword','Axe','Netherite','UHC','Pot','SMP','DiaSMP'];
 const TIERS   = ['HT1','LT1','HT2','LT2','HT3','LT3','HT4','LT4','HT5','LT5'];
 const WEAPON_EMOJI = {
-  Mace:'🔨', SpearMace:'🔱', Crystal:'💠', Sword:'⚔️', Axe:'🪓', Netherite:'🪨',
-  UHC:'🔥', Pot:'🧪', SMP:'🟢', Cart:'🛒',
+  Mace:'🔨', Crystal:'💠', Sword:'⚔️', Axe:'🪓', Netherite:'🪨',
+  UHC:'🔥', Pot:'🧪', SMP:'🟢', DiaSMP:'💎',
 };
 const WEAPON_TO_MCTIERS = {
-  Mace:'mace', SpearMace:'spearmace', Crystal:'crystal', Sword:'sword', Axe:'axe', Netherite:'netherite',
-  UHC:'uhc', Pot:'pot', SMP:'smp', Cart:'cart',
+  Mace:'mace', Crystal:'crystal', Sword:'sword', Axe:'axe', Netherite:'netherite',
+  UHC:'uhc', Pot:'pot', SMP:'smp', DiaSMP:'diasmp',
 };
 const TIER_COLOR = {
   HT1:0xFF6B00, LT1:0xFF9933, HT2:0xFFB800, LT2:0xFFD700,
@@ -582,7 +582,7 @@ const SF = path.join(DATA_DIR, 'settings.json');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive:true });
 const initF = (f, d) => { if (!fs.existsSync(f)) fs.writeFileSync(f, JSON.stringify(d, null, 2)); };
 initF(PF, {});
-initF(QF, { Mace:[], SpearMace:[], Crystal:[], Sword:[], Axe:[], Netherite:[], UHC:[], Pot:[], SMP:[], Cart:[] });
+initF(QF, { Mace:[], Crystal:[], Sword:[], Axe:[], Netherite:[], UHC:[], Pot:[], SMP:[], DiaSMP:[] });
 initF(MF, []);
 initF(TF, {});
 initF(SF, { regLogsChannelId: '', appManagerRoles: [], appManagerUsers: [], supManagerRoles: [], supManagerUsers: [] });
@@ -1266,7 +1266,7 @@ async function assignTierRole(guild, member, weapon, tier, oldTier) {
 
 // Pre-warm role cache on bot ready (ensure all 100 roles exist)
 async function ensureAllRoles(guild) {
-  const WEAPONS_LIST = ['Mace','SpearMace','Crystal','Sword','Axe','Netherite','UHC','Pot','SMP','Cart'];
+  const WEAPONS_LIST = ['Mace','Crystal','Sword','Axe','Netherite','UHC','Pot','SMP','DiaSMP'];
   const TIERS_LIST   = ['HT1','LT1','HT2','LT2','HT3','LT3','HT4','LT4','HT5','LT5'];
   console.log('[ROLE] Ensuring all tier roles exist...');
   for (const w of WEAPONS_LIST) {
@@ -1557,7 +1557,6 @@ CMDS.openticket = {
       .setRequired(true)
       .addChoices(
         { name: '🔨 Mace',       value: 'Mace'       },
-        { name: '🔱 SpearMace',  value: 'SpearMace'  },
         { name: '💠 Crystal',    value: 'Crystal'    },
         { name: '⚔️ Sword',      value: 'Sword'      },
         { name: '🪓 Axe',        value: 'Axe'        },
@@ -1565,7 +1564,7 @@ CMDS.openticket = {
         { name: '🔥 UHC',        value: 'UHC'        },
         { name: '🧪 Pot',        value: 'Pot'        },
         { name: '🟢 SMP',        value: 'SMP'        },
-        { name: '🛒 Cart',       value: 'Cart'       },
+        { name: '💎 DiaSMP',     value: 'DiaSMP'     },
       )),
 
   async execute(i) {
