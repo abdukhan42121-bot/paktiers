@@ -1326,6 +1326,169 @@
     box-shadow: 0 0 60px rgba(0,200,100,.08), 0 30px 80px rgba(0,0,0,.5);
   }
 
+
+  /* TierTagger resource section */
+  .tiertagger-section {
+    margin-top: 18px;
+    padding: 22px;
+    border-radius: 26px;
+    background: linear-gradient(180deg, rgba(14,17,24,.92), rgba(19,24,32,.92));
+    border: 1px solid rgba(0,200,100,.18);
+    box-shadow: 0 16px 50px rgba(0,0,0,.2);
+  }
+
+  .tiertagger-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+
+  .tiertagger-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .tiertagger-badge {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    display: grid;
+    place-items: center;
+    background: rgba(0,200,100,.14);
+    border: 1px solid rgba(0,200,100,.22);
+    box-shadow: 0 0 0 1px rgba(0,200,100,.05) inset;
+    flex-shrink: 0;
+  }
+
+  .tiertagger-badge svg {
+    width: 24px;
+    height: 24px;
+    color: #00c864;
+  }
+
+  .tiertagger-head h2 {
+    margin: 0;
+    font-size: 1.3rem;
+    line-height: 1.1;
+    color: #f2f7fb;
+  }
+
+  .tiertagger-head p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: .92rem;
+    line-height: 1.4;
+  }
+
+  .tiertagger-download {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-radius: 16px;
+    text-decoration: none;
+    font-weight: 800;
+    color: #06130b;
+    background: linear-gradient(180deg, #00e57a, #00c864);
+    box-shadow: 0 10px 24px rgba(0,200,100,.18);
+    white-space: nowrap;
+  }
+
+  .tiertagger-download:hover {
+    filter: brightness(1.03);
+    transform: translateY(-1px);
+  }
+
+  .tiertagger-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .tiertagger-stat {
+    padding: 14px 15px;
+    border-radius: 18px;
+    background: rgba(255,255,255,.03);
+    border: 1px solid rgba(255,255,255,.06);
+  }
+
+  .tiertagger-stat .label {
+    font-size: .72rem;
+    letter-spacing: .9px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .tiertagger-stat .value {
+    font-size: 1.15rem;
+    font-weight: 900;
+    color: #eaf3fb;
+  }
+
+  .tiertagger-note {
+    margin: 0;
+    color: #b2bfcc;
+    font-size: .92rem;
+    line-height: 1.55;
+  }
+
+  .tiertagger-readme {
+    margin-top: 14px;
+    padding: 18px;
+    border-radius: 20px;
+    background: rgba(255,255,255,.03);
+    border: 1px solid rgba(255,255,255,.06);
+    color: #d8e4ee;
+  }
+
+  .tiertagger-readme h3 {
+    margin: 0 0 10px;
+    font-size: 1.15rem;
+    line-height: 1.25;
+    color: #f3f8fc;
+  }
+
+  .tiertagger-readme p {
+    margin: 0 0 12px;
+    color: #bfd0dd;
+    line-height: 1.65;
+  }
+
+  .tiertagger-readme strong {
+    color: #f3f8fc;
+  }
+
+  .tiertagger-readme h4 {
+    margin: 16px 0 10px;
+    font-size: .95rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: #f3f8fc;
+  }
+
+  .tiertagger-readme ul {
+    margin: 0 0 0 18px;
+    padding: 0;
+    color: #bfd0dd;
+    line-height: 1.65;
+  }
+
+  .tiertagger-readme li + li {
+    margin-top: 7px;
+  }
+
+  @media (max-width: 800px) {
+    .tiertagger-grid { grid-template-columns: 1fr; }
+    .tiertagger-head { align-items: stretch; }
+    .tiertagger-download { width: 100%; justify-content: center; }
+  }
+
 </style>
 </head>
 <body>
@@ -1337,7 +1500,7 @@
     <nav class="pt-nav" aria-label="Main">
       <a class="pt-nav-link active" href="#leaderboardPane">Rankings</a>
       <a class="pt-nav-link" href="https://discord.gg/d3NUQnmrC" target="_blank" rel="noopener noreferrer">Discords</a>
-      <a class="pt-nav-link" href="#" onclick="return false;">API Docs</a>
+      <a class="pt-nav-link" href="#tiertaggerSection">TierTagger</a>
     </nav>
 
     <div class="pt-actions">
@@ -1480,6 +1643,66 @@
       </table></div>
     </div>
   </div>
+
+  <!-- ─── TIERTAGGER ─── -->
+  <section class="tiertagger-section" id="tiertaggerSection">
+    <div class="tiertagger-head">
+      <div class="tiertagger-title">
+        <div class="tiertagger-badge" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M12 2.8 20.1 6.9V13c0 5.1-3.1 8.7-8.1 11.1C7 21.7 3.9 18.1 3.9 13V6.9L12 2.8Z" stroke="currentColor" stroke-width="1.8" />
+            <path d="M8.2 12.2 10.6 14.6 15.8 9.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </div>
+        <div>
+          <h2>TierTagger</h2>
+          <p>Client mod that shows PakTiers PvP tiers directly in player nametags.</p>
+        </div>
+      </div>
+
+      <a class="tiertagger-download" href="PakTiers-TierTagger-1.3.0.jar" download="PakTiers-TierTagger-1.3.0.jar">
+        Download TierTagger
+      </a>
+    </div>
+
+    <div class="tiertagger-grid">
+      <div class="tiertagger-stat">
+        <div class="label">Total Downloads</div>
+        <div class="value">Not tracked</div>
+      </div>
+      <div class="tiertagger-stat">
+        <div class="label">Size</div>
+        <div class="value">1.28 MB</div>
+      </div>
+      <div class="tiertagger-stat">
+        <div class="label">Version</div>
+        <div class="value">1.3.0</div>
+      </div>
+    </div>
+
+    <div class="tiertagger-readme">
+      <h3># Pak TierTagger</h3>
+      <p><strong>Pak TierTagger</strong> is a client-side Fabric mod that automatically fetches and displays PvP tier rankings from PakTiers directly on player nametags — so you always know who you're up against, without leaving the game.</p>
+
+      <h4>✨ Features</h4>
+      <ul>
+        <li>🏷️ <strong>Live tier tags on nametags</strong> — See every player's PvP tier displayed above their head in real time</li>
+        <li>🎮 <strong>Multiple gamemode tiers</strong> — Supports Sword, Axe, Crystal, Pot, SMP, UHC, Neth Pot, Mace, and more</li>
+        <li>🔍 <strong>In-game player search</strong> — Look up any player's tier without leaving the game</li>
+        <li>⌨️ <strong>Keybinds</strong> — Quickly cycle gamemodes “G” or open the player search screen “Y”</li>
+      </ul>
+
+      <h4>📋 Requirements</h4>
+      <ul>
+        <li>Minecraft 1.21 – 1.21.1</li>
+        <li>Fabric Loader ≥ 0.16.0</li>
+        <li>Fabric API</li>
+        <li>ModMenu ≥ 11.0.3</li>
+        <li>Java 21+</li>
+      </ul>
+    </div>
+  </section>
+
 
   <!-- ─── PROFILE ─── -->
   <div id="profilePane">
@@ -1772,6 +1995,17 @@ function showTab(name, el) {
   document.getElementById('queuePane').style.display       = name === 'queue'       ? '' : 'none';
   if (name === 'queue') fetchQueue();
 }
+
+function syncTierTaggerView() {
+  const leaderboardPane = document.getElementById('leaderboardPane');
+  if (!leaderboardPane) return;
+  const isTierTagger = location.hash === '#tiertaggerSection';
+  leaderboardPane.style.display = isTierTagger ? 'none' : '';
+}
+
+window.addEventListener('hashchange', syncTierTaggerView);
+window.addEventListener('DOMContentLoaded', syncTierTaggerView);
+syncTierTaggerView();
 
 // ─────────────────────────────────────────────────────────────
 //  FETCH HELPERS
