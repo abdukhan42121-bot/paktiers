@@ -119,6 +119,8 @@ app.set('trust proxy', 1);
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
+const TIER_TAGGER_JAR_NAME = 'PakTiers-TierTagger-1.3.0.jar';
+
 // Route precedence: these must come before express.static so download hits get counted.
 app.get(['/', '/ranking', '/ranking/', '/tiertagger', '/tiertagger/'], sendIndexPage);
 app.get([
@@ -142,7 +144,6 @@ const INDEX_FILE_CANDIDATES = [
   path.join(__dirname, 'index.html'),
 ];
 
-const TIER_TAGGER_JAR_NAME = 'PakTiers-TierTagger-1.3.0.jar';
 const TIER_TAGGER_DOWNLOAD_FILE = path.join(__dirname, 'paktiers_data', 'tiertagger_downloads.json');
 const TIER_TAGGER_JAR_CANDIDATES = [
   path.join(__dirname, 'public', TIER_TAGGER_JAR_NAME),
