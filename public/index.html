@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+<script>
+  if (location.pathname.replace(/\/+$/, '') === '/tiertagger') {
+    document.documentElement.classList.add('route-tiertagger');
+  }
+</script>
+
 <!-- ===== Primary / SEO ===== -->
 <title>PakTiers · Minecraft PvP Rankings</title>
 <meta name="title" content="PakTiers · Minecraft PvP Rankings">
@@ -1274,6 +1280,14 @@
     box-shadow: 0 16px 50px rgba(0,0,0,.2);
   }
 
+  html.route-tiertagger .container > :not(#tiertaggerSection) {
+    display: none !important;
+  }
+
+  html.route-tiertagger #leaderboardPane {
+    display: none !important;
+  }
+
   #leaderboardPane .lb-search-bar { display: none !important; }
   .tabs { display: none !important; }
 
@@ -1489,21 +1503,6 @@
     .tiertagger-download { width: 100%; justify-content: center; }
   }
 
-  body.view-tiertagger .container > :not(#tiertaggerSection) {
-    display: none !important;
-  }
-
-  body.view-tiertagger .pt-search-wrap,
-  body.view-tiertagger .pt-info-btn,
-  body.view-tiertagger .pt-info-popover {
-    display: none !important;
-  }
-
-  body.view-ranking #tiertaggerSection {
-    display: none !important;
-  }
-
-
 </style>
 </head>
 <body>
@@ -1513,9 +1512,9 @@
     <div class="pt-brand">PAK<span>TIERS</span></div>
 
     <nav class="pt-nav" aria-label="Main">
-      <a class="pt-nav-link active" href="/ranking" data-route="ranking">Rankings</a>
+      <a class="pt-nav-link active" href="/ranking">Rankings</a>
       <a class="pt-nav-link" href="https://discord.gg/d3NUQnmrC" target="_blank" rel="noopener noreferrer">Discords</a>
-      <a class="pt-nav-link" href="/tiertagger" data-route="tiertagger">TierTagger</a>
+      <a class="pt-nav-link" href="/tiertagger">TierTagger</a>
     </nav>
 
     <div class="pt-actions">
@@ -1675,15 +1674,15 @@
         </div>
       </div>
 
-      <a class="tiertagger-download" href="PakTiers-TierTagger-1.3.0.jar" download="PakTiers-TierTagger-1.3.0.jar">
+      <a class="tiertagger-download" href="/download/PakTiers-TierTagger-1.3.0.jar" download="PakTiers-TierTagger-1.3.0.jar">
         Download TierTagger
       </a>
     </div>
 
     <div class="tiertagger-grid">
       <div class="tiertagger-stat">
-        <div class="label">Live Downloads</div>
-        <div class="value" id="tierDownloadsValue">Loading…</div>
+        <div class="label">Total Downloads</div>
+        <div class="value" id="tiertaggerDownloadsValue">Loading...</div>
       </div>
       <div class="tiertagger-stat">
         <div class="label">Size</div>
@@ -1709,7 +1708,7 @@
 
       <h4>📋 Requirements</h4>
       <ul>
-        <li>Minecraft 1.21.11</li>
+        <li>Minecraft 1.21 – 1.21.1</li>
         <li>Fabric Loader ≥ 0.16.0</li>
         <li>Fabric API</li>
         <li>ModMenu ≥ 11.0.3</li>
@@ -2011,38 +2010,34 @@ function showTab(name, el) {
   if (name === 'queue') fetchQueue();
 }
 
-const ROUTES = {
-  ranking: '/ranking',
-  tiertagger: '/tiertagger'
-};
-
-function normalizePathname(pathname) {
-  const path = (pathname || '/').replace(/\/+$/, '') || '/';
-  return path.toLowerCase();
-}
-
-function getActiveRoute() {
-  const path = normalizePathname(location.pathname);
-  if (path.includes('/tiertagger')) return 'tiertagger';
-  if (path.includes('/ranking')) return 'ranking';
-  return 'ranking';
-}
-
 function syncTierTaggerView() {
-  const isTierTagger = getActiveRoute() === 'tiertagger';
-  document.body.classList.toggle('view-tiertagger', isTierTagger);
-  document.body.classList.toggle('view-ranking', !isTierTagger);
+  const isTierTaggerRoute = location.pathname.replace(/\/+$/, '') === '/tiertagger';
+  const isTierTaggerHash = location.hash === '#tiertaggerSection';
+  const isTierTagger = isTierTaggerRoute || isTierTaggerHash;
 
-  document.querySelectorAll('.pt-nav-link[data-route]').forEach(link => {
-    link.classList.toggle('active', link.dataset.route === (isTierTagger ? 'tiertagger' : 'ranking'));
-  });
+  const container = document.querySelector('.container');
+  if (container) {
+    Array.from(container.children).forEach((child) => {
+      if (child.id === 'tiertaggerSection') {
+        child.style.display = isTierTagger ? '' : 'none';
+      } else {
+        child.style.display = isTierTagger ? 'none' : '';
+      }
+    });
+  }
 
-  const badge = document.querySelector('.pt-brand');
-  if (badge) badge.style.cursor = 'default';
+  const leaderboardPane = document.getElementById('leaderboardPane');
+  if (leaderboardPane) {
+    leaderboardPane.style.display = isTierTagger ? 'none' : '';
+  }
 }
 
-window.addEventListener('popstate', syncTierTaggerView);
-window.addEventListener('DOMContentLoaded', syncTierTaggerView);
+window.addEventListener('hashchange', syncTierTaggerView);
+window.addEventListener('DOMContentLoaded', () => {
+  syncTierTaggerView();
+  fetchTierTaggerStats();
+  setInterval(fetchTierTaggerStats, 30000);
+});
 syncTierTaggerView();
 
 // ─────────────────────────────────────────────────────────────
@@ -2065,6 +2060,20 @@ async function fetchStats() {
   } catch (_) {}
 }
 
+async function fetchTierTaggerStats() {
+  const el = document.getElementById('tiertaggerDownloadsValue');
+  if (!el) return;
+  try {
+    const d = await apiFetch('/api/tiertagger/stats');
+    const total = Number(d?.totalDownloads || 0);
+    el.textContent = total.toLocaleString('en-US');
+  } catch (_) {
+    if (!el.textContent || el.textContent === 'Loading...') {
+      el.textContent = 'Not tracked';
+    }
+  }
+}
+
 function renderStats(d) {
   document.getElementById('statsRow').innerHTML = `
     <div class="stat-card"><div class="stat-num">${d.totalPlayers}</div><div class="stat-label">Total Players</div></div>
@@ -2078,19 +2087,6 @@ function flashStat(index) {
   if (cards[index]) {
     cards[index].classList.add('flash');
     setTimeout(() => cards[index].classList.remove('flash'), 800);
-  }
-}
-
-async function fetchTierTaggerDownloads() {
-  const el = document.getElementById('tierDownloadsValue');
-  if (!el) return;
-
-  try {
-    const d = await apiFetch('/api/tiertagger/downloads?file=PakTiers-TierTagger-1.3.0.jar');
-    const raw = Number(d?.downloads ?? d?.downloadCount ?? d?.total ?? d?.count);
-    el.textContent = Number.isFinite(raw) ? raw.toLocaleString() : '—';
-  } catch (_) {
-    el.textContent = '—';
   }
 }
 
@@ -2510,24 +2506,17 @@ function initInfoPopover() {
 //  INIT
 // ─────────────────────────────────────────────────────────────
 initInfoPopover();
-syncTierTaggerView();
+fetchStats();
+fetchLeaderboard(currentWeapon);
+connectWS();
 
-if (getActiveRoute() === 'tiertagger') {
-  fetchTierTaggerDownloads();
-  setInterval(fetchTierTaggerDownloads, 60000);
-} else {
-  fetchStats();
-  fetchLeaderboard(currentWeapon);
-  connectWS();
-
-  // Fallback 30s refresh agar WS disconnect ho
-  setInterval(() => {
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      fetchLeaderboard(currentWeapon);
-      fetchStats();
-    }
-  }, 30000);
-}
+// Fallback 30s refresh agar WS disconnect ho
+setInterval(() => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    fetchLeaderboard(currentWeapon);
+    fetchStats();
+  }
+}, 30000);
 </script>
 </body>
 </html>
