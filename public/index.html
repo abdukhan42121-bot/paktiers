@@ -902,7 +902,17 @@
   body.view-tiertagger #gmDetailPane,
   body.view-tiertagger #leaderboardPane,
   body.view-tiertagger #profilePane,
-  body.view-tiertagger #queuePane {
+  body.view-tiertagger #queuePane,
+  body.view-tiertagger #homeSection,
+  body.view-tiertagger #testersSection {
+    display: none !important;
+  }
+
+  /* TierTagger's own gamemode tabs / stats never appear outside #tiertaggerSection */
+  body.view-home .gamemode-tabs, body.view-home #gmDetailPane, body.view-home #tiertaggerSection,
+  body.view-home #leaderboardPane, body.view-home #testersSection,
+  body.view-testers .gamemode-tabs, body.view-testers #gmDetailPane, body.view-testers #tiertaggerSection,
+  body.view-testers #leaderboardPane, body.view-testers #homeSection {
     display: none !important;
   }
 
@@ -1498,6 +1508,143 @@
     .tiertagger-download { width: 100%; justify-content: center; }
   }
 
+  /* ── HOME SECTION ── */
+  .home-section {
+    margin-top: 18px;
+    padding: 34px 30px;
+    border-radius: 26px;
+    background: linear-gradient(180deg, rgba(14,17,24,.92), rgba(19,24,32,.92));
+    border: 1px solid rgba(0,200,100,.18);
+    box-shadow: 0 16px 50px rgba(0,0,0,.2);
+  }
+
+  .home-hero-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2rem;
+    font-weight: 900;
+    color: var(--text);
+    letter-spacing: 1px;
+    margin: 0 0 6px;
+  }
+
+  .home-hero-title span { color: var(--accent); }
+
+  .home-hero-sub {
+    color: var(--muted);
+    font-size: 1rem;
+    line-height: 1.6;
+    max-width: 760px;
+    margin: 0 0 22px;
+  }
+
+  .home-body {
+    color: #d8e4ee;
+    line-height: 1.75;
+    font-size: .98rem;
+  }
+
+  .home-body p { margin: 0 0 14px; }
+
+  .home-features {
+    list-style: none;
+    margin: 8px 0 22px;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .home-features li {
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgba(255,255,255,.03);
+    border: 1px solid rgba(255,255,255,.06);
+    font-weight: 600;
+    color: #eaf3fb;
+    font-size: .92rem;
+  }
+
+  .home-tagline {
+    font-family: 'Share Tech Mono', monospace;
+    letter-spacing: 1.5px;
+    color: var(--accent);
+    font-size: .95rem;
+    margin: 4px 0 24px;
+  }
+
+  .home-discord-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 13px 20px;
+    border-radius: 16px;
+    text-decoration: none;
+    font-weight: 800;
+    color: #06130b;
+    background: linear-gradient(180deg, #00e57a, #00c864);
+    box-shadow: 0 10px 24px rgba(0,200,100,.18);
+  }
+
+  .home-discord-cta:hover { filter: brightness(1.03); transform: translateY(-1px); }
+  .home-discord-cta svg { width: 20px; height: 20px; }
+
+  @media (max-width: 700px) {
+    .home-features { grid-template-columns: 1fr; }
+    .home-hero-title { font-size: 1.5rem; }
+  }
+
+  /* ── TESTERS SECTION ── */
+  .testers-section {
+    margin-top: 18px;
+    padding: 22px;
+    border-radius: 26px;
+    background: linear-gradient(180deg, rgba(14,17,24,.92), rgba(19,24,32,.92));
+    border: 1px solid rgba(0,200,100,.18);
+    box-shadow: 0 16px 50px rgba(0,0,0,.2);
+  }
+
+  .testers-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+
+  .testers-badge {
+    width: 48px; height: 48px; border-radius: 16px;
+    display: grid; place-items: center;
+    background: rgba(0,200,100,.14);
+    border: 1px solid rgba(0,200,100,.22);
+    flex-shrink: 0;
+  }
+  .testers-badge svg { width: 24px; height: 24px; color: #00c864; }
+
+  .testers-head h2 { margin: 0; font-size: 1.3rem; color: #f2f7fb; }
+  .testers-head p { margin: 4px 0 0; color: var(--muted); font-size: .92rem; }
+
+  .testers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 12px;
+  }
+
+  .tester-card {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px; border-radius: 16px;
+    background: rgba(255,255,255,.03);
+    border: 1px solid rgba(255,255,255,.06);
+  }
+
+  .tester-card img {
+    width: 40px; height: 40px; border-radius: 50%;
+    border: 1px solid rgba(0,200,100,.3);
+  }
+
+  .tester-name { font-weight: 700; color: #eaf3fb; font-size: .9rem; }
+  .tester-role { color: var(--muted); font-size: .74rem; margin-top: 2px; }
+
+  .testers-empty, .testers-error {
+    color: var(--muted);
+    font-size: .92rem;
+    padding: 20px;
+    text-align: center;
+  }
+
 </style>
 </head>
 <body>
@@ -1507,7 +1654,9 @@
     <div class="pt-brand">PAK<span>TIERS</span></div>
 
     <nav class="pt-nav" aria-label="Main">
-      <a class="pt-nav-link active" href="#leaderboardPane">Rankings</a>
+      <a class="pt-nav-link active" href="#homeSection">Home</a>
+      <a class="pt-nav-link" href="#testersSection">Testers</a>
+      <a class="pt-nav-link" href="#leaderboardPane">Rankings</a>
       <a class="pt-nav-link" href="https://discord.gg/d3NUQnmrC" target="_blank" rel="noopener noreferrer">Discords</a>
       <a class="pt-nav-link" href="#tiertaggerSection">TierTagger</a>
     </nav>
@@ -1601,6 +1750,46 @@
 </div>
 
 <div class="container">
+
+  <!-- ─── HOME ─── -->
+  <section class="home-section" id="homeSection">
+    <h1 class="home-hero-title">Welcome to <span>Paktiers</span></h1>
+    <p class="home-hero-sub">Pakistan's modern Minecraft PvP ranking platform, built to recognize skill, competition, and achievement.</p>
+    <div class="home-body">
+      <p>Paktiers is a modern Minecraft PvP ranking platform built to recognize skill, competition, and achievement. Our mission is to provide players with accurate rankings, detailed player profiles, and a transparent leaderboard that reflects real performance.</p>
+      <p>Whether you're searching for top PvP players, checking a player's ranking, or tracking competitive progress, Paktiers delivers a fast, reliable, and user-friendly experience designed for the Minecraft community.</p>
+    </div>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:.78rem;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">What You'll Find</div>
+    <ul class="home-features">
+      <li>🏆 Competitive Minecraft PvP Rankings</li>
+      <li>📊 Detailed Player Profiles &amp; Statistics</li>
+      <li>⚡ Fast, Accurate, and Regularly Updated Data</li>
+      <li>🌍 A Fair and Transparent Ranking System</li>
+      <li>🎯 Built for Players, Trusted by the Community</li>
+    </ul>
+    <p class="home-body" style="margin-bottom:6px;">At Paktiers, every rank is earned through skill. Join the competition, track your progress, and see where you stand among the best Minecraft PvP players.</p>
+    <div class="home-tagline">Compete. Climb. Conquer.</div>
+    <a class="home-discord-cta" href="https://discord.com/invite/d3NUQnmrC" target="_blank" rel="noopener noreferrer">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.317 4.369a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.211.381-.447.875-.609 1.268a18.27 18.27 0 0 0-5.48 0 12.64 12.64 0 0 0-.617-1.268.077.077 0 0 0-.079-.037 19.736 19.736 0 0 0-4.885 1.515.07.07 0 0 0-.032.027C1.453 9.045.876 13.58 1.155 18.057a.082.082 0 0 0 .031.055 19.9 19.9 0 0 0 6.03 3.03.078.078 0 0 0 .084-.027c.463-.63.875-1.296 1.226-1.995a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.293.074.074 0 0 1 .077-.01c3.928 1.792 8.18 1.792 12.062 0a.074.074 0 0 1 .078.01c.12.097.25.194.373.293a.077.077 0 0 1-.006.128 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.04.107c.36.698.772 1.364 1.225 1.994a.076.076 0 0 0 .084.027 19.88 19.88 0 0 0 6.03-3.03.077.077 0 0 0 .032-.054c.334-5.18-.553-9.675-2.36-13.661a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.335.955-2.43 2.157-2.43 1.21 0 2.174 1.095 2.157 2.43 0 1.334-.954 2.42-2.157 2.42zm7.974 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.335.955-2.43 2.157-2.43 1.21 0 2.174 1.095 2.157 2.43 0 1.334-.946 2.42-2.157 2.42z"/></svg>
+      Join our Discord
+    </a>
+  </section>
+
+  <!-- ─── TESTERS ─── -->
+  <section class="testers-section" id="testersSection" style="display:none;">
+    <div class="testers-head">
+      <div class="testers-badge" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3ZM8 11c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3Zm0 2c-2.33 0-7 1.17-7 3.5V19h9.34c-.22-.63-.34-1.29-.34-2 0-1.9.85-3.6 2.19-4.74C10.68 13.1 9.03 13 8 13Zm8 0c-.29 0-.62.02-.97.05A5.98 5.98 0 0 1 18 18c0 .71-.13 1.38-.35 2H23v-2.5c0-2.33-4.67-3.5-7-3.5Z" fill="currentColor"/></svg>
+      </div>
+      <div>
+        <h2>Testers</h2>
+        <p>Staff who evaluate players and assign tiers on Paktiers.</p>
+      </div>
+    </div>
+    <div class="testers-grid" id="testersGrid">
+      <div class="testers-empty">Loading testers...</div>
+    </div>
+  </section>
 
     <div class="gamemode-tabs" id="gamemodeTabs">
     <button class="weapon-btn active" onclick="filterWeapon('all', this)"><span class="gm-icon gm-icon-text" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 3.6 13.6 8.1 18.5 8.4 14.7 11.5 16 16.2 12 13.7 8 16.2 9.3 11.5 5.5 8.4 10.4 8.1 12 3.6Z" fill="currentColor"/></svg></span><span>Overall</span></button>
@@ -2005,29 +2194,69 @@ function showTab(name, el) {
   if (name === 'queue') fetchQueue();
 }
 
-function syncTierTaggerView() {
-  const isTierTagger = location.hash === '#tiertaggerSection';
-  document.body.classList.toggle('view-tiertagger', isTierTagger);
+// Site has 4 top-level views: home, testers, rankings (leaderboard/gamemodes), tiertagger.
+// The TierTagger stat area (gamemode tabs, live downloads, etc.) must ONLY ever be
+// visible inside #tiertaggerSection — never bleed into home/testers/rankings.
+function getCurrentView() {
+  const hash = location.hash;
+  if (hash === '#testersSection') return 'testers';
+  if (hash === '#tiertaggerSection') return 'tiertagger';
+  if (hash === '#leaderboardPane') return 'rankings';
+  return 'home'; // default view (no hash, or '#homeSection')
+}
 
+function syncTierTaggerView() {
+  const view = getCurrentView();
+
+  document.body.classList.toggle('view-tiertagger', view === 'tiertagger');
+  document.body.classList.toggle('view-home', view === 'home');
+  document.body.classList.toggle('view-testers', view === 'testers');
+
+  const homeSection = document.getElementById('homeSection');
+  const testersSection = document.getElementById('testersSection');
   const leaderboardPane = document.getElementById('leaderboardPane');
   const profilePane = document.getElementById('profilePane');
   const queuePane = document.getElementById('queuePane');
   const gamemodeTabs = document.getElementById('gamemodeTabs');
   const gmPane = document.getElementById('gmDetailPane');
   const tableWrap = document.getElementById('lbTableWrap');
+  const tiertaggerSection = document.getElementById('tiertaggerSection');
 
   const show = el => { if (el) el.style.display = ''; };
   const hide = el => { if (el) el.style.display = 'none'; };
 
-  if (isTierTagger) {
-    hide(leaderboardPane);
-    hide(profilePane);
-    hide(queuePane);
-    hide(gamemodeTabs);
-    hide(gmPane);
+  // Reset everything, then reveal only what belongs to the active view.
+  hide(homeSection); hide(testersSection); hide(leaderboardPane);
+  hide(profilePane); hide(queuePane); hide(gamemodeTabs); hide(gmPane);
+  hide(tiertaggerSection);
+
+  // Sync nav active state
+  document.querySelectorAll('.pt-nav-link').forEach(a => {
+    const href = a.getAttribute('href') || '';
+    const matches = (view === 'home' && href === '#homeSection') ||
+      (view === 'testers' && href === '#testersSection') ||
+      (view === 'rankings' && href === '#leaderboardPane') ||
+      (view === 'tiertagger' && href === '#tiertaggerSection');
+    a.classList.toggle('active', matches);
+  });
+
+  if (view === 'home') {
+    show(homeSection);
     return;
   }
 
+  if (view === 'testers') {
+    show(testersSection);
+    fetchTesters();
+    return;
+  }
+
+  if (view === 'tiertagger') {
+    show(tiertaggerSection);
+    return;
+  }
+
+  // view === 'rankings' — gamemode tabs / leaderboard / overall live ONLY here
   show(leaderboardPane);
   show(profilePane);
   show(queuePane);
@@ -2040,6 +2269,32 @@ function syncTierTaggerView() {
     show(gmPane);
     if (tableWrap) tableWrap.classList.add('hidden');
     renderGamemodeView(currentWeapon, cachedPlayers);
+  }
+}
+
+// ── TESTERS: members with Tierer permission (assigned via /tiererperm add "role") ──
+let testersFetched = false;
+async function fetchTesters() {
+  const grid = document.getElementById('testersGrid');
+  if (!grid) return;
+  try {
+    const d = await apiFetch('/api/testers');
+    const testers = d.testers || [];
+    testersFetched = true;
+    if (!testers.length) {
+      grid.innerHTML = `<div class="testers-empty">No testers found yet.</div>`;
+      return;
+    }
+    grid.innerHTML = testers.map(t => `
+      <div class="tester-card">
+        <img src="${t.avatar}" alt="" loading="lazy" onerror="this.src='https://mc-heads.net/avatar/MHF_Steve/40'">
+        <div>
+          <div class="tester-name">${(t.displayName || t.username || 'Unknown').replace(/</g,'&lt;')}</div>
+          <div class="tester-role">Tester</div>
+        </div>
+      </div>`).join('');
+  } catch (_) {
+    grid.innerHTML = `<div class="testers-error">Couldn't load testers right now. Make sure api_server.js is running.</div>`;
   }
 }
 
