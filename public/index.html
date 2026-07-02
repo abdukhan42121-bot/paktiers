@@ -1483,16 +1483,16 @@
     margin-top: 7px;
   }
 
-  .page-panel {
+  .testers-section {
     margin-top: 18px;
     padding: 22px;
     border-radius: 26px;
     background: linear-gradient(180deg, rgba(14,17,24,.92), rgba(19,24,32,.92));
-    border: 1px solid rgba(255,255,255,.06);
+    border: 1px solid rgba(0,200,100,.18);
     box-shadow: 0 16px 50px rgba(0,0,0,.2);
   }
 
-  .page-panel-head {
+  .testers-head {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
@@ -1501,128 +1501,23 @@
     margin-bottom: 18px;
   }
 
-  .section-eyebrow,
-  .home-kicker {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 7px 12px;
-    border-radius: 999px;
-    background: rgba(0,200,100,.12);
-    color: #8ef5be;
-    font-size: .78rem;
-    letter-spacing: .12em;
-    text-transform: uppercase;
-    margin-bottom: 12px;
+  .testers-head h2 {
+    margin: 0;
+    font-size: 1.3rem;
+    line-height: 1.1;
+    color: #f2f7fb;
   }
 
-  .home-hero {
-    display: grid;
-    grid-template-columns: minmax(0, 1.7fr) minmax(260px, .9fr);
-    gap: 18px;
-    align-items: stretch;
-  }
-
-  .home-copy h1 {
-    font-size: clamp(2rem, 3vw, 3.4rem);
-    line-height: 1.05;
-    margin: 0 0 14px;
-    color: #f4f9fd;
-  }
-
-  .home-copy p {
-    color: #bfd0dd;
-    line-height: 1.7;
-    font-size: 1rem;
-    max-width: 62ch;
-  }
-
-  .home-actions {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    margin-top: 20px;
-  }
-
-  .home-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 48px;
-    padding: 0 18px;
-    border-radius: 16px;
-    text-decoration: none;
-    font-weight: 700;
-    letter-spacing: .01em;
-  }
-
-  .home-btn-primary {
-    background: linear-gradient(180deg, #00e57a, #00c864);
-    color: #03120a;
-    box-shadow: 0 10px 24px rgba(0,200,100,.18);
-  }
-
-  .home-btn-secondary {
-    background: rgba(255,255,255,.05);
-    color: #e9f1f8;
-    border: 1px solid rgba(255,255,255,.08);
-  }
-
-  .home-sidecard {
-    display: grid;
-    gap: 12px;
-  }
-
-  .home-stat {
-    padding: 16px;
-    border-radius: 20px;
-    background: rgba(255,255,255,.03);
-    border: 1px solid rgba(255,255,255,.06);
-  }
-
-  .home-stat span {
-    display: block;
+  .testers-head p {
+    margin: 4px 0 0;
     color: var(--muted);
-    font-size: .8rem;
-    margin-bottom: 6px;
+    font-size: .92rem;
+    line-height: 1.4;
   }
 
-  .home-stat strong {
-    color: #eef6fb;
-    font-size: 1.05rem;
-    line-height: 1.3;
-  }
-
-  .tester-summary {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    margin-bottom: 16px;
-  }
-
-  .summary-pill {
-    padding: 12px 16px;
-    border-radius: 16px;
-    background: rgba(255,255,255,.04);
-    border: 1px solid rgba(255,255,255,.06);
-    min-width: 120px;
-  }
-
-  .summary-pill strong {
-    display: block;
-    color: #f4f9fd;
-    font-size: 1.15rem;
-    margin-bottom: 4px;
-  }
-
-  .summary-pill span {
-    color: var(--muted);
-    font-size: .85rem;
-  }
-
-  .tester-grid {
+  .testers-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
   }
 
@@ -1639,114 +1534,51 @@
   .tester-avatar {
     width: 48px;
     height: 48px;
-    border-radius: 14px;
-    object-fit: cover;
-    background: rgba(255,255,255,.05);
+    border-radius: 16px;
     flex-shrink: 0;
   }
 
-  .tester-info {
-    min-width: 0;
+  .tester-meta {
     flex: 1;
+    min-width: 0;
   }
 
   .tester-name {
-    color: #f2f7fb;
+    font-size: 1rem;
     font-weight: 800;
-    margin-bottom: 4px;
+    color: #f3f8fc;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .tester-sub {
+    margin-top: 2px;
+    color: #b2bfcc;
+    font-size: .9rem;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .tester-meta {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--muted);
-    font-size: .86rem;
-    flex-wrap: wrap;
-  }
-
-  .tester-status {
-    padding: 5px 9px;
+  .status-pill {
+    padding: 6px 10px;
     border-radius: 999px;
-    font-size: .7rem;
+    font-size: .72rem;
+    font-weight: 800;
     text-transform: uppercase;
     letter-spacing: .08em;
-    font-weight: 800;
+    flex-shrink: 0;
   }
 
-  .tester-status.online {
-    background: rgba(0,200,100,.12);
-    color: #8ef5be;
-  }
+  .status-online { background: rgba(0,200,100,.16); color: #8effb6; }
+  .status-idle { background: rgba(255,190,0,.14); color: #ffd66b; }
+  .status-dnd { background: rgba(255,90,90,.16); color: #ff9a9a; }
+  .status-offline { background: rgba(255,255,255,.08); color: #b2bfcc; }
 
-  .tester-status.idle {
-    background: rgba(255,200,0,.12);
-    color: #ffe08a;
+  @media (max-width: 800px) {
+    .testers-grid { grid-template-columns: 1fr; }
   }
-
-  .tester-status.dnd {
-    background: rgba(255,70,70,.12);
-    color: #ff9a9a;
-  }
-
-  .tester-status.offline {
-    background: rgba(120,130,145,.12);
-    color: #c6cfda;
-  }
-
-  .tester-empty {
-    padding: 18px;
-    border-radius: 18px;
-    background: rgba(255,255,255,.03);
-    border: 1px dashed rgba(255,255,255,.08);
-    color: var(--muted);
-    text-align: center;
-    grid-column: 1 / -1;
-  }
-
-  body.route-home .gamemode-tabs,
-  body.route-home #leaderboardPane,
-  body.route-home #profilePane,
-  body.route-home #queuePane,
-  body.route-home .tiertagger-section {
-    display: none !important;
-  }
-
-  body.route-rankings #homePane,
-  body.route-rankings #testersPane,
-  body.route-rankings .tiertagger-section {
-    display: none !important;
-  }
-
-  body.route-testers #homePane,
-  body.route-testers #leaderboardPane,
-  body.route-testers #profilePane,
-  body.route-testers #queuePane,
-  body.route-testers .tiertagger-section {
-    display: none !important;
-  }
-
-  body.route-tiertagger #homePane,
-  body.route-tiertagger #leaderboardPane,
-  body.route-tiertagger #profilePane,
-  body.route-tiertagger #queuePane,
-  body.route-tiertagger #testersPane {
-    display: none !important;
-  }
-
-  body.route-home .pt-search-wrap,
-  body.route-testers .pt-search-wrap,
-  body.route-tiertagger .pt-search-wrap {
-    display: none !important;
-  }
-
-  body.route-tiertagger .gamemode-tabs {
-    display: flex !important;
-  }
-
 
   @media (max-width: 800px) {
     .tiertagger-grid { grid-template-columns: 1fr; }
@@ -1763,11 +1595,11 @@
     <div class="pt-brand">PAK<span>TIERS</span></div>
 
     <nav class="pt-nav" aria-label="Main">
-      <a class="pt-nav-link" href="/home" data-route-link="home">Home</a>
-      <a class="pt-nav-link active" href="/rankings" data-route-link="rankings">Rankings</a>
-      <a class="pt-nav-link" href="/testers" data-route-link="testers">Testers</a>
-      <a class="pt-nav-link" href="/tiertagger" data-route-link="tiertagger">TierTagger</a>
-      <a class="pt-nav-link" href="https://discord.gg/d3NUQnmrC" target="_blank" rel="noopener noreferrer">Discord</a>
+      <a class="pt-nav-link active" href="/home">Home</a>
+      <a class="pt-nav-link" href="/rankings">Rankings</a>
+      <a class="pt-nav-link" href="https://discord.gg/d3NUQnmrC" target="_blank" rel="noopener noreferrer">Discords</a>
+      <a class="pt-nav-link" href="/tiertagger">TierTagger</a>
+      <a class="pt-nav-link" href="/testers">Testers</a>
     </nav>
 
     <div class="pt-actions">
@@ -1857,35 +1689,6 @@
     </div>
   </div>
 </div>
-
-
-<section class="page-panel home-panel" id="homePane">
-  <div class="home-hero">
-    <div class="home-copy">
-      <div class="home-kicker">PakTiers Platform</div>
-      <h1>Professional tier list platform built for Minecraft PvP communities.</h1>
-      <p>Paktiers is a professional tier list platform built to organize, evaluate, and present rankings in a clear and structured way. Designed for accuracy, consistency, and ease of use, it provides a modern space for users to compare tiers, track performance, and view rankings with confidence.</p>
-      <div class="home-actions">
-        <a class="home-btn home-btn-primary" href="https://discord.gg/d3NUQnmrC" target="_blank" rel="noopener noreferrer">Join Discord</a>
-        <a class="home-btn home-btn-secondary" href="/rankings">Open Rankings</a>
-      </div>
-    </div>
-    <div class="home-sidecard">
-      <div class="home-stat">
-        <span>Structured tiers</span>
-        <strong>HT1 - LT5</strong>
-      </div>
-      <div class="home-stat">
-        <span>Live community flow</span>
-        <strong>Rankings · Testers · TierTagger</strong>
-      </div>
-      <div class="home-stat">
-        <span>Discord access</span>
-        <strong>Fast joins and updates</strong>
-      </div>
-    </div>
-  </div>
-</section>
 
 <div class="container">
 
@@ -2000,26 +1803,23 @@
   </section>
 
 
-
-<section class="page-panel testers-panel" id="testersPane">
-  <div class="page-panel-head">
-    <div>
-      <div class="section-eyebrow">Testers</div>
-      <h2>Live online and offline Tierer members</h2>
-      <p>Members who have the /tierer role appear here with their current Discord status.</p>
+  <!-- ─── TESTERS ─── -->
+  <section class="testers-section" id="testersSection" style="display:none">
+    <div class="testers-head">
+      <div>
+        <h2>Testers</h2>
+        <p>Live online and offline members of the <strong>/tierer</strong> role.</p>
+      </div>
+      <a class="tiertagger-download" href="https://discord.gg/d3NUQnmrC" target="_blank" rel="noopener noreferrer">Join Discord</a>
     </div>
-    <button class="home-btn home-btn-secondary" type="button" id="refreshTestersBtn">Refresh</button>
-  </div>
 
-  <div class="tester-summary" id="testerSummary">
-    <div class="summary-pill"><strong id="testerOnlineCount">0</strong><span>Online</span></div>
-    <div class="summary-pill"><strong id="testerOfflineCount">0</strong><span>Offline</span></div>
-  </div>
-
-  <div class="tester-grid" id="testerGrid">
-    <div class="tester-empty">Loading testers...</div>
-  </div>
-</section>
+    <div class="testers-grid" id="testersGrid">
+      <div class="empty-state" style="grid-column:1/-1">
+        <div class="big"><svg viewBox="0 0 24 24" width="40" height="40" style="opacity:.5"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M4 21c1.8-4.3 5.2-6.4 8-6.4s6.2 2.1 8 6.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+        Loading testers...
+      </div>
+    </div>
+  </section>
 
   <!-- ─── PROFILE ─── -->
   <div id="profilePane">
@@ -2313,102 +2113,41 @@ function showTab(name, el) {
   if (name === 'queue') fetchQueue();
 }
 
-function getRouteName() {
-  const path = (location.pathname || '/').replace(/\/+$/, '') || '/';
-  if (path === '/' || path === '/home') return 'home';
-  if (path === '/rankings') return 'rankings';
-  if (path === '/testers') return 'testers';
-  if (path === '/tiertagger') return 'tiertagger';
-  return 'rankings';
+function normalizeRoute(pathname = location.pathname) {
+  const clean = (pathname || '/').replace(/\/+$/, '');
+  return clean || '/';
 }
 
-function setActiveRoute(route) {
-  document.body.classList.remove('route-home', 'route-rankings', 'route-testers', 'route-tiertagger');
-  document.body.classList.add(`route-${route}`);
-
-  document.querySelectorAll('.pt-nav-link[data-route-link]').forEach((link) => {
-    link.classList.toggle('active', link.dataset.routeLink === route);
-  });
-
-  const map = {
-    home: 'homePane',
-    rankings: 'leaderboardPane',
-    testers: 'testersPane',
-    tiertagger: 'tiertaggerSection',
-  };
-
-  Object.entries(map).forEach(([key, id]) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const shouldShow = key === route;
-    el.style.display = shouldShow ? '' : 'none';
-  });
-
+function applyRouteView() {
+  const route = normalizeRoute();
+  const leaderboardPane = document.getElementById('leaderboardPane');
   const profilePane = document.getElementById('profilePane');
-  if (profilePane) profilePane.style.display = route === 'rankings' ? '' : 'none';
-
   const queuePane = document.getElementById('queuePane');
-  if (queuePane) queuePane.style.display = route === 'rankings' ? '' : 'none';
+  const tierSection = document.getElementById('tiertaggerSection');
+  const testersSection = document.getElementById('testersSection');
 
-  const gamemodeTabs = document.querySelector('.gamemode-tabs');
-  if (gamemodeTabs) gamemodeTabs.style.display = route === 'tiertagger' ? 'flex' : 'none';
+  const showDefault = route === '/' || route === '/home' || route === '/rankings';
+  const showTierTagger = route === '/tiertagger';
+  const showTesters = route === '/testers';
 
-  if (route === 'testers') loadTesters();
-}
+  if (leaderboardPane) leaderboardPane.style.display = showDefault ? '' : 'none';
+  if (profilePane) profilePane.style.display = showDefault ? '' : 'none';
+  if (queuePane) queuePane.style.display = showDefault ? '' : 'none';
+  if (tierSection) tierSection.style.display = showTierTagger ? '' : 'none';
+  if (testersSection) testersSection.style.display = showTesters ? '' : 'none';
 
-async function loadTesters() {
-  const grid = document.getElementById('testerGrid');
-  const onlineEl = document.getElementById('testerOnlineCount');
-  const offlineEl = document.getElementById('testerOfflineCount');
-  if (!grid) return;
-
-  grid.innerHTML = '<div class="tester-empty">Loading testers...</div>';
-
-  try {
-    const res = await fetch('/api/testers');
-    const data = await res.json();
-
-    const testers = Array.isArray(data.testers) ? data.testers : [];
-    const onlineCount = data.onlineCount ?? testers.filter(t => t.online).length;
-    const offlineCount = data.offlineCount ?? testers.filter(t => !t.online).length;
-
-    if (onlineEl) onlineEl.textContent = String(onlineCount);
-    if (offlineEl) offlineEl.textContent = String(offlineCount);
-
-    if (!testers.length) {
-      grid.innerHTML = '<div class="tester-empty">No Tierer members found.</div>';
-      return;
-    }
-
-    grid.innerHTML = testers.map((tester) => {
-      const status = tester.status || 'offline';
-      const avatar = tester.avatar || 'https://mc-heads.net/avatar/Steve/128';
-      const displayName = tester.displayName || tester.username || 'Unknown';
-      return `
-        <article class="tester-card">
-          <img class="tester-avatar" src="${avatar}" alt="${displayName}" loading="lazy">
-          <div class="tester-info">
-            <div class="tester-name">${displayName}</div>
-            <div class="tester-meta">
-              <span class="tester-status ${status}">${status}</span>
-              <span>@${tester.username || displayName}</span>
-            </div>
-          </div>
-        </article>
-      `;
-    }).join('');
-  } catch (err) {
-    grid.innerHTML = '<div class="tester-empty">Unable to load testers right now.</div>';
+  if (showDefault) {
+    fetchStats();
+    fetchLeaderboard(currentWeapon);
+    fetchQueue();
+  } else if (showTesters) {
+    fetchTesters();
   }
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-  setActiveRoute(getRouteName());
-  const refresh = document.getElementById('refreshTestersBtn');
-  if (refresh) refresh.addEventListener('click', loadTesters);
-});
+window.addEventListener('DOMContentLoaded', applyRouteView);
+window.addEventListener('popstate', applyRouteView);
 
-window.addEventListener('popstate', () => setActiveRoute(getRouteName()));
 
 // ─────────────────────────────────────────────────────────────
 //  FETCH HELPERS
@@ -2733,6 +2472,57 @@ function renderQueue(queues) {
   }).join('');
 }
 
+function escapeHTML(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+async function fetchTesters() {
+  const grid = document.getElementById('testersGrid');
+  if (!grid) return;
+  grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="big"><svg viewBox="0 0 24 24" width="40" height="40" style="opacity:.5"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M4 21c1.8-4.3 5.2-6.4 8-6.4s6.2 2.1 8 6.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>Loading testers...</div>`;
+  try {
+    const d = await apiFetch('/api/testers');
+    renderTesters(d.testers || []);
+  } catch (err) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="big"><svg viewBox="0 0 24 24" width="40" height="40" style="opacity:.5"><path d="M12 3 22 20H2L12 3Z" fill="currentColor" opacity=".3" stroke="currentColor" stroke-width="1.5"/><rect x="11.1" y="9" width="1.8" height="6" fill="currentColor"/><rect x="11.1" y="16.2" width="1.8" height="1.8" fill="currentColor"/></svg></div>Unable to load testers.</div>`;
+  }
+}
+
+function renderTesters(testers = []) {
+  const grid = document.getElementById('testersGrid');
+  if (!grid) return;
+
+  const statusLabel = (status) => ({
+    online: 'Online',
+    idle: 'Idle',
+    dnd: 'Busy',
+    offline: 'Offline',
+    invisible: 'Offline',
+  }[status] || 'Offline');
+
+  const list = Array.isArray(testers) ? testers : [];
+  if (!list.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="big"><svg viewBox="0 0 24 24" width="40" height="40" style="opacity:.5"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M4 21c1.8-4.3 5.2-6.4 8-6.4s6.2 2.1 8 6.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>No testers found for the /tierer role.</div>`;
+    return;
+  }
+
+  grid.innerHTML = list.map(t => `
+    <div class="tester-card">
+      <img class="tester-avatar" src="${escapeHTML(t.avatar)}" alt="${escapeHTML(t.displayName || t.username || 'Tester')}" onerror="this.style.display='none'">
+      <div class="tester-meta">
+        <div class="tester-name">${escapeHTML(t.displayName || t.username || 'Tester')}</div>
+        <div class="tester-sub">@${escapeHTML(t.username || t.displayName || 'unknown')} · /tierer role</div>
+      </div>
+      <div class="status-pill status-${escapeHTML(t.status || 'offline')}">${statusLabel(t.status || 'offline')}</div>
+    </div>
+  `).join('');
+}
+
 // ─────────────────────────────────────────────────────────────
 //  WEBSOCKET — Real-time updates
 // ─────────────────────────────────────────────────────────────
@@ -2755,8 +2545,12 @@ function connectWS() {
 
         if (msg.type === 'init') {
           // Server se full state mili — sab refresh karo
-          fetchStats();
-          fetchLeaderboard(currentWeapon);
+          if (normalizeRoute() === '/testers') {
+            fetchTesters();
+          } else {
+            fetchStats();
+            fetchLeaderboard(currentWeapon);
+          }
           return;
         }
 
@@ -2862,12 +2656,16 @@ function initInfoPopover() {
 //  INIT
 // ─────────────────────────────────────────────────────────────
 initInfoPopover();
-fetchStats();
-fetchLeaderboard(currentWeapon);
+applyRouteView();
 connectWS();
 
 // Fallback 30s refresh agar WS disconnect ho
 setInterval(() => {
+  if (normalizeRoute() === '/testers') {
+    fetchTesters();
+    return;
+  }
+
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     fetchLeaderboard(currentWeapon);
     fetchStats();
