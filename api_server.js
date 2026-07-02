@@ -120,6 +120,13 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+const MAIN_HTML = path.join(__dirname, 'index.html');
+function serveMainPage(req, res) {
+  res.sendFile(MAIN_HTML);
+}
+
+app.get(['/', '/home', '/rankings', '/tiertagger', '/testers'], serveMainPage);
+
 // ── IN-MEMORY DB ──────────────────────────────────────────
 const MEM = {
   players:   {},
@@ -302,6 +309,44 @@ app.get('/api/queue', (req,res) => {
   for (const [w,q] of Object.entries(MEM.queues))
     queues[w]=q.map(e=>({ ...e, avatar:`https://mc-heads.net/avatar/${e.ign}/32` }));
   res.json({ queues });
+});
+
+app.get('/api/testers', async (req, res) => {
+  try {
+    const guild = client.guilds.cache.get(CONFIG.GUILD_ID) || await client.guilds.fetch(CONFIG.GUILD_ID).catch(() => null);
+    if (!guild) return res.json({ testers: [], onlineCount: 0, offlineCount: 0, roleId: CONFIG.TIERER_ROLE_ID || null });
+
+    await guild.members.fetch().catch(() => null);
+
+    const roleId = CONFIG.TIERER_ROLE_ID || null;
+    const role = roleId ? guild.roles.cache.get(roleId) || await guild.roles.fetch(roleId).catch(() => null) : null;
+    const members = role ? [...role.members.values()] : [];
+
+    const testers = members.map((m) => {
+      const status = m.presence?.status || 'offline';
+      return {
+        id: m.id,
+        username: m.user?.username || m.displayName || m.id,
+        displayName: m.displayName || m.user?.username || m.id,
+        avatar: m.user?.displayAvatarURL({ extension: 'png', size: 128 }) || null,
+        status,
+        online: status !== 'offline',
+      };
+    }).sort((a, b) => {
+      if (a.online !== b.online) return a.online ? -1 : 1;
+      return a.displayName.localeCompare(b.displayName);
+    });
+
+    res.json({
+      roleId,
+      roleName: role?.name || 'Tierer',
+      testers,
+      onlineCount: testers.filter(t => t.online).length,
+      offlineCount: testers.filter(t => !t.online).length,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ════════════════════════════════════════════════════════════
@@ -4013,6 +4058,7 @@ const client = new Client({ intents:[
   GatewayIntentBits.Guilds,
   GatewayIntentBits.GuildMessages,
   GatewayIntentBits.GuildMembers,
+  GatewayIntentBits.GuildPresences,
   GatewayIntentBits.MessageContent,
 ]});
 
