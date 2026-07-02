@@ -414,6 +414,44 @@ app.get('/v2/profile/:uuid', (req,res) => {
 });
 
 // ════════════════════════════════════════════════════════════
+//  TESTERS API (website "Testers" section)
+//  Testers = members with Tierer permission: the built-in
+//  TIERER_ROLE_ID role, plus any roles/members added via
+//  "/tiererperm add" — the command that grants people the
+//  ability to test/tier players.
+// ════════════════════════════════════════════════════════════
+app.get('/api/testers', async (req, res) => {
+  try {
+    const guild = client.guilds.cache.get(CONFIG.GUILD_ID);
+    if (!guild) return res.json({ testers: [], count: 0 });
+    await guild.members.fetch().catch(() => {});
+
+    const perms = loadTiererPerms();
+    const roleIds = new Set(perms.roles || []);
+    if (CONFIG.TIERER_ROLE_ID) roleIds.add(CONFIG.TIERER_ROLE_ID);
+    const memberIds = new Set(perms.members || []);
+
+    const testers = [];
+    guild.members.cache.forEach(m => {
+      if (m.user.bot) return;
+      const hasRole = [...roleIds].some(rid => m.roles.cache.has(rid));
+      if (hasRole || memberIds.has(m.id)) {
+        testers.push({
+          id: m.id,
+          username: m.user.username,
+          displayName: m.displayName || m.user.username,
+          avatar: m.user.displayAvatarURL({ extension: 'png', size: 128 }),
+        });
+      }
+    });
+
+    res.json({ testers, count: testers.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message, testers: [] });
+  }
+});
+
+// ════════════════════════════════════════════════════════════
 //  DISCORD BOT
 // ════════════════════════════════════════════════════════════
 const WEAPONS = ['Mace','Crystal','Sword','Axe','Netherite','UHC','Pot','SMP','DiaSMP'];
