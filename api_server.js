@@ -120,49 +120,6 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const INDEX_FILE = path.join(__dirname, 'index.html');
-
-app.get('/', (req, res) => {
-  res.redirect('/home');
-});
-
-app.get(['/home', '/home/', '/rankings', '/rankings/', '/tiertagger', '/tiertagger/', '/testers', '/testers/'], (req, res) => {
-  res.sendFile(INDEX_FILE);
-});
-
-app.get('/api/testers', async (req, res) => {
-  try {
-    const guild = await client.guilds.fetch(CONFIG.GUILD_ID).catch(() => null);
-    if (!guild) return res.status(503).json({ error: 'Guild not available' });
-
-    if (CONFIG.TIERER_ROLE_ID) {
-      await guild.members.fetch().catch(() => {});
-    }
-
-    const statusOrder = { online: 0, idle: 1, dnd: 2, offline: 3, invisible: 3 };
-    const testers = guild.members.cache
-      .filter(m => CONFIG.TIERER_ROLE_ID && m.roles.cache.has(CONFIG.TIERER_ROLE_ID))
-      .map(m => ({
-        id: m.id,
-        username: m.user?.username || m.displayName || m.id,
-        displayName: m.displayName || m.user?.globalName || m.user?.username || m.id,
-        avatar: m.displayAvatarURL({ extension: 'png', size: 128 }),
-        status: m.presence?.status || 'offline',
-        bot: !!m.user?.bot,
-      }))
-      .sort((a, b) => {
-        const sa = statusOrder[a.status] ?? 3;
-        const sb = statusOrder[b.status] ?? 3;
-        return sa - sb || a.displayName.localeCompare(b.displayName);
-      });
-
-    res.json({ testers, roleId: CONFIG.TIERER_ROLE_ID || null });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-
 // ── IN-MEMORY DB ──────────────────────────────────────────
 const MEM = {
   players:   {},
@@ -4057,7 +4014,6 @@ const client = new Client({ intents:[
   GatewayIntentBits.GuildMessages,
   GatewayIntentBits.GuildMembers,
   GatewayIntentBits.MessageContent,
-  GatewayIntentBits.GuildPresences,
 ]});
 
 client.once('ready', async () => {
