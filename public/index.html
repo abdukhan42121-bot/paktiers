@@ -218,7 +218,7 @@
   .lb-table {
     width: 100%;
     border-collapse: separate;
-    border-spacing: 0 10px;
+    border-spacing: 0 12px;
   }
 
   .lb-header {
@@ -249,7 +249,7 @@
   }
 
   .lb-cell {
-    padding: 14px 12px;
+    padding: 16px 14px;
     vertical-align: middle;
     background: linear-gradient(180deg, rgba(18,22,29,.98), rgba(14,18,24,.98));
     border-top: 1px solid rgba(255,255,255,.04);
@@ -267,25 +267,26 @@
   }
 
   .rank-cell {
-    width: 88px;
+    width: 94px;
     padding-left: 16px;
     padding-right: 8px;
   }
 
   .rank-badge {
-    width: 58px;
-    height: 58px;
+    width: 64px;
+    height: 56px;
     border-radius: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-family: 'Orbitron', sans-serif;
-    font-size: 1.4rem;
+    font-size: 1.45rem;
     font-weight: 900;
     letter-spacing: 0;
     color: #d9e4f2;
     background: #1b222d;
     box-shadow: inset 0 0 0 1px rgba(255,255,255,.04);
+    clip-path: polygon(0 0, 100% 0, 88% 100%, 0 100%);
   }
 
   .rank-badge.gold {
@@ -318,17 +319,19 @@
   .player-copy { min-width: 0; }
 
   .avatar {
-    width: 52px; height: 52px;
+    width: 66px; height: 66px;
     border-radius: 14px;
     border: 1px solid rgba(255,255,255,.08);
     image-rendering: pixelated;
     flex-shrink: 0;
     background: #0d1117;
     box-shadow: 0 8px 18px rgba(0,0,0,.2);
+    object-fit: cover;
+    object-position: top center;
   }
 
   .ign {
-    font-size: 1.02rem;
+    font-size: 1.08rem;
     font-weight: 800;
     letter-spacing: .2px;
     color: #f5f8fb;
@@ -336,7 +339,7 @@
 
   .rank-title {
     font-family: 'Share Tech Mono', monospace;
-    font-size: .68rem;
+    font-size: .66rem;
     color: #93a2b5;
     margin-top: 2px;
     display: flex;
@@ -347,21 +350,21 @@
 
   .rank-points { color: #738194; }
 
-  .region-cell { width: 160px; }
+  .region-cell { width: 180px; }
 
   .region-badge {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    min-width: 92px;
-    padding: 9px 12px;
+    min-width: 106px;
+    padding: 9px 14px;
     border-radius: 13px;
     background: rgba(20, 134, 74, .14);
     border: 1px solid rgba(68, 227, 121, .35);
     color: #d7ffdf;
     font-family: 'Share Tech Mono', monospace;
-    font-size: .78rem;
+    font-size: .76rem;
     font-weight: 800;
     letter-spacing: 1px;
     text-transform: uppercase;
@@ -377,12 +380,14 @@
   .region-flag { font-size: .95rem; line-height: 1; }
 
   .tiers-cell {
-    display: grid;
-    grid-template-columns: repeat(8, minmax(42px, 1fr));
+    display: flex;
+    justify-content: flex-end;
     gap: 10px;
-    align-items: start;
+    align-items: flex-start;
     width: 100%;
     min-width: 420px;
+    flex-wrap: nowrap;
+    overflow: hidden;
   }
 
   .tier-slot {
@@ -392,6 +397,8 @@
     justify-content: flex-start;
     gap: 6px;
     min-width: 0;
+    width: 34px;
+    flex: 0 0 auto;
   }
 
   .tier-circle {
@@ -1957,10 +1964,11 @@
   }
 
   .hero-gamemodes {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+    display: flex;
+    flex-wrap: wrap;
     gap: 12px;
     margin-top: 20px;
+    align-items: stretch;
   }
 
   .hero-mode-card {
@@ -1969,9 +1977,10 @@
     align-items: center;
     justify-content: center;
     gap: 10px;
-    min-height: 108px;
+    min-height: 104px;
     padding: 16px 12px;
     border-radius: 20px;
+    flex: 1 1 104px;
     text-decoration: none;
     color: #eef4fb;
     background: linear-gradient(180deg, rgba(32,34,40,.92), rgba(20,22,27,.96));
@@ -2143,14 +2152,14 @@
   @media (max-width: 1100px) {
     .hero-shell { grid-template-columns: 1fr; }
     .hero-stats { max-width: none; }
-    .hero-gamemodes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .hero-gamemodes { display: flex; flex-wrap: wrap; }
   }
 
   @media (max-width: 720px) {
     .hero-section { min-height: auto; padding: 24px 0 44px; }
     .hero-title { font-size: clamp(2.35rem, 11vw, 3.8rem); }
     .hero-stats { grid-template-columns: 1fr; }
-    .hero-gamemodes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .hero-gamemodes { display: flex; flex-wrap: wrap; }
     .hero-btn { width: 100%; min-width: 0; }
     .hero-actions { flex-direction: column; }
     .rank-num { width: 70px; font-size: 1.2rem; }
@@ -3237,8 +3246,8 @@ function renderLeaderboard(players, highlightIgn = null) {
         </td>
         <td class="lb-cell player-cell-wrap">
           <div class="player-cell">
-            <img class="avatar" src="${p?.avatar || 'https://mc-heads.net/avatar/steve/64'}" alt="${p?.ign || 'Player'}"
-                 onerror="this.src='https://mc-heads.net/avatar/steve/64'">
+            <img class="avatar" src="${p?.ign ? 'https://mc-heads.net/body/' + encodeURIComponent(p.ign) + '/64' : (p?.avatar || 'https://mc-heads.net/avatar/steve/64')}" alt="${p?.ign || 'Player'}"
+                 onerror="this.src='${p?.avatar || 'https://mc-heads.net/avatar/steve/64'}'">
             <div class="player-copy">
               <div class="ign">${p?.ign || 'Unknown'}</div>
               <div class="rank-title">${rankText}<span class="rank-points">· ${totalPts} pts</span></div>
@@ -3324,7 +3333,7 @@ function openPlayerModal(encodedData) {
   content.innerHTML = `
     <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding-bottom:16px;border-bottom:1px solid var(--border);margin-bottom:14px;">
       <img style="width:72px;height:72px;border-radius:50%;border:3px solid var(--accent);image-rendering:pixelated;box-shadow:0 0 20px rgba(0,200,100,.2);"
-           src="${p.avatar}" alt="${p.ign}" onerror="this.src='https://mc-heads.net/avatar/steve/64'">
+           src="${p?.ign ? 'https://mc-heads.net/body/' + encodeURIComponent(p.ign) + '/80' : p.avatar}" alt="${p.ign}" onerror="this.src='https://mc-heads.net/avatar/steve/64'">
       <div style="font-family:'Orbitron',sans-serif;font-size:1.3rem;font-weight:900;color:var(--text);text-align:center;">${p.ign}</div>
       <div style="display:flex;align-items:center;gap:5px;background:#2a1f06;border:1px solid #c88a00;border-radius:999px;padding:4px 14px;">
         <span style="font-size:13px;">${rankTitleIconSVG(p.rankTitle?.label || '')}</span>
@@ -3409,7 +3418,7 @@ function renderProfile(p) {
 
   card.innerHTML = `
     <div class="profile-top">
-      <img class="profile-avatar" src="${p.avatar}" alt="${p.ign}" onerror="this.src='https://mc-heads.net/avatar/steve/80'">
+      <img class="profile-avatar" src="${p?.ign ? 'https://mc-heads.net/body/' + encodeURIComponent(p.ign) + '/80' : p.avatar}" alt="${p.ign}" onerror="this.src='https://mc-heads.net/avatar/steve/80'">
       <div>
         <div class="profile-name">${p.ign}</div>
         <div class="profile-rank">${rankTitleHTML(p.rankTitle)} · ${p.totalPts} pts</div>
