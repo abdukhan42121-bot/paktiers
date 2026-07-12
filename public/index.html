@@ -215,20 +215,23 @@
   }
 
   /* ── LEADERBOARD ── */
-  .lb-table { width: 100%; border-collapse: collapse; }
+  .lb-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 10px;
+  }
 
   .lb-header {
     font-family: 'Share Tech Mono', monospace;
     font-size: .7rem; color: var(--muted);
     text-transform: uppercase; letter-spacing: 1px;
     text-align: left;
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--border);
+    padding: 10px 12px 6px;
+    border-bottom: 1px solid rgba(255,255,255,.06);
   }
 
   .lb-row {
-    border-bottom: 1px solid rgba(30,37,48,.6);
-    transition: background .18s, transform .18s, box-shadow .18s;
+    transition: transform .18s ease, filter .18s ease;
     animation: rowIn .3s ease both;
   }
 
@@ -237,43 +240,141 @@
     to   { opacity: 1; transform: translateY(0); }
   }
 
-  .lb-row:hover { background: rgba(0,200,100,.06); cursor: pointer; transform: translateX(4px); }
+  .lb-row:hover { transform: translateY(-1px); cursor: pointer; filter: brightness(1.04); }
   .lb-row.highlight { animation: highlightRow 1s ease; }
 
   @keyframes highlightRow {
-    0%   { background: rgba(0,200,100,.2); }
-    100% { background: transparent; }
+    0%   { filter: brightness(1.18); }
+    100% { filter: brightness(1); }
   }
 
-  .lb-cell { padding: 12px; vertical-align: middle; }
+  .lb-cell {
+    padding: 14px 12px;
+    vertical-align: middle;
+    background: linear-gradient(180deg, rgba(18,22,29,.98), rgba(14,18,24,.98));
+    border-top: 1px solid rgba(255,255,255,.04);
+    border-bottom: 1px solid rgba(255,255,255,.04);
+  }
 
-  .rank-num {
+  .lb-row td:first-child {
+    border-left: 1px solid rgba(255,255,255,.04);
+    border-radius: 18px 0 0 18px;
+  }
+
+  .lb-row td:last-child {
+    border-right: 1px solid rgba(255,255,255,.04);
+    border-radius: 0 18px 18px 0;
+  }
+
+  .rank-cell {
+    width: 88px;
+    padding-left: 16px;
+    padding-right: 8px;
+  }
+
+  .rank-badge {
+    width: 58px;
+    height: 58px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-family: 'Orbitron', sans-serif;
-    font-size: .85rem; font-weight: 700;
-    color: var(--muted); width: 48px;
+    font-size: 1.4rem;
+    font-weight: 900;
+    letter-spacing: 0;
+    color: #d9e4f2;
+    background: #1b222d;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.04);
   }
 
-  .rank-num.gold   { color: #FFD700; }
-  .rank-num.silver { color: #C0C0C0; }
-  .rank-num.bronze { color: #CD7F32; }
+  .rank-badge.gold {
+    color: #fff1b6;
+    background: linear-gradient(180deg, #ffd34f, #cc9900);
+    box-shadow: 0 10px 24px rgba(255, 208, 66, .18), inset 0 0 0 1px rgba(255,255,255,.18);
+  }
 
-  .player-cell { display: flex; align-items: center; gap: 12px; }
+  .rank-badge.silver {
+    color: #f6f8fb;
+    background: linear-gradient(180deg, #d7e0ea, #9ba8b7);
+    box-shadow: 0 10px 22px rgba(204, 217, 235, .12), inset 0 0 0 1px rgba(255,255,255,.18);
+  }
+
+  .rank-badge.bronze {
+    color: #fff2e2;
+    background: linear-gradient(180deg, #e0a04a, #a86020);
+    box-shadow: 0 10px 22px rgba(208, 135, 50, .15), inset 0 0 0 1px rgba(255,255,255,.12);
+  }
+
+  .rank-badge.neutral {
+    color: #bcc8d7;
+    background: #1b222d;
+  }
+
+  .player-cell { display: flex; align-items: center; gap: 14px; }
+
+  .player-cell-wrap { min-width: 300px; }
+
+  .player-copy { min-width: 0; }
 
   .avatar {
-    width: 36px; height: 36px;
-    border-radius: 3px;
-    border: 1px solid var(--border);
+    width: 52px; height: 52px;
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,.08);
     image-rendering: pixelated;
     flex-shrink: 0;
+    background: #0d1117;
+    box-shadow: 0 8px 18px rgba(0,0,0,.2);
   }
 
-  .ign { font-size: 1rem; font-weight: 700; letter-spacing: .5px; }
+  .ign {
+    font-size: 1.02rem;
+    font-weight: 800;
+    letter-spacing: .2px;
+    color: #f5f8fb;
+  }
 
   .rank-title {
     font-family: 'Share Tech Mono', monospace;
-    font-size: .65rem; color: var(--muted);
+    font-size: .68rem;
+    color: #93a2b5;
     margin-top: 2px;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
   }
+
+  .rank-points { color: #738194; }
+
+  .region-cell { width: 160px; }
+
+  .region-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 92px;
+    padding: 9px 12px;
+    border-radius: 13px;
+    background: rgba(20, 134, 74, .14);
+    border: 1px solid rgba(68, 227, 121, .35);
+    color: #d7ffdf;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .78rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .region-badge.muted {
+    background: rgba(255,255,255,.04);
+    border-color: rgba(255,255,255,.08);
+    color: #bac5d3;
+  }
+
+  .region-flag { font-size: .95rem; line-height: 1; }
 
   .tiers-cell {
     display: grid;
@@ -337,7 +438,6 @@
     color: var(--muted);
     text-align: center;
   }
-
 
   .pts-cell {
     font-family: 'Orbitron', sans-serif;
@@ -1858,7 +1958,7 @@
 
   .hero-gamemodes {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
     gap: 12px;
     margin-top: 20px;
   }
@@ -2620,7 +2720,6 @@ const GAMEMODE_PNG = {
 
 
 const HOME_GAMEMODES = [
-  { label: 'Overall', weapon: 'all', icon: MODE_ICONS.all },
   { label: 'Sword', weapon: 'Sword', icon: GAMEMODE_PNG.Sword || MODE_ICONS.Sword },
   { label: 'Axe', weapon: 'Axe', icon: GAMEMODE_PNG.Axe || MODE_ICONS.Axe },
   { label: 'Mace', weapon: 'Mace', icon: GAMEMODE_PNG.Mace || MODE_ICONS.Mace },
@@ -2756,6 +2855,37 @@ function renderTierSlots(tiers = {}) {
         <div class="tier-value" style="color:${color}">${tier || '—'}</div>
       </div>`;
   }).join('');
+}
+
+const REGION_FLAGS = {
+  PK: '🇵🇰',
+  PAKISTAN: '🇵🇰',
+  UAE: '🇦🇪',
+  SA: '🇸🇦',
+  KSA: '🇸🇦',
+  US: '🇺🇸',
+  USA: '🇺🇸',
+  EU: '🇪🇺',
+  UK: '🇬🇧',
+  IN: '🇮🇳',
+  AS: '🌏',
+};
+
+function regionBadgeHTML(region) {
+  const raw = (region ?? '').toString().trim();
+  if (!raw) {
+    return `<div class="region-badge muted"><span class="region-text">—</span></div>`;
+  }
+
+  const key = raw.toUpperCase();
+  const flag = REGION_FLAGS[key];
+  const pretty = key === 'PAKISTAN' ? 'Pakistan' : key;
+
+  return `
+    <div class="region-badge${flag ? '' : ' muted'}" title="${pretty}">
+      ${flag ? `<span class="region-flag">${flag}</span>` : ''}
+      <span class="region-text">${pretty}</span>
+    </div>`;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -3075,7 +3205,6 @@ function renderLeaderboard(players, highlightIgn = null) {
   const list = Array.isArray(players) ? players : [];
   const query = lbSearchQuery.trim().toLowerCase();
 
-  // Apply search filter
   const filtered = query
     ? list.filter(p => (p?.ign || '').toLowerCase().includes(query))
     : list;
@@ -3097,24 +3226,27 @@ function renderLeaderboard(players, highlightIgn = null) {
     const region = p?.region || 'PK';
     const rankText = rankTitleHTML(p?.rankTitle);
     const totalPts = p?.totalPts ?? 0;
+    const regionMarkup = regionBadgeHTML(region);
 
     return `
       <tr class="lb-row${highlightIgn && p?.ign && p.ign.toLowerCase() === highlightIgn.toLowerCase() ? ' highlight' : ''}"
           data-payload="${payload}"
           onclick="openPlayerModal(decodeURIComponent(this.dataset.payload))">
-        <td class="lb-cell rank-num ${rankClass}">${rankNo}</td>
-        <td class="lb-cell">
+        <td class="lb-cell rank-cell">
+          <div class="rank-badge ${rankClass || 'neutral'}">${rankNo}</div>
+        </td>
+        <td class="lb-cell player-cell-wrap">
           <div class="player-cell">
             <img class="avatar" src="${p?.avatar || 'https://mc-heads.net/avatar/steve/64'}" alt="${p?.ign || 'Player'}"
                  onerror="this.src='https://mc-heads.net/avatar/steve/64'">
-            <div>
+            <div class="player-copy">
               <div class="ign">${p?.ign || 'Unknown'}</div>
-              <div class="rank-title">${rankText} · ${totalPts} pts</div>
+              <div class="rank-title">${rankText}<span class="rank-points">· ${totalPts} pts</span></div>
             </div>
           </div>
         </td>
-        <td class="lb-cell pts-cell" style="text-align:center">${region}</td>
-        <td class="lb-cell">
+        <td class="lb-cell region-cell">${regionMarkup}</td>
+        <td class="lb-cell tiers-cell-wrap">
           <div class="tiers-cell">
             ${renderTierSlots(p?.tiers || {})}
           </div>
