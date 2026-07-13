@@ -2380,6 +2380,98 @@
     .home-discord-cta { width: 100%; justify-content: center; }
   }
 
+  /* ─── RANKS ─── */
+  .ranks-section { padding: 40px 0 60px; }
+
+  .ranks-head { text-align: center; max-width: 640px; margin: 0 auto 36px; }
+  .ranks-eyebrow {
+    display: inline-block; font-family: 'Share Tech Mono', monospace;
+    font-size: 12px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--accent); border: 1px solid rgba(0,200,100,.35);
+    background: rgba(0,200,100,.08); padding: 5px 12px; border-radius: 999px;
+    margin-bottom: 14px;
+  }
+  .ranks-head h2 {
+    font-family: 'Orbitron', sans-serif; font-weight: 900;
+    font-size: clamp(1.6rem, 4vw, 2.2rem); letter-spacing: .01em;
+  }
+  .ranks-head p { color: var(--muted); margin-top: 10px; line-height: 1.6; font-size: 14.5px; }
+
+  .ranks-grid {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 22px; align-items: stretch;
+  }
+
+  .rank-card {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 26px 22px 24px;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+  }
+  .rank-card::before {
+    content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
+    background: var(--rc-color, var(--accent));
+  }
+  .rank-card:hover {
+    transform: translateY(-4px);
+    border-color: color-mix(in srgb, var(--rc-color, var(--accent)) 55%, var(--border));
+    box-shadow: 0 16px 30px -14px rgba(0,0,0,.55);
+  }
+  .rank-card.featured { border-color: rgba(255,184,0,.4); }
+
+  .rank-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  .rank-card-icon {
+    width: 46px; height: 46px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--rc-color, var(--accent)) 16%, transparent);
+    color: var(--rc-color, var(--accent));
+  }
+  .rank-card-icon svg { width: 24px; height: 24px; }
+  .rank-card-featured-tag {
+    font-family: 'Share Tech Mono', monospace; font-size: 10.5px; letter-spacing: .1em;
+    text-transform: uppercase; color: #FFB800; border: 1px solid rgba(255,184,0,.4);
+    background: rgba(255,184,0,.1); padding: 3px 8px; border-radius: 999px;
+  }
+
+  .rank-card-name {
+    font-family: 'Orbitron', sans-serif; font-weight: 700; font-size: 19px;
+    color: var(--rc-color, var(--text)); margin-bottom: 4px;
+  }
+  .rank-card-tagline { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+
+  .rank-card-perks { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; flex-grow: 1; }
+  .rank-card-perks li {
+    display: flex; gap: 9px; align-items: flex-start;
+    font-size: 13.5px; color: var(--text); line-height: 1.45;
+  }
+  .rank-card-perks li svg { flex: none; width: 15px; height: 15px; margin-top: 2px; color: var(--rc-color, var(--accent)); }
+
+  .rank-card-footer {
+    border-top: 1px solid var(--border);
+    padding-top: 16px; display: flex; align-items: baseline; justify-content: space-between;
+  }
+  .rank-card-price { font-family: 'Orbitron', sans-serif; font-weight: 700; font-size: 15px; color: var(--rc-color, var(--text)); }
+  .rank-card-price span { font-family: 'Rajdhani', sans-serif; font-weight: 600; font-size: 11.5px; color: var(--muted); margin-left: 5px; }
+  .rank-card-cta {
+    font-size: 12px; color: var(--muted); font-family: 'Share Tech Mono', monospace;
+    letter-spacing: .04em;
+  }
+
+  .ranks-note {
+    max-width: 640px; margin: 30px auto 0; text-align: center;
+    color: var(--muted); font-size: 13px; line-height: 1.6;
+  }
+  .ranks-note a { color: var(--accent); text-decoration: none; }
+  .ranks-note a:hover { text-decoration: underline; }
+
+  @media (max-width: 900px) {
+    .ranks-grid { grid-template-columns: 1fr; }
+  }
+
 </style>
 </head>
 <body>
@@ -2392,6 +2484,7 @@
       <a class="pt-nav-link active" href="#homeSection">Home</a>
       <a class="pt-nav-link" href="#testersSection">Testers</a>
       <a class="pt-nav-link" href="#leaderboardPane">Rankings</a>
+      <a class="pt-nav-link" href="#ranksSection">Ranks</a>
       <a class="pt-nav-link" href="https://discord.gg/d3NUQnmrC" target="_blank" rel="noopener noreferrer">Discords</a>
       <a class="pt-nav-link" href="#tiertaggerSection">TierTagger</a>
     </nav>
@@ -2660,6 +2753,86 @@
         <li>Java 21+</li>
       </ul>
     </div>
+  </section>
+
+  <!-- ─── RANKS ─── -->
+  <section class="ranks-section" id="ranksSection" style="display:none;">
+    <div class="ranks-head">
+      <span class="ranks-eyebrow">Server Ranks</span>
+      <h2>PakTiers Rank Perks</h2>
+      <p>Support the server and unlock extra in-game perks with an Apex, Prime, or Elite rank. Reach out to staff on Discord to get set up.</p>
+    </div>
+
+    <div class="ranks-grid">
+
+      <!-- ELITE -->
+      <div class="rank-card" style="--rc-color:#4FC3F7;">
+        <div class="rank-card-top">
+          <div class="rank-card-icon">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 2 4 7v5c0 5.2 3.4 9 8 10 4.6-1 8-4.8 8-10V7l-8-5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12.3 11.2 14.5 15.4 9.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </div>
+        <div class="rank-card-name">Elite</div>
+        <div class="rank-card-tagline">Entry-level rank for supporters getting started.</div>
+        <ul class="rank-card-perks">
+          <li><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5 9.5 17 19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Custom Elite chat tag &amp; colored name</li>
+          <li><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5 9.5 17 19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Access to the Elite-only lounge</li>
+          <li><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5 9.5 17 19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Elite rank Discord role</li>
+        </ul>
+        <div class="rank-card-footer">
+          <div class="rank-card-price">250 <span>PKR</span></div>
+          <div class="rank-card-cta">Message staff to redeem</div>
+        </div>
+      </div>
+
+      <!-- PRIME -->
+      <div class="rank-card" style="--rc-color:#9C6BFF;">
+        <div class="rank-card-top">
+          <div class="rank-card-icon">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3.5 20 8v4c0 5.2-3.3 8.7-8 9.5-4.7-.8-8-4.3-8-9.5V8l8-4.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 8v8M8.5 10l3.5-2 3.5 2M8.5 14l3.5 2 3.5-2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </div>
+        <div class="rank-card-name">Prime</div>
+        <div class="rank-card-tagline">Mid-tier rank with extra commands and perks.</div>
+        <ul class="rank-card-perks">
+          <li><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5 9.5 17 19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Everything in Elite, plus more</li>
+          <li><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5 9.5 17 19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Custom Prime chat tag &amp; colored name</li>
+          <li><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5 9.5 17 19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Custom trims in-game</li>
+          <li><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5 9.5 17 19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Priority queue when testing</li>
+          <li><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5 9.5 17 19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Prime rank Discord role</li>
+        </ul>
+        <div class="rank-card-footer">
+          <div class="rank-card-price">500 <span>PKR</span></div>
+          <div class="rank-card-cta">Message staff to redeem</div>
+        </div>
+      </div>
+
+      <!-- APEX -->
+      <div class="rank-card featured" style="--rc-color:#FFB800;">
+        <div class="rank-card-top">
+          <div class="rank-card-icon">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M4 9 7 6l4 4 1-6 1 6 4-4 3 3-1.5 8h-13L4 9Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M6 20h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </div>
+          <span class="rank-card-featured-tag">Top Rank</span>
+        </div>
+        <div class="rank-card-name">Apex</div>
+        <div class="rank-card-tagline">The highest rank with the full set of perks.</div>
+        <ul class="rank-card-perks">
+          <li><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5 9.5 17 19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Everything in Prime, plus more</li>
+          <li><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5 9.5 17 19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Custom Apex chat tag &amp; colored name</li>
+          <li><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5 9.5 17 19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Custom trims in-game</li>
+          <li><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5 9.5 17 19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Top priority queue when testing</li>
+          <li><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5 9.5 17 19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Exclusive Apex Discord role &amp; badge</li>
+        </ul>
+        <div class="rank-card-footer">
+          <div class="rank-card-price">1000 <span>PKR</span></div>
+          <div class="rank-card-cta">Message staff to redeem</div>
+        </div>
+      </div>
+
+    </div>
+
+    <p class="ranks-note">Ranks are activated manually by the PakTiers staff team. Join the <a href="https://discord.gg/d3NUQnmrC" target="_blank" rel="noopener noreferrer">Discord server</a> and open a ticket for details on how to get your rank.</p>
   </section>
 
 
@@ -3023,6 +3196,7 @@ function getCurrentView() {
   if (hash === '#testersSection') return 'testers';
   if (hash === '#tiertaggerSection') return 'tiertagger';
   if (hash === '#leaderboardPane') return 'rankings';
+  if (hash === '#ranksSection') return 'ranks';
   return 'home'; // default view (no hash, or '#homeSection')
 }
 
@@ -3042,6 +3216,7 @@ function syncTierTaggerView() {
   const gmPane = document.getElementById('gmDetailPane');
   const tableWrap = document.getElementById('lbTableWrap');
   const tiertaggerSection = document.getElementById('tiertaggerSection');
+  const ranksSection = document.getElementById('ranksSection');
 
   const show = el => { if (el) el.style.display = ''; };
   const hide = el => { if (el) el.style.display = 'none'; };
@@ -3049,7 +3224,7 @@ function syncTierTaggerView() {
   // Reset everything, then reveal only what belongs to the active view.
   hide(homeSection); hide(testersSection); hide(leaderboardPane);
   hide(profilePane); hide(queuePane); hide(gamemodeTabs); hide(gmPane);
-  hide(tiertaggerSection);
+  hide(tiertaggerSection); hide(ranksSection);
 
   // Sync nav active state
   document.querySelectorAll('.pt-nav-link').forEach(a => {
@@ -3057,6 +3232,7 @@ function syncTierTaggerView() {
     const matches = (view === 'home' && href === '#homeSection') ||
       (view === 'testers' && href === '#testersSection') ||
       (view === 'rankings' && href === '#leaderboardPane') ||
+      (view === 'ranks' && href === '#ranksSection') ||
       (view === 'tiertagger' && href === '#tiertaggerSection');
     a.classList.toggle('active', matches);
   });
@@ -3074,6 +3250,11 @@ function syncTierTaggerView() {
 
   if (view === 'tiertagger') {
     show(tiertaggerSection);
+    return;
+  }
+
+  if (view === 'ranks') {
+    show(ranksSection);
     return;
   }
 
