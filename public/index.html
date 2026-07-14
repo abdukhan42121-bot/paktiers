@@ -3019,7 +3019,8 @@ function getGamemodeIconHTML(mode) {
 
 function renderTierSlots(tiers = {}) {
   return GAMEMODE_ORDER.map(mode => {
-    const tier = tiers[mode];
+    const dataMode = weaponDataKey(mode);
+    const tier = tiers[dataMode] ?? tiers[mode];
     const pngSrc = GAMEMODE_PNG[mode] || '';
     const color = tier ? (TIER_COLOR[tier] || '#888') : '#3a4455';
     const emptyClass = tier ? '' : ' empty';
@@ -3076,6 +3077,13 @@ function regionBadgeHTML(region) {
 function weaponDisplayName(weapon) {
   if (weapon === 'all') return 'Overall';
   return weapon === 'Netherite' ? 'NethOP' : weapon;
+}
+
+function weaponDataKey(weapon) {
+  if (!weapon || weapon === 'all') return weapon;
+  if (weapon === 'Diasmp') return 'DiaSMP';
+  if (weapon === 'NethOP') return 'Netherite';
+  return weapon;
 }
 
 function tierBucket(tier) {
@@ -3147,11 +3155,12 @@ function renderGamemodeView(mode, players = []) {
   sub.textContent = `${modeLabel} leaderboard — grouped by tier`;
   pill.textContent = `${filteredPlayers.length} players`;
 
+  const dataMode = weaponDataKey(mode);
   const tiers = [1,2,3,4,5].map(n => ({
     n,
     label: `Tier ${n}`,
     className: `t${n}`,
-    players: filteredPlayers.filter(p => tierBucket(p?.tiers?.[mode]) === n)
+    players: filteredPlayers.filter(p => tierBucket(p?.tiers?.[dataMode] ?? p?.tiers?.[mode]) === n)
       .sort((a,b) => (b.totalPts || 0) - (a.totalPts || 0))
   }));
 
@@ -3161,7 +3170,7 @@ function renderGamemodeView(mode, players = []) {
         <img src="${p.avatar || 'https://mc-heads.net/avatar/steve/64'}" alt="${p.ign}" onerror="this.src='https://mc-heads.net/avatar/steve/64'">
         <div>
           <div class="gm-player-name">${p.ign}</div>
-          <div class="gm-player-meta">#${p.rank || '—'} · ${p.totalPts ?? 0} pts · ${p.tiers?.[mode] || '—'}</div>
+          <div class="gm-player-meta">#${p.rank || '—'} · ${p.totalPts ?? 0} pts · ${(p.tiers?.[dataMode] ?? p.tiers?.[mode] ?? '—')}</div>
         </div>
       </div>`).join('') : '<div class="gm-empty">No players in this tier</div>';
 
@@ -3370,7 +3379,8 @@ let lbSearchQuery = '';
 
 async function fetchLeaderboard(weapon = 'all') {
   try {
-    const d = await apiFetch(`/api/leaderboard?weapon=${weapon}`);
+    const apiWeapon = weaponDataKey(weapon);
+    const d = await apiFetch(`/api/leaderboard?weapon=${apiWeapon}`);
     cachedPlayers = d.players || [];
     renderLeaderboard(cachedPlayers);
     renderGamemodeView(currentWeapon, cachedPlayers);
@@ -3481,7 +3491,7 @@ function openPlayerModal(encodedData) {
   const tierRows = Object.entries(p.tiers || {}).map(([w, t]) => {
     const pts = TIER_PTS[t] || 0;
     const color = TIER_COLOR[t] || '#888';
-    const pngSrc = GAMEMODE_PNG[w] || '';
+    const pngSrc = GAMEMODE_PNG[w] || GAMEMODE_PNG[weaponDataKey(w)] || '';
     return `
       <div class="modal-disc-row">
         <div class="modal-disc-left">
@@ -3499,7 +3509,8 @@ function openPlayerModal(encodedData) {
 
   // Build a compact 8-slot tier grid for the popup (MCTiers-style)
   const allTierSlots = GAMEMODE_ORDER.map(mode => {
-    const t = (p.tiers || {})[mode];
+    const dataMode = weaponDataKey(mode);
+    const t = (p.tiers || {})[dataMode] ?? (p.tiers || {})[mode];
     const pngSrc = GAMEMODE_PNG[mode] || '';
     const color = t ? (TIER_COLOR[t] || '#888') : '#2a3340';
     const opacity = t ? '1' : '0.25';
