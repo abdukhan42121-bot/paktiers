@@ -488,6 +488,60 @@ const PLATFORMS    = ['Java Edition'];
 const REGIONS_LIST = ['Pakistan 🇵🇰', 'India 🇮🇳', 'UAE 🇦🇪', 'Saudi Arabia 🇸🇦', 'UK 🇬🇧', 'USA 🇺🇸', 'Other 🌍'];
 const ACCOUNT_TYPES = ['Premium (Paid)', 'Cracked (Free)'];
 
+// ── REGION → FLAG NORMALIZER ───────────────────────────────
+// Player.region string se flag emoji nikaalta/attach karta hai — chahe
+// region kaisa bhi stored ho (full name, code, purana synced entry, etc.)
+const REGION_FLAG_MAP = {
+  'pakistan':      '🇵🇰',
+  'pk':            '🇵🇰',
+  'india':         '🇮🇳',
+  'in':            '🇮🇳',
+  'uae':           '🇦🇪',
+  'united arab emirates': '🇦🇪',
+  'saudi arabia':  '🇸🇦',
+  'ksa':           '🇸🇦',
+  'uk':            '🇬🇧',
+  'united kingdom':'🇬🇧',
+  'usa':           '🇺🇸',
+  'us':            '🇺🇸',
+  'united states': '🇺🇸',
+  'as/au':         '🌏',
+  'asia':          '🌏',
+  'au':            '🌏',
+  'australia':     '🌏',
+  'eu':            '🇪🇺',
+  'europe':        '🇪🇺',
+  'na':            '🌎',
+  'other':         '🌍',
+};
+
+// Emoji regex — matches ANY existing flag/emoji already in the string
+const EMOJI_RE = /\p{Extended_Pictographic}/u;
+
+function formatRegion(region) {
+  if (!region) return 'Pakistan 🇵🇰';
+  const raw = String(region).trim();
+  if (EMOJI_RE.test(raw)) return raw; // already has a flag/emoji — leave as-is
+
+  const lower = raw.toLowerCase();
+  // exact match first, then "contains" match (handles things like "Region: Pakistan")
+  let flag = REGION_FLAG_MAP[lower];
+  if (!flag) {
+    for (const key of Object.keys(REGION_FLAG_MAP)) {
+      if (lower.includes(key)) { flag = REGION_FLAG_MAP[key]; break; }
+    }
+  }
+  return flag ? `${raw} ${flag}` : `${raw} 🌍`;
+}
+
+// ── AUTO REACTIONS on public tier-update messages ──────────
+const TIER_UPDATE_REACTIONS = ['🏆', '🎉', '🔥', '👍', '💀'];
+async function autoReact(message) {
+  for (const emoji of TIER_UPDATE_REACTIONS) {
+    try { await message.react(emoji); } catch (_) {}
+  }
+}
+
 // ── GAMEMODE ROLE MAP — AUTO CREATE ───────────────────────
 // Bot khud roles banata hai if they don't exist.
 // Role name format: "[PakTiers] Sword HT1" etc.
@@ -920,7 +974,7 @@ async function sendRegistrationLog(client, player) {
           { name: 'Player', value: `${player.ign} (<@${player.discordId}>)`, inline: false },
           { name: 'Platform', value: player.platform || 'Java Edition', inline: true },
           { name: 'Account', value: player.accountType || 'Premium (Paid)', inline: true },
-          { name: 'Region', value: player.region || 'Pakistan 🇵🇰', inline: true },
+          { name: 'Region', value: formatRegion(player.region), inline: true },
           { name: 'Registered At', value: `<t:${Math.floor((player.registeredAt || Date.now()) / 1000)}:F>`, inline: false },
         )
         .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
@@ -990,7 +1044,7 @@ function buildTicketEmbed({ player, discordId, weapon = null, pullerId = null, o
       { name: 'Minecraft Username', value: `**${player.ign}**`,                    inline: false },
       { name: 'Game Mode',          value: weapon ? `**${weapon}**` : 'General',   inline: false },
       { name: 'Previous Rank',      value: previousRank,                           inline: false },
-      { name: 'Region',             value: player.region || 'Pakistan 🇵🇰',        inline: false },
+      { name: 'Region',             value: formatRegion(player.region),        inline: false },
     )
     .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
     .setFooter({ text: 'PakTiers Queue Ticket \u00b7 Close when testing is done' })
@@ -1908,7 +1962,7 @@ CMDS.profile = {
       .addFields(
         { name:'⚔️ Weapon Disciplines', value:block },
         { name:'🎮 Platform',   value:player.platform||'Java Edition',    inline:true },
-        { name:'🌍 Region',     value:player.region||'Pakistan 🇵🇰',      inline:true },
+        { name:'🌍 Region',     value:formatRegion(player.region),      inline:true },
         { name:'🔑 Account',    value:player.accountType||'Premium',      inline:true },
         { name:'📅 Registered', value:`<t:${Math.floor(player.registeredAt/1000)}:D>`, inline:true },
         { name:'🔰 Season',     value:'Season 1',                         inline:true },
@@ -1998,7 +2052,12 @@ CMDS.tier = {
         }
       } catch(_) {}
 
-      await i.reply({ embeds:[new EmbedBuilder()
+      // Ephemeral ack — sirf tester ko dikhega, isliye channel me "used /tier set" wala
+      // indicator kisi aur ko nazar nahi aayega (ephemeral replies sirf invoker ko show hoti hain).
+      await i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+        .setDescription(`✅ **${player.ign}**'s ${weapon} tier set to **${getTierLabel(tier)}** \`${tier}\`.`)] });
+
+      const tierUpdateEmbed = new EmbedBuilder()
         .setColor(TIER_COLOR[tier] || BRAND_COLOR)
         .setTitle(`${player.ign}'s Tier Update 🏆`)
         .setThumbnail(`https://mc-heads.net/head/${player.ign}/128`)
@@ -2008,9 +2067,17 @@ CMDS.tier = {
           { name:'Game Mode',          value:`${weapon.toUpperCase()}`,                 inline:false },
           { name:'Previous Rank',      value: oldTier ? getTierLabel(oldTier) : 'Unranked', inline:false },
           { name:'Rank Earned',        value: getTierLabel(tier),                       inline:false },
-          { name:'Region',             value: player.region || 'Pakistan 🇵🇰',          inline:false },
+          { name:'Region',             value: formatRegion(player.region),              inline:false },
         )
-        .setTimestamp()] });
+        .setTimestamp();
+
+      // Public message posted as a normal message (not an interaction reply) —
+      // yeh player ko mention karta hai aur "used /tier set" text nahi dikhata.
+      let publicMsg = null;
+      try {
+        publicMsg = await i.channel.send({ content:`<@${target.id}>`, embeds:[tierUpdateEmbed] });
+      } catch (_) {}
+      if (publicMsg) await autoReact(publicMsg);
 
       await syncEmbed(i.client, player, weapon, tier, i.user.id);
 
@@ -3493,7 +3560,7 @@ async function handleSelectMenu(i) {
         .addFields(
           { name:'🎮 IGN',      value:`**${player.ign}**`,           inline:true },
           { name:'💻 Platform', value:player.platform||'Java',        inline:true },
-          { name:'🌍 Region',   value:player.region||'PK',           inline:true },
+          { name:'🌍 Region',   value:formatRegion(player.region),           inline:true },
         )
         .setFooter({ text:'PakTiers · Pakistan Minecraft Community' })
         .setTimestamp()] });
