@@ -1,0 +1,30 @@
+{
+  "createdAt": 1784642596414,
+  "data": {
+    "players": {},
+    "queue": {
+      "Mace": [],
+      "Crystal": [],
+      "Sword": [],
+      "Axe": [],
+      "Netherite": [],
+      "UHC": [],
+      "Pot": [],
+      "SMP": [],
+      "DiaSMP": []
+    },
+    "matches": [],
+    "tickets": {},
+    "settings": {
+      "regLogsChannelId": "",
+      "appManagerRoles": [],
+      "appManagerUsers": [],
+      "supManagerRoles": [],
+      "supManagerUsers": []
+    },
+    "tierLogs": null,
+    "cooldowns": null,
+    "queuePerms": null,
+    "tiererPerms": null
+  }
+}
