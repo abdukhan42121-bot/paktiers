@@ -60,6 +60,12 @@ const CONFIG = {
 
   // Cooldown days after tier assignment per gamemode
   TIER_COOLDOWN_DAYS: 2,
+
+  // ── GitHub Backup (/backup create, /backup load) ──
+  GITHUB_TOKEN:      process.env.GITHUB_TOKEN      || '',            // GitHub Personal Access Token (repo scope)
+  GITHUB_REPO:       process.env.GITHUB_REPO       || '',            // format: username/repo
+  GITHUB_BRANCH:     process.env.GITHUB_BRANCH     || 'main',
+  GITHUB_BACKUP_DIR: process.env.GITHUB_BACKUP_DIR || 'paktiers-backups', // folder inside repo
 };
 
 // ── QUEUE PERM ROLES — runtime mein /queueperm se set hote hain ──────────────
@@ -658,6 +664,108 @@ function syncToMem() {
       Object.assign(MEM.tickets, rDB(TF));
     console.log(`📂 Loaded ${Object.keys(p).length} players from disk`);
   } catch(_) {}
+}
+
+// ════════════════════════════════════════════════════════════
+//  GITHUB BACKUP — /backup create, /backup load
+// ════════════════════════════════════════════════════════════
+const https = require('https');
+
+function githubRequest(method, urlPath, bodyObj) {
+  return new Promise((resolve, reject) => {
+    const bodyStr = bodyObj ? JSON.stringify(bodyObj) : null;
+    const options = {
+      hostname: 'api.github.com',
+      path: urlPath,
+      method,
+      headers: {
+        'User-Agent':     'PakTiers-Bot',
+        'Authorization':  `token ${CONFIG.GITHUB_TOKEN}`,
+        'Accept':         'application/vnd.github+json',
+        'Content-Type':   'application/json',
+      },
+    };
+    if (bodyStr) options.headers['Content-Length'] = Buffer.byteLength(bodyStr);
+
+    const req = https.request(options, res => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        let parsed = null;
+        try { parsed = data ? JSON.parse(data) : null; } catch(_) {}
+        resolve({ status: res.statusCode, body: parsed });
+      });
+    });
+    req.on('error', reject);
+    if (bodyStr) req.write(bodyStr);
+    req.end();
+  });
+}
+
+async function githubGetFileSha(repoPath) {
+  const res = await githubRequest('GET', `/repos/${CONFIG.GITHUB_REPO}/contents/${encodeURI(repoPath)}?ref=${CONFIG.GITHUB_BRANCH}`);
+  if (res.status === 200 && res.body && res.body.sha) return res.body.sha;
+  return null;
+}
+
+async function githubPutFile(repoPath, contentStr, message) {
+  const sha = await githubGetFileSha(repoPath);
+  const body = {
+    message,
+    content: Buffer.from(contentStr, 'utf8').toString('base64'),
+    branch:  CONFIG.GITHUB_BRANCH,
+  };
+  if (sha) body.sha = sha;
+  const res = await githubRequest('PUT', `/repos/${CONFIG.GITHUB_REPO}/contents/${encodeURI(repoPath)}`, body);
+  if (res.status !== 200 && res.status !== 201) {
+    throw new Error(`GitHub PUT failed (${res.status}): ${res.body?.message || 'unknown error'}`);
+  }
+  return res.body;
+}
+
+async function githubGetFile(repoPath) {
+  const res = await githubRequest('GET', `/repos/${CONFIG.GITHUB_REPO}/contents/${encodeURI(repoPath)}?ref=${CONFIG.GITHUB_BRANCH}`);
+  if (res.status !== 200 || !res.body || !res.body.content) {
+    throw new Error(`GitHub GET failed (${res.status}): ${res.body?.message || 'file not found'}`);
+  }
+  return Buffer.from(res.body.content, 'base64').toString('utf8');
+}
+
+// Files jo backup me shamil hote hain — sara tierlist data
+function getBackupFileMap() {
+  return {
+    players:     PF,
+    queue:       QF,
+    matches:     MF,
+    tickets:     TF,
+    settings:    SF,
+    tierLogs:    TIER_LOG_FILE,
+    cooldowns:   getCooldownFile(),
+    queuePerms:  QUEUE_PERM_FILE,
+    tiererPerms: TIERER_PERM_FILE,
+  };
+}
+
+function collectBackupData() {
+  const fileMap = getBackupFileMap();
+  const bundle = { createdAt: Date.now(), data: {} };
+  for (const [key, filePath] of Object.entries(fileMap)) {
+    try {
+      bundle.data[key] = fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf8')) : null;
+    } catch(_) { bundle.data[key] = null; }
+  }
+  return bundle;
+}
+
+function restoreBackupData(bundle) {
+  const fileMap = getBackupFileMap();
+  for (const [key, filePath] of Object.entries(fileMap)) {
+    if (bundle.data[key] === undefined || bundle.data[key] === null) continue;
+    try {
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, JSON.stringify(bundle.data[key], null, 2));
+    } catch(_) {}
+  }
 }
 
 const LDB = {
@@ -1509,6 +1617,82 @@ CMDS.msgsend = {
     } catch (err) {
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ Could not send message: ${err.message}`)] });
+    }
+  },
+};
+
+// ── /backup ────────────────────────────────────────────────
+CMDS.backup = {
+  data: new SlashCommandBuilder()
+    .setName('backup')
+    .setDescription('PakTiers data ka GitHub backup lo ya restore karo')
+    .addSubcommand(sub => sub.setName('create')
+      .setDescription('Abhi ka sara tierlist data GitHub pe backup karo'))
+    .addSubcommand(sub => sub.setName('load')
+      .setDescription('GitHub se latest backup wapis load karo (current data overwrite ho jayega)')
+      .addBooleanOption(o => o.setName('confirm').setDescription('true likho confirm karne ke liye').setRequired(true))),
+
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Administrator permission required.')] });
+    }
+    if (!CONFIG.GITHUB_TOKEN || !CONFIG.GITHUB_REPO) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ `GITHUB_TOKEN` aur `GITHUB_REPO` env vars set nahi hain. Railway → Variables me add karo.\n`GITHUB_REPO` format: `username/repo`')] });
+    }
+
+    const sub = i.options.getSubcommand();
+    await i.deferReply({ ephemeral:true });
+
+    // ── /backup create ──
+    if (sub === 'create') {
+      try {
+        const bundle  = collectBackupData();
+        const jsonStr = JSON.stringify(bundle, null, 2);
+        const stamp   = new Date(bundle.createdAt).toISOString().replace(/[:.]/g, '-');
+
+        await githubPutFile(`${CONFIG.GITHUB_BACKUP_DIR}/latest.json`, jsonStr, `PakTiers backup (latest) — ${stamp}`);
+        await githubPutFile(`${CONFIG.GITHUB_BACKUP_DIR}/backup-${stamp}.json`, jsonStr, `PakTiers backup — ${stamp}`);
+
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+          .setTitle('✅ Backup Complete')
+          .setDescription(`Sara data GitHub pe save ho gaya.\n📁 \`${CONFIG.GITHUB_REPO}\` → \`${CONFIG.GITHUB_BACKUP_DIR}/\`\n👤 Players: **${Object.keys(bundle.data.players || {}).length}**`)
+          .setFooter({ text: BOT_FOOTER }).setTimestamp()] });
+      } catch(err) {
+        console.error('[BACKUP CREATE]', err);
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription(`❌ Backup fail ho gaya: ${err.message}`)] });
+      }
+    }
+
+    // ── /backup load ──
+    if (sub === 'load') {
+      const confirm = i.options.getBoolean('confirm');
+      if (!confirm) {
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF9933)
+          .setDescription('⚠️ Cancel ho gaya. `confirm: true` set karo agar current data overwrite karna hai.')] });
+      }
+      try {
+        const jsonStr = await githubGetFile(`${CONFIG.GITHUB_BACKUP_DIR}/latest.json`);
+        const bundle  = JSON.parse(jsonStr);
+        restoreBackupData(bundle);
+
+        // In-memory reload
+        MEM.players = {}; MEM.matches = []; MEM.cooldowns = {}; MEM.tickets = {};
+        Object.keys(MEM.queues).forEach(k => { MEM.queues[k] = []; });
+        syncToMem();
+        broadcast({ type: 'backup_restored' });
+
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+          .setTitle('✅ Backup Restored')
+          .setDescription(`GitHub se data wapis load ho gaya.\n🕒 Backup date: <t:${Math.floor((bundle.createdAt || Date.now()) / 1000)}:F>\n👤 Players: **${Object.keys(bundle.data.players || {}).length}**`)
+          .setFooter({ text: BOT_FOOTER }).setTimestamp()] });
+      } catch(err) {
+        console.error('[BACKUP LOAD]', err);
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription(`❌ Load fail ho gaya: ${err.message}`)] });
+      }
     }
   },
 };
