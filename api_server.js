@@ -429,31 +429,12 @@ app.get('/v2/profile/:uuid', (req,res) => {
 app.get('/api/testers', async (req, res) => {
   try {
     const guild = client.guilds.cache.get(CONFIG.GUILD_ID);
-    if (!guild) return res.json({ testers: [], count: 0 });
+    if (!guild) return res.json({ testers: [], count: 0, dashboard: { totalTestsThisMonth: 0, activeTesters: 0, onlineNow: 0, topContributor: null, topThree: [] } });
     await guild.members.fetch().catch(() => {});
-
-    const perms = loadTiererPerms();
-    const roleIds = new Set(perms.roles || []);
-    if (CONFIG.TIERER_ROLE_ID) roleIds.add(CONFIG.TIERER_ROLE_ID);
-    const memberIds = new Set(perms.members || []);
-
-    const testers = [];
-    guild.members.cache.forEach(m => {
-      if (m.user.bot) return;
-      const hasRole = [...roleIds].some(rid => m.roles.cache.has(rid));
-      if (hasRole || memberIds.has(m.id)) {
-        testers.push({
-          id: m.id,
-          username: m.user.username,
-          displayName: m.displayName || m.user.username,
-          avatar: m.user.displayAvatarURL({ extension: 'png', size: 128 }),
-        });
-      }
-    });
-
-    res.json({ testers, count: testers.length });
+    const payload = buildTesterDashboard(guild);
+    res.json(payload);
   } catch (e) {
-    res.status(500).json({ error: e.message, testers: [] });
+    res.status(500).json({ error: e.message, testers: [], count: 0, dashboard: { totalTestsThisMonth: 0, activeTesters: 0, onlineNow: 0, topContributor: null, topThree: [] } });
   }
 });
 
@@ -671,6 +652,71 @@ function saveTierLog(entry) {
     if (logs.length > 5000) logs.splice(0, logs.length - 5000);
     fs.writeFileSync(TIER_LOG_FILE, JSON.stringify(logs, null, 2));
   } catch(_) {}
+}
+
+function startOfMonth(ts = Date.now()) {
+  const d = new Date(ts);
+  return new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+}
+
+function buildTesterDashboard(guild) {
+  const perms = loadTiererPerms();
+  const roleIds = new Set(perms.roles || []);
+  if (CONFIG.TIERER_ROLE_ID) roleIds.add(CONFIG.TIERER_ROLE_ID);
+  const memberIds = new Set(perms.members || []);
+  const monthStart = startOfMonth();
+
+  const allLogs = loadTierLogs().filter(log => log && !log.synced);
+  const monthLogs = allLogs.filter(log => Number(log.timestamp || 0) >= monthStart);
+
+  const monthlyCounts = new Map();
+  const lifetimeCounts = new Map();
+  for (const log of allLogs) {
+    if (!log?.tieredBy) continue;
+    lifetimeCounts.set(log.tieredBy, (lifetimeCounts.get(log.tieredBy) || 0) + 1);
+    if (Number(log.timestamp || 0) >= monthStart) {
+      monthlyCounts.set(log.tieredBy, (monthlyCounts.get(log.tieredBy) || 0) + 1);
+    }
+  }
+
+  const testers = [];
+  if (guild) {
+    guild.members.cache.forEach(member => {
+      if (!member || member.user?.bot) return;
+      const hasRole = [...roleIds].some(rid => member.roles.cache.has(rid));
+      if (!hasRole && !memberIds.has(member.id)) return;
+
+      const testsThisMonth = monthlyCounts.get(member.id) || 0;
+      const testsAllTime = lifetimeCounts.get(member.id) || 0;
+      const online = Boolean(member.presence && member.presence.status && member.presence.status !== 'offline');
+
+      testers.push({
+        id: member.id,
+        username: member.user?.username || member.displayName || 'Unknown',
+        displayName: member.displayName || member.user?.username || 'Unknown',
+        avatar: member.user?.displayAvatarURL({ extension: 'png', size: 128 }) || `https://mc-heads.net/avatar/${encodeURIComponent(member.displayName || member.user?.username || 'Steve')}/128`,
+        online,
+        testsThisMonth,
+        testsAllTime,
+      });
+    });
+  }
+
+  testers.sort((a, b) => (
+    (b.testsThisMonth - a.testsThisMonth) ||
+    (b.testsAllTime - a.testsAllTime) ||
+    a.displayName.localeCompare(b.displayName)
+  ));
+
+  const dashboard = {
+    totalTestsThisMonth: monthLogs.length,
+    activeTesters: testers.length,
+    onlineNow: testers.filter(t => t.online).length,
+    topContributor: testers[0] || null,
+    topThree: testers.slice(0, 3),
+  };
+
+  return { testers, count: testers.length, dashboard };
 }
 const QF = path.join(DATA_DIR, 'queue.json');
 const MF = path.join(DATA_DIR, 'matches.json');
@@ -2037,6 +2083,7 @@ CMDS.tier = {
         timestamp:    Date.now(),
       });
       broadcast({ type:'tier_updated', discordId:target.id, ign:player.ign, weapon, tier, oldTier });
+      broadcast({ type:'testers_updated' });
 
       // Auto assign Discord role
       try {
@@ -3322,6 +3369,7 @@ CMDS.synclogs = {
       const merged = [...existing, ...newEntries];
       try {
         fs.writeFileSync(TIER_LOG_FILE, JSON.stringify(merged, null, 2));
+        broadcast({ type:'testers_updated' });
       } catch(err) {
         return i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF4444)
           .setDescription(`❌ File save error: ${err.message}`)] });
@@ -4302,6 +4350,7 @@ const client = new Client({ intents:[
   GatewayIntentBits.Guilds,
   GatewayIntentBits.GuildMessages,
   GatewayIntentBits.GuildMembers,
+  GatewayIntentBits.GuildPresences,
   GatewayIntentBits.MessageContent,
 ]});
 
