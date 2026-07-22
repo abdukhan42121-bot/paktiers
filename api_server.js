@@ -181,14 +181,16 @@ const wsInterval = setInterval(() => {
 }, 30000);
 
 // ── TIER UTILS ───────────────────────────────────────────
-const TIER_PTS = { HT1:10,LT1:9,HT2:8,LT2:7,HT3:6,LT3:5,HT4:4,LT4:3,HT5:2,LT5:1 };
+const TIER_PTS = { HT1:60,LT1:45,HT2:30,LT2:20,HT3:10,LT3:6,HT4:4,LT4:3,HT5:2,LT5:1 };
 
 function getRankTitle(pts) {
-  if (pts>=101) return { label:'COMBAT ACE',        emoji:'🔥' };
-  if (pts>=51)  return { label:'COMBAT SPECIALIST', emoji:'⚡' };
-  if (pts>=26)  return { label:'COMBAT CADET',      emoji:'🟢' };
-  if (pts>=10)  return { label:'COMBAT NOICE',      emoji:'🔵' };
-  return               { label:'ROOKIE',            emoji:'⚪' };
+  if (pts>=400) return { label:'Combat Grandmaster', emoji:'🏆' };
+  if (pts>=250) return { label:'Combat Master',      emoji:'🥈' };
+  if (pts>=100) return { label:'Combat Ace',         emoji:'🔥' };
+  if (pts>=50)  return { label:'Combat Specialist',  emoji:'⚡' };
+  if (pts>=20)  return { label:'Combat Cadet',       emoji:'🟢' };
+  if (pts>=10)  return { label:'Combat Novice',      emoji:'🔵' };
+  return               { label:'Rookie',             emoji:'⚪' };
 }
 
 function enrichPlayer(p) {
@@ -319,7 +321,7 @@ const WEAPON_TO_MOD_GAMEMODE = {
   Pot:'pot', NethOP:'nethop', SMP:'smp', DiaSMP:'diasmp',
 };
 const TIER_TO_MOD_VALUE = {
-  HT1:100,LT1:90,HT2:80,LT2:70,HT3:60,LT3:50,HT4:40,LT4:30,HT5:20,LT5:10,
+  HT1:60,LT1:45,HT2:30,LT2:20,HT3:10,LT3:6,HT4:4,LT4:3,HT5:2,LT5:1,
 };
 
 function toModPlayer(p) {
