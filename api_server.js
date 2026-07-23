@@ -25,7 +25,7 @@ const {
 } = require('discord.js');
 
 // ════════════════════════════════════════════════════════════
-//  CONFIG — Railway me ye env vars set karo
+//  CONFIG — Set these env vars on Railway
 // ════════════════════════════════════════════════════════════
 const CONFIG = {
   BOT_TOKEN:            process.env.BOT_TOKEN,
@@ -36,13 +36,13 @@ const CONFIG = {
   TIER_SYNC_CHANNEL_ID: process.env.TIER_SYNC_CHANNEL_ID || '1504510227322503189',
 
   // ── NEW CONFIG ──
-  REGISTER_CHANNEL_ID:  process.env.REGISTER_CHANNEL_ID  || '',   // Channel jahan /register kaam kare
-  QUEUE_CHANNEL_ID:     process.env.QUEUE_CHANNEL_ID     || '',   // Channel jahan /queue join kaam kare
-  TICKET_CATEGORY_ID:   process.env.TICKET_CATEGORY_ID   || '',   // Category jahan tickets banenge
+  REGISTER_CHANNEL_ID:  process.env.REGISTER_CHANNEL_ID  || '',   // Channel where /register works
+  QUEUE_CHANNEL_ID:     process.env.QUEUE_CHANNEL_ID     || '',   // Channel where queue commands work
+  TICKET_CATEGORY_ID:   process.env.TICKET_CATEGORY_ID   || '',   // Category where tickets will be created
   TICKET_CATEGORY_NAME: 'Tier-TesTing--Tickets',            // Fallback/auto-created ticket category name
-  TICKET_STAFF_ROLE_ID: process.env.TICKET_STAFF_ROLE_ID || '',   // Staff role jo tickets me ping ho
-  VERIFIED_ROLE_ID:          process.env.VERIFIED_ROLE_ID          || '',   // Role jo register ke baad mile
-  TESTERS_ROLE_ID:           process.env.TESTERS_ROLE_ID           || '',   // "﹂Tᴇsᴛᴇʀs ﹁ 👥" role — /startqueue use kar sakta hai
+  TICKET_STAFF_ROLE_ID: process.env.TICKET_STAFF_ROLE_ID || '',   // Staff role that gets pinged in tickets
+  VERIFIED_ROLE_ID:          process.env.VERIFIED_ROLE_ID          || '',   // Role granted after registration
+  TESTERS_ROLE_ID:           process.env.TESTERS_ROLE_ID           || '',   // "﹂Tᴇsᴛᴇʀs ﹁ 👥" role — can use /startqueue
   QUEUE_ANNOUNCE_CHANNEL_ID: process.env.QUEUE_ANNOUNCE_CHANNEL_ID || '',   // Channel where @everyone ping will be sent
   PANEL_CHANNEL_ID:          process.env.PANEL_CHANNEL_ID          || '',   // Channel where waitlist panel message stays (for /setuppanel)
   REG_LOGS_CHANNEL_ID:       process.env.REG_LOGS_CHANNEL_ID       || '',   // Channel for registration logs
@@ -68,7 +68,7 @@ const CONFIG = {
   GITHUB_BACKUP_DIR: process.env.GITHUB_BACKUP_DIR || 'paktiers-backups', // folder inside repo
 };
 
-// ── QUEUE PERM ROLES — runtime mein /queueperm se set hote hain ──────────────
+// ── QUEUE PERM ROLES — runtime settings via /queueperm ──────────────
 const QUEUE_PERM_FILE = path.join(__dirname, 'paktiers_data', 'queue_perms.json');
 function loadQueuePerms() {
   try {
@@ -90,7 +90,7 @@ function hasQueuePerm(member) {
   return perms.roles.some(rid => member.roles.cache.has(rid));
 }
 
-// ── TIERER PERM ROLES + MEMBERS — runtime mein /tiererperm se set hote hain ──
+// ── TIERER PERM ROLES + MEMBERS — runtime settings via /tiererperm ──
 const TIERER_PERM_FILE = path.join(__dirname, 'paktiers_data', 'tierer_perms.json');
 function loadTiererPerms() {
   try {
@@ -472,8 +472,8 @@ const REGIONS_LIST = ['Pakistan 🇵🇰', 'India 🇮🇳', 'UAE 🇦🇪', 'Sa
 const ACCOUNT_TYPES = ['Premium (Paid)', 'Cracked (Free)'];
 
 // ── REGION → FLAG NORMALIZER ───────────────────────────────
-// Player.region string se flag emoji nikaalta/attach karta hai — chahe
-// region kaisa bhi stored ho (full name, code, purana synced entry, etc.)
+// Player.region string to flag emoji helper — even if
+// region is stored in any format (full name, code, old synced entry, etc.)
 const REGION_FLAG_MAP = {
   'pakistan':      '🇵🇰',
   'pk':            '🇵🇰',
@@ -526,7 +526,7 @@ async function autoReact(message) {
 }
 
 // ── GAMEMODE ROLE MAP — AUTO CREATE ───────────────────────
-// Bot khud roles banata hai if they don't exist.
+// The bot automatically creates roles if they do not exist.
 // Role name format: "[PakTiers] Sword HT1" etc.
 // In-memory cache: roleCache[weapon][tier] = roleId
 const roleCache = {};   // populated on first use / bot ready
@@ -639,7 +639,7 @@ function isOnCooldown(discordId, weapon) {
 const DATA_DIR = path.join(__dirname, 'paktiers_data');
 const PF = path.join(DATA_DIR, 'players.json');
 
-// ── TIER LOGS — /logs command ke liye ────────────────────────
+// ── TIER LOGS — for the /logs command ────────────────────────
 const TIER_LOG_FILE = path.join(DATA_DIR, 'tier_logs.json');
 function loadTierLogs() {
   try {
@@ -833,7 +833,7 @@ async function githubGetFile(repoPath) {
   return Buffer.from(res.body.content, 'base64').toString('utf8');
 }
 
-// Files jo backup me shamil hote hain — sara tierlist data
+// Files included in backups — all tierlist data
 function getBackupFileMap() {
   return {
     players:     PF,
@@ -1669,7 +1669,7 @@ async function sendWaitlistPanel(channel) {
 
 // ════════════════════════════════════════════════════════════
 //  QUEUE ACCESS CHECK
-//  Player queue join kar sakta hai agar:
+//  Player can join the queue if:
 //  (a) us weapon ka tier hai, YA
 //  (b) us weapon ki Waitlist-<weapon> role hai
 // ════════════════════════════════════════════════════════════
@@ -1727,12 +1727,12 @@ CMDS.msgsend = {
 CMDS.backup = {
   data: new SlashCommandBuilder()
     .setName('backup')
-    .setDescription('PakTiers data ka GitHub backup lo ya restore karo')
+    .setDescription('Back up or restore PakTiers data on GitHub')
     .addSubcommand(sub => sub.setName('create')
-      .setDescription('Abhi ka sara tierlist data GitHub pe backup karo'))
+      .setDescription('Back up all current tierlist data to GitHub'))
     .addSubcommand(sub => sub.setName('load')
-      .setDescription('GitHub se latest backup wapis load karo (current data overwrite ho jayega)')
-      .addBooleanOption(o => o.setName('confirm').setDescription('true likho confirm karne ke liye').setRequired(true))),
+      .setDescription('Load the latest backup from GitHub (current data will be overwritten)')
+      .addBooleanOption(o => o.setName('confirm').setDescription('type true to confirm').setRequired(true))),
 
   async execute(i) {
     if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
@@ -1741,7 +1741,7 @@ CMDS.backup = {
     }
     if (!CONFIG.GITHUB_TOKEN || !CONFIG.GITHUB_REPO) {
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription('❌ `GITHUB_TOKEN` aur `GITHUB_REPO` env vars set nahi hain. Railway → Variables me add karo.\n`GITHUB_REPO` format: `username/repo`')] });
+        .setDescription('❌ `GITHUB_TOKEN` and `GITHUB_REPO` env vars are not set. Add them in Railway → Variables.\n`GITHUB_REPO` format: `username/repo`')] });
     }
 
     const sub = i.options.getSubcommand();
@@ -1773,7 +1773,7 @@ CMDS.backup = {
       const confirm = i.options.getBoolean('confirm');
       if (!confirm) {
         return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF9933)
-          .setDescription('⚠️ Cancel ho gaya. `confirm: true` set karo agar current data overwrite karna hai.')] });
+          .setDescription('⚠️ Cancelled. Set `confirm: true` if you want to overwrite the current data.')] });
       }
       try {
         const jsonStr = await githubGetFile(`${CONFIG.GITHUB_BACKUP_DIR}/latest.json`);
@@ -1877,7 +1877,7 @@ CMDS.openticket = {
     .setDescription('Open a ticket for a player and show full details')
     .addUserOption(o => o.setName('player').setDescription('Player to open ticket for').setRequired(true))
     .addStringOption(o => o.setName('gamemode')
-      .setDescription('Gamemode jiska ticket open karna hai')
+      .setDescription('Gamemode for which the ticket should be opened')
       .setRequired(true)
       .addChoices(
         { name: '🔨 Mace',       value: 'Mace'       },
@@ -1898,7 +1898,7 @@ CMDS.openticket = {
     const canUse    = isAdmin || hasStaff || hasTierer || hasQueuePerm(i.member);
     if (!canUse) {
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription('❌ Tumhe ticket open karne ki permission nahi.')] });
+        .setDescription('❌ You do not have permission to open a ticket.')] });
     }
 
     const user     = i.options.getUser('player');
@@ -1906,7 +1906,7 @@ CMDS.openticket = {
     const player   = LDB.get(user.id);
     if (!player) {
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription(`❌ **${user.username}** registered nahi hai.`)] });
+        .setDescription(`❌ **${user.username}** not is registered.`)] });
     }
 
     await i.deferReply({ ephemeral:true });
@@ -1914,12 +1914,12 @@ CMDS.openticket = {
     const ticketChannel = await createQueueTicket(i.client, i.guild, player, gamemode, user.id, i.user.id);
     if (!ticketChannel) {
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription('❌ Ticket create nahi ho saka. Category / permissions check karo.')] });
+        .setDescription('❌ Ticket could not be created. Check the category / permissions.')] });
     }
 
     const gmEmoji = WEAPON_EMOJI[gamemode] || '🎮';
     return i.editReply({ embeds:[new EmbedBuilder().setColor(0x57F287)
-      .setTitle('✅ Ticket Open Ho Gaya!')
+      .setTitle('✅ Ticket Opened!')
       .addFields(
         { name: '👤 Player',   value: `<@${user.id}> (**${player.ign}**)`, inline: true },
         { name: '🎮 Gamemode', value: `${gmEmoji} **${gamemode}**`,         inline: true },
@@ -1986,7 +1986,7 @@ CMDS.profile = {
     const player = ignArg ? LDB.findIGN(ignArg) : userArg ? LDB.get(userArg.id) : LDB.get(i.user.id);
     if (!player) return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
       .setTitle('❌ Player Not Found')
-      .setDescription(ignArg ? `**${ignArg}** naam ka koi player nahi mila.` : 'You are not registered. Use `/register`.')
+      .setDescription(ignArg ? `No player found with the name **${ignArg}**.` : 'You are not registered. Use `/register`.')
       .setFooter({ text:BOT_FOOTER })] });
 
     const tiers   = player.tiers||{};
@@ -2054,7 +2054,7 @@ CMDS.tier = {
 
     if (sub==='view') {
       if (!player) return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription(`❌ **${target.username}** registered nahi.`)] });
+        .setDescription(`❌ **${target.username}** not registered.`)] });
       const entries = Object.entries(player.tiers||{}).sort((a,b)=>(TIER_PTS[b[1]]||0)-(TIER_PTS[a[1]]||0));
       const pts = entries.reduce((s,[,t])=>s+(TIER_PTS[t]||0),0);
       return i.reply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
@@ -2062,13 +2062,13 @@ CMDS.tier = {
         .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
         .setDescription(entries.length
           ? entries.map(([w,t])=>`${WEAPON_EMOJI[w]} **${w}** — ${getTierLabel(t)} \`${t}\``).join('\n')
-          : '*Koi tier nahi*')
+          : '*No tiers yet*')
         .setFooter({ text:`Total: ${pts} pts` })] });
     }
 
     if (sub==='set') {
       if (!player) return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription(`❌ **${target.username}** ko pehle \`/register\` karna hoga.`)] });
+        .setDescription(`❌ **${target.username}** must register first with \`/register\`.`)] });
       const oldTier = player.tiers?.[weapon];
       LDB.setTier(target.id, weapon, tier);
       // Set cooldown (with tier info for LT3 = 1 week logic)
@@ -2102,7 +2102,7 @@ CMDS.tier = {
       } catch(_) {}
 
       // Ephemeral ack — sirf tester ko dikhega, isliye channel me "used /tier set" wala
-      // indicator kisi aur ko nazar nahi aayega (ephemeral replies sirf invoker ko show hoti hain).
+      // indicator will not be visible to anyone else (ephemeral replies are shown only to the invoker).
       await i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
         .setDescription(`✅ **${player.ign}**'s ${weapon} tier set to **${getTierLabel(tier)}** \`${tier}\`.`)] });
 
@@ -2121,7 +2121,7 @@ CMDS.tier = {
         .setTimestamp();
 
       // Public message posted as a normal message (not an interaction reply) —
-      // yeh player ko mention karta hai aur "used /tier set" text nahi dikhata.
+      // this mentions the player and does not show the "used /tier set" text.
       let publicMsg = null;
       try {
         publicMsg = await i.channel.send({ content:`<@${target.id}>`, embeds:[tierUpdateEmbed] });
@@ -2134,8 +2134,8 @@ CMDS.tier = {
       try {
         const cdDays = getCooldownDays(tier);
         await target.send({ embeds:[new EmbedBuilder().setColor(TIER_COLOR[tier]||BRAND_COLOR)
-          .setTitle(`${WEAPON_EMOJI[weapon]} Tumhara ${weapon} tier ${oldTier?'update':'assign'} ho gaya!`)
-          .setDescription(`**${getTierLabel(tier)}** (\`${tier}\`) · +${TIER_PTS[tier]} pts\n\n⏳ **${cdDays} din** baad \`/queue join\` kar sakte ho ${weapon} ke liye!`)
+          .setTitle(`${WEAPON_EMOJI[weapon]} Your ${weapon} tier has been ${oldTier?'updated':'assigned'}!`)
+          .setDescription(`**${getTierLabel(tier)}** (\`${tier}\`) · +${TIER_PTS[tier]} pts\n\n⏳ You can join the **${weapon}** queue after **${cdDays} days**.`)
           .setFooter({ text:BOT_FOOTER })] });
       } catch(_) {}
       return;
@@ -2144,7 +2144,7 @@ CMDS.tier = {
     if (sub==='remove') {
       if (!player||!player.tiers?.[weapon])
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
-          .setDescription(`⚠️ **${player?.ign||target.username}** ka ${weapon} tier nahi.`)] });
+          .setDescription(`⚠️ **${player?.ign||target.username}** does not have a ${weapon} tier.`)] });
       const removed = player.tiers[weapon];
       LDB.delTier(target.id, weapon);
       broadcast({ type:'tier_removed', discordId:target.id, ign:player.ign, weapon });
@@ -2239,14 +2239,14 @@ CMDS.queue = {
       if (!access.allowed) return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setTitle('❌ Access Nahi — No Tier & No Waitlist Role')
         .setDescription(
-          `Tum **${weapon}** queue join nahi kar sakte.\n\n` +
-          `**2 tarike hain join karne ke:**\n` +
-          `• Kisi **Tierer** se get your ${weapon} tier, **YA**\n` +
+          `You cannot join the **${weapon}** queue.\n\n` +
+          `**2 tarike hain to join:**\n` +
+          `• Get your ${weapon} tier from a **Tierer**, **OR**\n` +
           `• Select **${weapon}** in the panel — get the waitlist role`
         )
-        .addFields({ name:'Tumhare Tiers', value:Object.keys(player.tiers||{}).length
+        .addFields({ name:'Your Tiers', value:Object.keys(player.tiers||{}).length
           ? Object.entries(player.tiers).map(([w,t])=>`${WEAPON_EMOJI[w]} ${w}: \`${t}\``).join('\n')
-          : '*Koi tier nahi*' })
+          : '*No tiers yet*' })
         .setFooter({ text:'PakTiers · Pakistan Minecraft Community' })] });
 
       // ── COOLDOWN CHECK ─────────────────────────────────────
@@ -2254,18 +2254,18 @@ CMDS.queue = {
       if (cd.onCooldown) {
         return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setTitle(`⏳ ${weapon} Queue — Cooldown Active`)
-          .setDescription(`Tumhe **${weapon}** ka tier recently mila hai.\nCooldown khatam hone tak wait karo.`)
+          .setDescription(`You recently received a **${weapon}** tier.\nWait until the cooldown ends.`)
           .addFields(
             { name:'⏰ Remaining',    value:`**${cd.hours}h ${cd.mins}m**`, inline:true },
             { name:'✅ Available at', value:`<t:${Math.floor(cd.endsAt/1000)}:F>`, inline:true },
           )
-          .setFooter({ text:`${cd.days || CONFIG.TIER_COOLDOWN_DAYS} din ka cooldown tier milne ke baad · PakTiers` })] });
+          .setFooter({ text:`${cd.days || CONFIG.TIER_COOLDOWN_DAYS} day cooldown after receiving a tier · PakTiers` })] });
       }
 
       const result = LDB.joinQ(i.user.id, weapon);
       if (!result.ok && result.reason==='dupe')
         return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF9933)
-          .setDescription(`⚠️ Tum already ${WEAPON_EMOJI[weapon]} **${weapon}** queue me ho.`)] });
+          .setDescription(`⚠️ You are already in the ${WEAPON_EMOJI[weapon]} **${weapon}** queue.`)] });
 
       if (result.match) {
         const [e1,e2] = result.match;
@@ -2305,7 +2305,7 @@ CMDS.queue = {
           { name:'Player',      value:`**${player.ign}**`,              inline:true },
           { name:'Your Tier',   value:`\`${player.tiers?.[weapon] || 'Waitlist'}\``, inline:true },
           { name:'Position',    value:`**#${pos}** in queue`,           inline:true },
-          { name:'⏳ Status',   value:'Tester ke pull karne ka wait karo…' },
+          { name:'⏳ Status',   value:'Wait for a tester to pull you…' },
         ).setFooter({ text:'Use /queue leave to exit the queue · PakTiers' }).setTimestamp()] });
     }
 
@@ -2334,7 +2334,7 @@ CMDS.leaderboard = {
       });
     }
     if (!ranked.length) return i.editReply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
-      .setDescription('Abhi koi ranked player nahi!')] });
+      .setDescription('No ranked players yet!')] });
     const medals=['🥇','🥈','🥉'];
     const rows=ranked.slice(0,10).map((p,idx)=>{
       const medal=medals[idx]||`**${idx+1}.**`;
@@ -2364,11 +2364,11 @@ CMDS.help = {
       .setDescription("Pakistan's Minecraft Java PvP ranking system 🇵🇰")
       .addFields(
         { name:'👤 Player',   value:'`/register` · `/profile [user]` · `/leaderboard [weapon]`' },
-        { name:'⚔️ Queue',   value:'`/queue join <weapon>` · `/queue leave [weapon]` · `/queue status`' },
+        { name:'⚔️ Queue',   value:'Queue panel · `/queue leave [weapon]` · `/queue status`' },
         { name:'🛡️ Tierer',  value:'`/tier set` · `/tier remove` · `/tier view` *(Tierer role required)*' },
         { name:'📊 Tiers',   value:'`HT1 > LT1 > HT2 > LT2 > HT3 > LT3 > HT4 > LT4 > HT5 > LT5`' },
-        { name:'⏳ Cooldown', value:`Tier milne ke baad **${CONFIG.TIER_COOLDOWN_DAYS} din** tak us gamemode ka queue band rehta hai` },
-        { name:'🎫 Tickets',  value:'Queue join karte hi automatic ticket create hota hai staff ko notify karne ke liye' },
+        { name:'⏳ Cooldown', value:`After receiving a tier, that gamemode's queue stays closed for **${CONFIG.TIER_COOLDOWN_DAYS} days**` },
+        { name:'🎫 Tickets',  value:'A ticket is automatically created when someone joins the queue so staff are notified' },
         { name:'🖥️ Platform', value:'Java Edition only' },
       ).setFooter({ text:BOT_FOOTER })] });
   },
@@ -2378,8 +2378,8 @@ CMDS.help = {
 CMDS.closeticket = {
   data: new SlashCommandBuilder()
     .setName('closeticket')
-    .setDescription('Kisi player ka queue ticket band karo (Staff only)')
-    .addUserOption(o=>o.setName('player').setDescription('Player jiska ticket band karna hai').setRequired(true)),
+    .setDescription("Close a player's queue ticket (Staff only)")
+    .addUserOption(o=>o.setName('player').setDescription("Player whose ticket should be closed").setRequired(true)),
   async execute(i) {
     const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
     const hasStaff  = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
@@ -2391,7 +2391,7 @@ CMDS.closeticket = {
     const closed = await closeTicket(i.client, i.guild, target.id, i.user.id);
     return i.reply({ ephemeral:true, embeds:[new EmbedBuilder()
       .setColor(closed ? 0x00C864 : 0xFF9933)
-      .setDescription(closed ? `✅ **${target.username}** ka ticket band ho gaya.` : `⚠️ **${target.username}** ka koi open ticket nahi mila.`)] });
+      .setDescription(closed ? `✅ **${target.username}** ka ticket band ho gaya.` : `⚠️ **${target.username}** ka no open ticket was found.`)] });
   },
 };
 
@@ -2400,7 +2400,7 @@ CMDS.closeticket = {
 CMDS.syncroles = {
   data: new SlashCommandBuilder()
     .setName('syncroles')
-    .setDescription('Saare players ke tiers ke hisab se Discord roles sync karo (Admin/Tierer only)'),
+    .setDescription('Sync Discord roles for all players based on their tiers (Admin/Tierer only)'),
 
   async execute(i) {
     const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
@@ -2416,7 +2416,7 @@ CMDS.syncroles = {
 
     if (!playerList.length)
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF9933)
-        .setDescription('⚠️ Koi bhi tiered player nahi mila.')] });
+        .setDescription('⚠️ No tiered players found.')] });
 
     let success = 0, failed = 0, skipped = 0;
     const errors = [];
@@ -2492,7 +2492,7 @@ CMDS.queueperm = {
 
       const customLines = roles.length
         ? roles.map(rid => `• <@&${rid}>`).join('\n')
-        : '*Koi custom role nahi*';
+        : '*No custom role*';
 
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
         .setTitle('🔑 Queue Permission Roles')
@@ -2500,7 +2500,7 @@ CMDS.queueperm = {
           { name:'Built-in', value: builtinLines.length ? builtinLines.join('\n') : '*None set*', inline:false },
           { name:'Custom (/queueperm add)', value: customLines, inline:false },
         )
-        .setDescription('Ye saare roles **/queue start**, **Pull button**, aur **/queue join** (testers) use kar sakte hain.')
+        .setDescription('These roles can use **/queue start**, the **Pull** button, and queue access (testers).')
         .setFooter({ text: BOT_FOOTER })] });
     }
 
@@ -2514,8 +2514,8 @@ CMDS.queueperm = {
       perms.roles.push(role.id);
       saveQueuePerms(perms);
       return i.reply({ embeds:[new EmbedBuilder().setColor(0x00C864)
-        .setTitle('✅ Queue Permission Di Gayi')
-        .setDescription(`<@&${role.id}> (**${role.name}**) ab yeh sab kar sakta hai:\n• \`/queue start\` — queue announce karna\n• 🎫 **Pull** button — player pull karna\n• Queue join karna (waitlist flow)`)
+        .setTitle('✅ Queue Permission Granted')
+        .setDescription(`<@&${role.id}> (**${role.name}**) can now do the following:\n• \`/queue start\` — announce the queue\n• 🎫 **Pull** button — pull a player\n• Join the queue (waitlist flow)`)
         .setFooter({ text: BOT_FOOTER })
         .setTimestamp()] });
     }
@@ -2523,12 +2523,12 @@ CMDS.queueperm = {
     if (sub === 'remove') {
       if (!perms.roles.includes(role.id))
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
-          .setDescription(`⚠️ **${role.name}** ke paas queue permission nahi hai.`)] });
+          .setDescription(`⚠️ **${role.name}** does not have queue permission.`)] });
 
       perms.roles = perms.roles.filter(rid => rid !== role.id);
       saveQueuePerms(perms);
       return i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setTitle('🗑️ Queue Permission Hatayi Gayi')
+        .setTitle('🗑️ Queue Permission Removed')
         .setDescription(`<@&${role.id}> (**${role.name}**) ki queue permission hata di gayi.`)
         .setFooter({ text: BOT_FOOTER })
         .setTimestamp()] });
@@ -2571,11 +2571,11 @@ CMDS.tiererperm = {
 
       const roleLines = perms.roles.length
         ? perms.roles.map(rid => `• <@&${rid}>`).join('\n')
-        : '*Koi custom role nahi*';
+        : '*No custom role*';
 
       const memberLines = perms.members.length
         ? perms.members.map(uid => `• <@${uid}>`).join('\n')
-        : '*Koi custom member nahi*';
+        : '*No custom member*';
 
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
         .setTitle('🛡️ Tierer Permission List')
@@ -2675,10 +2675,10 @@ CMDS.tiererperm = {
 CMDS.setuppanel = {
   data: new SlashCommandBuilder()
     .setName('setuppanel')
-    .setDescription('Waitlist panel channel mein send karo (Admin only)')
+    .setDescription('Send the waitlist panel to a channel (Admin only)')
     .addChannelOption(o => o
       .setName('channel')
-      .setDescription('Channel jahan panel bhejo (default: current)')
+      .setDescription('Channel to send the panel to (default: current)')
       .setRequired(false)
     ),
 
@@ -2693,11 +2693,11 @@ CMDS.setuppanel = {
     try {
       await sendWaitlistPanel(targetChannel);
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
-        .setDescription(`✅ Waitlist panel <#${targetChannel.id}> mein send ho gaya!`)] });
+        .setDescription(`✅ Waitlist panel sent to <#${targetChannel.id}>!`)] });
     } catch(err) {
       console.error('[PANEL ERROR]', err);
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription(`❌ Panel send karne mein masla: ${err.message}`)] });
+        .setDescription(`❌ Problem sending the panel: ${err.message}`)] });
     }
   },
 };
@@ -2707,10 +2707,10 @@ CMDS.setuppanel = {
 CMDS.setupticketpnl = {
   data: new SlashCommandBuilder()
     .setName('setupticketpnl')
-    .setDescription('Paktiers Application panel channel mein send karo (Admin only)')
+    .setDescription('Send the PakTiers Application panel to a channel (Admin only)')
     .addChannelOption(o => o
       .setName('channel')
-      .setDescription('Channel jahan panel bhejo (default: configured application channel)')
+      .setDescription('Channel to send the panel to (default: configured application channel)')
       .setRequired(false)
     ),
 
@@ -2734,11 +2734,11 @@ CMDS.setupticketpnl = {
         components: [buildApplicationSelectRow()],
       });
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
-        .setDescription(`✅ Paktiers Application panel <#${targetChannel.id}> mein send ho gaya!`)] });
+        .setDescription(`✅ PakTiers Application panel sent to <#${targetChannel.id}>!`)] });
     } catch(err) {
       console.error('[APP PANEL ERROR]', err);
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription(`❌ Panel send karne mein masla: ${err.message}`)] });
+        .setDescription(`❌ Problem sending the panel: ${err.message}`)] });
     }
   },
 };
@@ -2748,10 +2748,10 @@ CMDS.setupticketpnl = {
 CMDS.setupsupportpnl = {
   data: new SlashCommandBuilder()
     .setName('setupsupportpnl')
-    .setDescription('Paktiers Support ticket panel channel mein send karo (Admin only)')
+    .setDescription('Send the PakTiers support ticket panel to a channel (Admin only)')
     .addChannelOption(o => o
       .setName('channel')
-      .setDescription('Channel jahan panel bhejo (default: configured support channel)')
+      .setDescription('Channel to send the panel to (default: configured support channel)')
       .setRequired(false)
     ),
 
@@ -2775,11 +2775,11 @@ CMDS.setupsupportpnl = {
         components: [buildSupportButtonRow()],
       });
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
-        .setDescription(`✅ Paktiers Support panel <#${targetChannel.id}> mein send ho gaya!`)] });
+        .setDescription(`✅ PakTiers Support panel sent to <#${targetChannel.id}>!`)] });
     } catch(err) {
       console.error('[SUPPORT PANEL ERROR]', err);
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription(`❌ Panel send karne mein masla: ${err.message}`)] });
+        .setDescription(`❌ Problem sending the panel: ${err.message}`)] });
     }
   },
 };
@@ -2811,7 +2811,7 @@ CMDS.appmanager = {
     const member = i.options.getUser('member');
     if (!role && !member)
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription('❌ Role ya member mein se kam az kam ek do.')] });
+        .setDescription('❌ Provide at least one role or member.')] });
 
     await i.deferReply({ ephemeral:true });
 
@@ -2819,7 +2819,7 @@ CMDS.appmanager = {
       const category = await resolveApplicationCategory(i.guild);
       if (!category)
         return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
-          .setDescription('❌ Application category nahi mil saki.')] });
+          .setDescription('❌ Application category could not be found.')] });
 
       const targetId = role ? role.id : member.id;
       if (role)   LDB.addManagerRole('app', role.id);
@@ -2880,7 +2880,7 @@ CMDS.supmanager = {
     const member = i.options.getUser('member');
     if (!role && !member)
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription('❌ Role ya member mein se kam az kam ek do.')] });
+        .setDescription('❌ Provide at least one role or member.')] });
 
     await i.deferReply({ ephemeral:true });
 
@@ -2888,7 +2888,7 @@ CMDS.supmanager = {
       const category = await resolveSupportCategory(i.guild);
       if (!category)
         return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
-          .setDescription('❌ Support category nahi mil saki.')] });
+          .setDescription('❌ Support category could not be found.')] });
 
       const targetId = role ? role.id : member.id;
       if (role)   LDB.addManagerRole('sup', role.id);
@@ -2967,7 +2967,7 @@ function buildSQEmbed(weapon, region, testerIds) {
   // Queue list — numbered mentions
   const queueLines = queueCount
     ? q.map((e, idx) => `${idx + 1}. <@${e.discordId}>`).join('\n')
-    : '*Queue mein koi nahi.*';
+    : '*No one is in the queue.*';
 
   // Active testers list
   const testerLines = (testerIds && testerIds.length)
@@ -3091,7 +3091,7 @@ CMDS.startqueue = {
       return i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF4444)
         .setTitle('❌ Bot Ko Permission Nahi')
         .setDescription(
-          `Bot ko <#${targetCh.id}> mein message send karne ki permission nahi hai.\n\n` +
+          `Bot does not have permission to send messages in <#${targetCh.id}>.\n\n` +
           `**Fix:** Channel settings → Permissions → Bot role → ✅ View Channel + ✅ Send Messages`
         )
         .setFooter({ text: BOT_FOOTER })] });
@@ -3147,7 +3147,7 @@ CMDS.startqueue = {
         .setDescription(
           `<#${targetCh.id}> mein message send nahi hua.\n\n` +
           `**Error:** \`${err.message}\` (Code: ${err.code || 'N/A'})\n\n` +
-          `Check karo:\n• Bot ko channel mein **Send Messages** permission hai?\n• Channel ki permission override toh nahi?`
+          `Check:\n• Does the bot have **Send Messages** permission in the channel?\n• Is there a permission override on the channel?`
         )
         .addFields(
           { name: `${emoji} Gamemode`, value: weapon,              inline: true },
@@ -3173,7 +3173,7 @@ CMDS.startqueue = {
       .setTitle('✅ Live Queue Panel Shuru Ho Gaya!')
       .setDescription(
         `**${emoji} ${weapon}** ka CTL-style live panel <#${targetCh.id}> mein send ho gaya!\n\n` +
-        `Panel khud update hoga jab bhi koi Join / Leave / Pull kare.`
+        `The panel will update automatically whenever someone joins, leaves, or gets pulled.`
       )
       .addFields(
         { name: `${emoji} Gamemode`, value: weapon,              inline: true },
@@ -3193,7 +3193,7 @@ CMDS.startqueue = {
 CMDS.closequeue = {
   data: new SlashCommandBuilder()
     .setName('closequeue')
-    .setDescription('Queue band karo — CTL-style closed embed bhejo (Testers only)')
+    .setDescription('Close the queue — send a closed-style embed (Testers only)')
     .addStringOption(o => o
       .setName('gamemode')
       .setDescription('Choose a gamemode')
@@ -3202,7 +3202,7 @@ CMDS.closequeue = {
     )
     .addStringOption(o => o
       .setName('reason')
-      .setDescription('Band karne ki wajah (default: Last tester left the queue)')
+      .setDescription('Reason for closing (default: Last tester left the queue)')
       .setRequired(false)
     ),
 
@@ -3291,7 +3291,7 @@ CMDS.closequeue = {
     try {
       const closedMsg = await targetCh.send({ embeds: [closedEmbed] });
       sent = true;
-      // Save closed message ID — fresh load karo taake koi key miss na ho
+      // Save closed message ID — reload fresh so no key is missed
       const freshPanels = loadSQPanels();
       freshPanels[`closed_${weapon}`] = { channelId: targetCh.id, messageId: closedMsg.id };
       saveSQPanels(freshPanels);
@@ -3303,7 +3303,7 @@ CMDS.closequeue = {
     // ── Confirm to tester ─────────────────────────────────────
     return i.editReply({ embeds: [new EmbedBuilder()
       .setColor(sent ? 0xFF4444 : 0xFF9933)
-      .setTitle(sent ? `🔒 ${weapon} Queue Band Ho Gaya!` : '⚠️ Send Nahi Hua')
+      .setTitle(sent ? `🔒 ${weapon} Queue Closed!` : '⚠️ Send Nahi Hua')
       .setDescription(sent
         ? `**${emoji} ${weapon}** queue band kar di gayi.\nClosed embed <#${targetCh.id}> mein send ho gaya.\nQueue clear ho gayi.`
         : `Closed embed send nahi hua. Bot permission check karo.`
@@ -3319,13 +3319,13 @@ CMDS.closequeue = {
 };
 
 // ════════════════════════════════════════════════════════════
-//  /synclogs — PURANE TIERS KO LOGS MEIN ADD KARO
+//  /synclogs — Add old tiers to logs
 //  players.json se saare existing tiers sync karta hai
 // ════════════════════════════════════════════════════════════
 CMDS.synclogs = {
   data: new SlashCommandBuilder()
     .setName('synclogs')
-    .setDescription('Purane saare tiers ko tier_logs mein sync karo (Admin only)'),
+    .setDescription('Sync all old tiers into tier_logs (Admin only)'),
 
   async execute(i) {
     const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
@@ -3338,7 +3338,7 @@ CMDS.synclogs = {
     const allPlayers = LDB.all();
     const existing   = loadTierLogs();
 
-    // Existing logs mein already synced entries mark karo (duplicate avoid)
+    // Mark already-synced entries in existing logs (avoid duplicates)
     const alreadySynced = new Set(
       existing.filter(l => l.synced).map(l => `${l.playerId}_${l.weapon}`)
     );
@@ -3388,7 +3388,7 @@ CMDS.synclogs = {
       )
       .setDescription(added > 0
         ? `${added} tier entries sync ho gayi hain. Ab \`/logs\` use karo kisi bhi tester ke logs dekhne ke liye.`
-        : `Saare entries pehle se sync hain. Koi naya entry nahi mila.`
+        : `All entries are already synced. No new entries were found.`
       )
       .setFooter({ text: BOT_FOOTER })
       .setTimestamp()] });
@@ -3444,7 +3444,7 @@ CMDS.logs = {
     if (!allLogs.length)
       return i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF9933)
         .setTitle('📋 Tier Logs')
-        .setDescription('⚠️ Abhi tak koi tier log nahi. Logs tabhi bante hain jab `/tier set` use hota hai.')
+        .setDescription('⚠️ No tier logs yet. Logs are created only when `/tier set` is used.')
         .setFooter({ text: BOT_FOOTER })] });
 
     // ── Filter by tester ──────────────────────────────────────
@@ -3458,7 +3458,7 @@ CMDS.logs = {
       labelName = targetUser.username;
     } else if (targetUsername) {
       const q = targetUsername.toLowerCase();
-      // Pehle tester username se dhundo (non-synced)
+      // First search by tester username (non-synced)
       const byTester = allLogs.filter(l =>
         !l.synced && (l.tieredByTag || '').toLowerCase().includes(q)
       );
@@ -3600,10 +3600,10 @@ async function handleSelectMenu(i) {
         .setTitle(`✅ Waitlist Role Mila — ${WEAPON_EMOJI[weapon]} ${weapon}`)
         .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
         .setDescription(
-          `You have received **Waitlist-${weapon}** role received!
+          `You have received the **Waitlist-${weapon}** role!
 
 ` +
-          `Jab **${weapon}** queue opens, tumhe ping milega.
+          `When the **${weapon}** queue opens, you will be pinged.
 ` +
           `To join, click the **Join** button in the queue channel.`
         )
@@ -3637,12 +3637,12 @@ async function handleSelectMenu(i) {
     const ticketChannel = await createApplicationTicket(i.client, i.guild, member, appType);
     if (!ticketChannel) {
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription('❌ Application ticket create nahi ho saka. Staff ko inform karo.')] });
+        .setDescription('❌ Application ticket could not be created. Please inform staff.')] });
     }
 
     return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
       .setTitle(`✅ ${label} Submitted!`)
-      .setDescription(`Tumhara application ticket khul gaya: <#${ticketChannel.id}>`)] });
+      .setDescription(`Your application ticket is open: <#${ticketChannel.id}>`)] });
   }
 
   if (prefix !== 'reg') return;
@@ -3777,8 +3777,8 @@ async function handleButtonClick(i) {
     const isOwner   = i.user.id === targetId;
     const isPuller  = ticket?.testerId && ticket.testerId === i.user.id;
     if (!isAdmin && !hasStaff && !hasTierer && !isOwner && !isPuller)
-      return i.reply({ ephemeral:true, content:'❌ Tumhe yeh ticket band karne ki permission nahi.' });
-    await i.reply({ ephemeral:true, content:'🔒 Ticket band ho raha hai...' });
+      return i.reply({ ephemeral:true, content:'❌ You do not have permission to close this ticket.' });
+    await i.reply({ ephemeral:true, content:'🔒 Closing ticket...' });
     return closeTicket(i.client, i.guild, targetId, i.user.id);
   }
 
@@ -3789,7 +3789,7 @@ async function handleButtonClick(i) {
     const hasStaff = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
     const isOwner  = i.user.id === targetId;
     if (!isAdmin && !hasStaff && !isOwner)
-      return i.reply({ ephemeral:true, content:'❌ Tumhe yeh application band karne ki permission nahi.' });
+      return i.reply({ ephemeral:true, content:'❌ You do not have permission to close this application.' });
     await i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
       .setDescription(`🔒 Application closed by <@${i.user.id}>. Channel 5 second mein delete ho jayega.`)] });
     return setTimeout(() => i.channel.delete().catch(()=>{}), 5000);
@@ -3808,11 +3808,11 @@ async function handleButtonClick(i) {
     const ticketChannel = await createSupportTicket(i.client, i.guild, member);
     if (!ticketChannel) {
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription('❌ Support ticket create nahi ho saka. Staff ko inform karo.')] });
+        .setDescription('❌ Support ticket could not be created. Please inform staff.')] });
     }
 
     return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
-      .setDescription(`✅ Tumhara support ticket khul gaya: <#${ticketChannel.id}>`)] });
+      .setDescription(`✅ Your support ticket is open: <#${ticketChannel.id}>`)] });
   }
 
   // Close support ticket button
@@ -3822,7 +3822,7 @@ async function handleButtonClick(i) {
     const hasStaff = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
     const isOwner  = i.user.id === targetId;
     if (!isAdmin && !hasStaff && !isOwner)
-      return i.reply({ ephemeral:true, content:'❌ Tumhe yeh ticket band karne ki permission nahi.' });
+      return i.reply({ ephemeral:true, content:'❌ You do not have permission to close this ticket.' });
     await i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
       .setDescription(`🔒 Ticket closed by <@${i.user.id}>. Channel 5 second mein delete ho jayega.`)] });
     return setTimeout(() => i.channel.delete().catch(()=>{}), 5000);
@@ -3847,21 +3847,21 @@ async function handleButtonClick(i) {
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setTitle('❌ Access Nahi')
           .setDescription(
-            `Tum **${weapon}** queue join nahi kar sakte.\n\n` +
-            `**2 tarike hain:**\n` +
-            `• Kisi **Tierer** se tier karwao, **YA**\n` +
+            `You cannot join the **${weapon}** queue.\n\n` +
+            `**2 ways are available:**\n` +
+            `• Get your tier from a **Tierer**, **OR**\n` +
             `• Select **${weapon}** in the panel — get the waitlist role`
           )] });
 
       const cd = isOnCooldown(i.user.id, weapon);
       if (cd.onCooldown)
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-          .setDescription(`⏳ **${weapon}** cooldown active hai — ${cd.hours}h ${cd.mins}m remaining.`)] });
+          .setDescription(`⏳ **${weapon}** cooldown is active — ${cd.hours}h ${cd.mins}m remaining.`)] });
 
       const result = LDB.joinQ(i.user.id, weapon);
       if (!result.ok && result.reason === 'dupe')
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
-          .setDescription(`⚠️ Tum already **${weapon}** queue mein ho.`)] });
+          .setDescription(`⚠️ You are already in the **${weapon}** queue.`)] });
 
       broadcast({ type:'queue_updated', queues:MEM.queues });
       refreshLivePanel(i.client, weapon).catch(() => {});
@@ -3874,7 +3874,7 @@ async function handleButtonClick(i) {
           { name:'Player',    value:`**${player.ign}**`,           inline:true },
           { name:'Your Tier', value:`\`${player.tiers?.[weapon] || 'Waitlist'}\``, inline:true },
           { name:'Position',  value:`**#${pos}** in queue`,        inline:true },
-          { name:'⏳ Status',  value:'Tester ke pull karne ka wait karo…', inline:false },
+          { name:'⏳ Status',  value:'Wait for a tester to pull you…', inline:false },
         )
         .setFooter({ text:'Use the Leave Queue button to exit the queue · PakTiers' })
         .setTimestamp()] });
@@ -3890,7 +3890,7 @@ async function handleButtonClick(i) {
       broadcast({ type:'queue_updated', queues:MEM.queues });
       refreshLivePanel(i.client, weapon).catch(() => {});
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
-        .setDescription(`👋 Tum **${weapon}** queue se nikal gaye.`)] });
+        .setDescription(`👋 You left the **${weapon}** queue.`)] });
     }
 
     // ── PULL (Testers only) ───────────────────────────────────
@@ -3902,7 +3902,7 @@ async function handleButtonClick(i) {
       const q = LDB.getQ(weapon);
       if (!q.length)
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
-          .setDescription(`📭 **${weapon}** the queue is currently empty — koi player wait nahi kar raha.`)] });
+          .setDescription(`📭 **${weapon}** queue is currently empty — no players are waiting.`)] });
 
       // Pull = remove first player from queue
       const entry  = q[0];
@@ -3986,7 +3986,7 @@ async function handleButtonClick(i) {
             await pulledMember.send({
               embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
                 .setTitle(`🎫 ${weapon} Queue — Pulled!`)
-                .setDescription(`**${i.user.username}** (Tester) ne tumhe **${weapon}** queue se pull kiya hai!\nCome to the server and get ready for the test. 🇵🇰`)
+                .setDescription(`**${i.user.username}** (Tester) pulled you from the **${weapon}** queue!\nCome to the server and get ready for the test. 🇵🇰`)
                 .setFooter({ text:BOT_FOOTER })
                 .setTimestamp()],
             }).catch(()=>{});
@@ -4014,7 +4014,7 @@ async function handleButtonClick(i) {
     if (action === 'join') {
       if (!player)
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-          .setTitle('❌ Registered Nahi')
+          .setTitle('❌ Not Registered')
           .setDescription('To join the queue, first use `/register` or click the **Register / Update Profile** button.')
           .setFooter({ text: BOT_FOOTER })] });
 
@@ -4023,8 +4023,8 @@ async function handleButtonClick(i) {
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setTitle('❌ Access Nahi')
           .setDescription(
-            `Tum **${weapon}** queue join nahi kar sakte.\n\n` +
-            `**Queue join karne ke 2 tarike:**\n` +
+            `You cannot join the **${weapon}** queue.\n\n` +
+            `**2 ways to join the queue:**\n` +
             `• Kisi **Tierer** se get your ${weapon} tier\n` +
             `• Select **${weapon}** in the panel — get the waitlist role`
           )
@@ -4034,17 +4034,17 @@ async function handleButtonClick(i) {
       if (cd.onCooldown)
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setTitle(`⏳ Cooldown Active — ${weapon}`)
-          .setDescription(`Tumhara **${weapon}** cooldown abhi active hai.\n**${cd.hours}h ${cd.mins}m** baad try karo.`)
+          .setDescription(`Your **${weapon}** cooldown is still active.\nTry again in **${cd.hours}h ${cd.mins}m**.`)
           .setFooter({ text: BOT_FOOTER })] });
 
       const result = addToSQQueue(i.user.id, weapon, player.ign);
       if (!result.ok && result.reason === 'dupe')
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
-          .setDescription(`⚠️ Tum already **${weapon}** queue mein ho.`)] });
+          .setDescription(`⚠️ You are already in the **${weapon}** queue.`)] });
       if (!result.ok && result.reason === 'full')
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setTitle('❌ Queue Full')
-          .setDescription(`Abhi **${weapon}** queue full hai. Max **${SQ_QUEUE_LIMIT}** players at a time join kar sakte hain.`)
+          .setDescription(`The **${weapon}** queue is full. A maximum of **${SQ_QUEUE_LIMIT}** players can join at a time.`)
           .setFooter({ text: BOT_FOOTER })] });
 
       broadcast({ type:'queue_updated', queues:MEM.queues });
@@ -4060,7 +4060,7 @@ async function handleButtonClick(i) {
           { name:'🎮 Player',    value:`**${player.ign}**`,                               inline:true },
           { name:'⚔️ Tier',     value:`\`${player.tiers?.[weapon] || 'Waitlist'}\``,      inline:true },
           { name:'📋 Position', value:`**#${pos}** in queue`,                             inline:true },
-          { name:'⏳ Status',   value:'Tester ke pull karne ka wait karo…',               inline:false },
+          { name:'⏳ Status',   value:'Wait for a tester to pull you…',               inline:false },
         )
         .setFooter({ text:'Use the Leave button to exit the queue · PakTiers' })
         .setTimestamp()] });
@@ -4076,7 +4076,7 @@ async function handleButtonClick(i) {
       const inQ = q.find(e => e.discordId === i.user.id);
       if (!inQ)
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
-          .setDescription(`⚠️ Tum **${weapon}** queue mein nahi ho.`)] });
+          .setDescription(`⚠️ You are not in the **${weapon}** queue.`)] });
 
       LDB.leaveQ(i.user.id, weapon);
       broadcast({ type:'queue_updated', queues:MEM.queues });
@@ -4100,7 +4100,7 @@ async function handleButtonClick(i) {
       if (!q.length)
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
           .setTitle(`📭 Queue Khali — ${weapon}`)
-          .setDescription(`**${weapon}** queue mein abhi koi player nahi hai.`)] });
+          .setDescription(`**${weapon}** there are currently no players in the queue.`)] });
 
       // Pull first player
       const entry  = q[0];
@@ -4160,7 +4160,7 @@ async function handleButtonClick(i) {
       if (ticketChannel) {
         try {
           await ticketChannel.send({
-            content: `📢 <@${entry.discordId}> <@${i.user.id}> — <@${i.user.id}> ne tumhe pull kiya! Get ready for the test.`,
+            content: `📢 <@${entry.discordId}> <@${i.user.id}> — <@${i.user.id}> pulled you! Get ready for the test.`,
             embeds:  [new EmbedBuilder().setColor(0x57F287)
               .setTitle('🎫 Pulled!')
               .setDescription(`**${i.user.username}** (Tester) ne tujhe **${weapon}** queue se pull kiya!\nServer pe aao aur ready ho jao. 🇵🇰`)
@@ -4174,7 +4174,7 @@ async function handleButtonClick(i) {
           if (pulledMember) {
             await pulledMember.send({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
               .setTitle(`🎫 ${weapon} Queue — Pulled!`)
-              .setDescription(`**${i.user.username}** (Tester) ne tumhe **${weapon}** queue se pull kiya!\nCome to the server and get ready for the test. 🇵🇰`)
+              .setDescription(`**${i.user.username}** (Tester) pulled you from the **${weapon}** queue!\nCome to the server and get ready for the test. 🇵🇰`)
               .setFooter({ text: BOT_FOOTER })
               .setTimestamp()] }).catch(() => {});
           }
@@ -4272,11 +4272,11 @@ async function handleModal(i) {
     const tierEntries = Object.entries(oldTiers);
     const tierSummary = tierEntries.length
       ? tierEntries.map(([w,t])=>`${WEAPON_EMOJI[w]||'•'} **${w}** — \`${t}\``).join('\n')
-      : '*Koi tier nahi tha*';
+      : '*No tiers yet tha*';
 
     return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
       .setTitle('✅ Profile Updated! 🎉')
-      .setDescription(`Profile update ho gaya, **${ign}**! 🇵🇰\nSaare purane tiers transfer ho gaye hain.`)
+      .setDescription(`Profile updated, **${ign}**! 🇵🇰\nAll previous tiers have been transferred.`)
       .setThumbnail(`https://mc-heads.net/avatar/${ign}/128`)
       .addFields(
         { name:'🔄 Old IGN',    value:`\`${oldIgn}\``,            inline:true },
@@ -4303,7 +4303,7 @@ async function handleModal(i) {
     // Player already exists — treat as update
     regState.set(i.user.id, { ...state, isUpdate: true, oldIgn: ex.ign });
     return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
-      .setDescription(`⚠️ Tum already **${ex.ign}** ke naam se registered ho.\nProfile update ke liye dobara button click karo.`)] });
+      .setDescription(`⚠️ You are already registered as **${ex.ign}**.\nClick the button again to update your profile.`)] });
   }
 
   regState.delete(i.user.id);
@@ -4331,7 +4331,7 @@ async function handleModal(i) {
       { name:'🔑 Account',     value:state.accountType||'?', inline:true },
       { name:'🌍 Region',      value:state.region||'?',      inline:true },
       { name:'🔰 Season',      value:'Season 1',             inline:true },
-      { name:'📋 Next Steps',  value:'1. Tierer se evaluation karwao\n2. `/queue join` se match dhundo\n3. `/profile` se apni card dekho', inline:false },
+      { name:'📋 Next Steps',  value:'1. Get evaluated by a Tierer\n2. use queue access to find a match\n3. `/profile` se apni card dekho', inline:false },
     )
     .setFooter({ text:BOT_FOOTER })
     .setTimestamp()] });
@@ -4358,7 +4358,7 @@ const client = new Client({ intents:[
 
 client.once('ready', async () => {
   console.log(`🤖 Bot online as ${client.user.tag}`);
-  client.user.setPresence({ activities:[{ name:'⚔️ /queue join · PakTiers', type:0 }], status:'online' });
+  client.user.setPresence({ activities:[{ name:'⚔️ •Paktiers · PakTiers', type:0 }], status:'online' });
   try { await deployCommands(); } catch(e) { console.error('Deploy error:', e); }
 
   // Auto-create all HT1-LT5 roles for every gamemode
