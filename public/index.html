@@ -2271,7 +2271,7 @@
 
   .hero-glass-label {
     display: inline-flex;
-    margin-bottom: 10px;
+    margin: 0 auto 10px;
     color: #b8b6ff;
     font-family: 'Share Tech Mono', monospace;
     font-size: .82rem;
@@ -2526,18 +2526,21 @@
   }
 
   .hero-shell {
-    width: min(1180px, calc(100% - 32px));
+    width: min(1040px, calc(100% - 32px));
     margin: 0 auto;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 16px;
     padding: 0;
+    text-align: center;
   }
 
   .hero-copy {
     width: 100%;
-    max-width: 860px;
+    max-width: 920px;
+    margin: 0 auto;
     align-items: center;
     text-align: center;
   }
@@ -2591,10 +2594,11 @@
 
   .hero-glass {
     width: 100%;
-    max-width: 1180px;
-    margin-top: 2px;
+    max-width: 1040px;
+    margin: 2px auto 0;
     padding: 20px;
     border-radius: 24px;
+    text-align: center;
   }
 
   .hero-glass h2 {
@@ -3425,6 +3429,7 @@
         <div class="hero-gamemodes" id="heroGamemodes" aria-label="Game modes"></div>
       </div>
     </div>
+  </section>
 
   <!-- ─── PLAYER SEARCH ─── -->
   <section class="pt-search-section reveal" id="searchSection" aria-labelledby="searchSectionTitle">
@@ -3456,7 +3461,6 @@
       <div class="pt-strip-empty">Loading testers...</div>
     </div>
     <a class="pt-section-link" href="#testersSection">See All Testers →</a>
-  </section>
   </section>
 
   <section class="home-discord-section reveal" aria-labelledby="discordTitle">
