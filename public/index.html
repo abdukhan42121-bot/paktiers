@@ -4000,6 +4000,11 @@ function syncTierTaggerView() {
   document.body.classList.toggle('view-testers', view === 'testers');
 
   const homeSection = document.getElementById('homeSection');
+  const searchSection = document.getElementById('searchSection');
+  const top3Section = document.getElementById('top3Section');
+  const testersPreview = document.querySelector('.pt-testers-preview');
+  const homeDiscordSection = document.querySelector('.home-discord-section');
+
   const testersSection = document.getElementById('testersSection');
   const leaderboardPane = document.getElementById('leaderboardPane');
   const profilePane = document.getElementById('profilePane');
@@ -4014,7 +4019,8 @@ function syncTierTaggerView() {
   const hide = el => { if (el) el.style.display = 'none'; };
 
   // Reset everything, then reveal only what belongs to the active view.
-  hide(homeSection); hide(testersSection); hide(leaderboardPane);
+  hide(homeSection); hide(searchSection); hide(top3Section); hide(testersPreview); hide(homeDiscordSection);
+  hide(testersSection); hide(leaderboardPane);
   hide(profilePane); hide(queuePane); hide(gamemodeTabs); hide(gmPane);
   hide(tiertaggerSection); hide(ranksSection);
 
@@ -4031,6 +4037,10 @@ function syncTierTaggerView() {
 
   if (view === 'home') {
     show(homeSection);
+    show(searchSection);
+    show(top3Section);
+    show(testersPreview);
+    show(homeDiscordSection);
     return;
   }
 
