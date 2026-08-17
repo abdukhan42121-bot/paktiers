@@ -1188,6 +1188,20 @@
   }
   .pt-nav::-webkit-scrollbar { display: none; }
 
+  /* Smooth, luxurious page/section transition used by goToView() on every
+     nav change (Home / Rankings / Testers / TierTagger). */
+  @keyframes pt-view-fade-in {
+    0%   { opacity: 0; transform: translateY(14px) scale(.992); filter: blur(2px); }
+    60%  { opacity: 1; filter: blur(0); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .pt-view-enter {
+    animation: pt-view-fade-in .55s cubic-bezier(.16,.84,.32,1) both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pt-view-enter { animation: none; }
+  }
+
   .pt-nav-link {
     text-decoration: none;
     color: rgba(238,242,247,.72);
@@ -3239,14 +3253,14 @@
 
 <header class="pt-topbar">
   <div class="pt-topbar-inner">
-    <a class="pt-brand" href="#homeSection" aria-label="PakTiers home"><span class="pt-brand-text"><span class="pt-brand-pak">Pak</span><span class="pt-brand-tiers">Tiers</span></span></a>
+    <a class="pt-brand" href="/home" onclick="return goToView(event,'home')" aria-label="PakTiers home"><span class="pt-brand-text"><span class="pt-brand-pak">Pak</span><span class="pt-brand-tiers">Tiers</span></span></a>
 
     <nav class="pt-nav" aria-label="Main">
-      <a class="pt-nav-link active" href="#homeSection">Home</a>
-      <a class="pt-nav-link" href="#testersSection">Testers</a>
-      <a class="pt-nav-link" href="#leaderboardPane">Rankings</a>
-      <a class="pt-nav-link" href="https://discord.gg/d3NUQnmrC" target="_blank" rel="noopener noreferrer">Discords</a>
-      <a class="pt-nav-link" href="#tiertaggerSection">TierTagger</a>
+      <a class="pt-nav-link active" href="/home" onclick="return goToView(event,'home')">Home</a>
+      <a class="pt-nav-link" href="/testers" onclick="return goToView(event,'testers')">Testers</a>
+      <a class="pt-nav-link" href="/rankings" onclick="return goToView(event,'rankings')">Rankings</a>
+      <a class="pt-nav-link" href="https://discord.gg/rjzSF6Fp75" target="_blank" rel="noopener noreferrer">Discords</a>
+      <a class="pt-nav-link" href="/tiertagger" onclick="return goToView(event,'tiertagger')">TierTagger</a>
     </nav>
 
     <div class="pt-actions">
@@ -3254,7 +3268,7 @@
         <input class="lb-search-input" id="lbSearchInput" type="text" placeholder="Search player..." maxlength="16">
       </div>
       <button class="pt-info-btn" id="infoToggle" type="button">Information</button>
-      <a class="pt-discord-btn" href="https://discord.gg/d3NUQnmrC" target="_blank" rel="noopener noreferrer" aria-label="Join Discord server">
+      <a class="pt-discord-btn" href="https://discord.gg/rjzSF6Fp75" target="_blank" rel="noopener noreferrer" aria-label="Join Discord server">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.317 4.369a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.211.381-.447.875-.609 1.268a18.27 18.27 0 0 0-5.48 0 12.64 12.64 0 0 0-.617-1.268.077.077 0 0 0-.079-.037 19.736 19.736 0 0 0-4.885 1.515.07.07 0 0 0-.032.027C1.453 9.045.876 13.58 1.155 18.057a.082.082 0 0 0 .031.055 19.9 19.9 0 0 0 6.03 3.03.078.078 0 0 0 .084-.027c.463-.63.875-1.296 1.226-1.995a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.293.074.074 0 0 1 .077-.01c3.928 1.792 8.18 1.792 12.062 0a.074.074 0 0 1 .078.01c.12.097.25.194.373.293a.077.077 0 0 1-.006.128 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.04.107c.36.698.772 1.364 1.225 1.994a.076.076 0 0 0 .084.027 19.88 19.88 0 0 0 6.03-3.03.077.077 0 0 0 .032-.054c.334-5.18-.553-9.675-2.36-13.661a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.335.955-2.43 2.157-2.43 1.21 0 2.174 1.095 2.157 2.43 0 1.334-.954 2.42-2.157 2.42zm7.974 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.335.955-2.43 2.157-2.43 1.21 0 2.174 1.095 2.157 2.43 0 1.334-.946 2.42-2.157 2.42z"/></svg>
       </a>
     </div>
@@ -3411,7 +3425,7 @@
 
         <div class="hero-actions reveal reveal-d3">
           <a class="hero-btn hero-btn-primary" href="#leaderboardPane">View Rankings</a>
-          <a class="hero-btn hero-btn-secondary" href="https://discord.gg/d3NUQnmrC" target="_blank" rel="noopener noreferrer">Join Discord</a>
+          <a class="hero-btn hero-btn-secondary" href="https://discord.gg/rjzSF6Fp75" target="_blank" rel="noopener noreferrer">Join Discord</a>
         </div>
 
         <div class="hero-stats reveal reveal-d4">
@@ -3469,7 +3483,7 @@
         <h3 id="discordTitle">Join Our Discord</h3>
         <p>Live updates, tier discussions, and testing announcements.</p>
       </div>
-      <a class="home-discord-cta" href="https://discord.gg/4HXNFB6d6" target="_blank" rel="noopener noreferrer">
+      <a class="home-discord-cta" href="https://discord.gg/rjzSF6Fp75" target="_blank" rel="noopener noreferrer">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.54 4.74A18.18 18.18 0 0 0 15.2 3.4l-.21.4c1.57.38 2.3.92 2.3.92a14.38 14.38 0 0 0-4.72-1.48 15.22 15.22 0 0 0-3.7 0 14.43 14.43 0 0 0-4.72 1.48s.72-.54 2.3-.92l-.21-.4a18.18 18.18 0 0 0-4.34 1.34C.9 10.54.54 16.19.54 16.19s1.9 3.28 6.92 3.44l.88-1.22a10.29 10.29 0 0 1-2.69-1.26l.68-.52a9.1 9.1 0 0 0 7.37 0l.68.52a10.29 10.29 0 0 1-2.69 1.26l.88 1.22c5.02-.16 6.92-3.44 6.92-3.44s-.36-5.65-2.46-11.45ZM8.24 14.5c-.9 0-1.64-.84-1.64-1.87s.72-1.87 1.64-1.87c.91 0 1.66.84 1.64 1.87 0 1.03-.72 1.87-1.64 1.87Zm7.52 0c-.9 0-1.64-.84-1.64-1.87s.72-1.87 1.64-1.87c.91 0 1.66.84 1.64 1.87 0 1.03-.72 1.87-1.64 1.87Z"/></svg>
         Join Our Discord
       </a>
@@ -3627,15 +3641,15 @@
     <div class="pt-footer-links">
       <div class="pt-footer-col">
         <span class="pt-footer-col-title">Explore</span>
-        <a href="#homeSection">Home</a>
-        <a href="#leaderboardPane">Rankings</a>
-        <a href="#testersSection">Testers</a>
+        <a href="/home" onclick="return goToView(event,'home')">Home</a>
+        <a href="/rankings" onclick="return goToView(event,'rankings')">Rankings</a>
+        <a href="/testers" onclick="return goToView(event,'testers')">Testers</a>
       </div>
       <div class="pt-footer-col">
         <span class="pt-footer-col-title">Resources</span>
-        <a href="#tiertaggerSection">TierTagger</a>
-        <a href="https://discord.gg/d3NUQnmrC" target="_blank" rel="noopener noreferrer">Discord Server</a>
-        <a href="https://discord.gg/4HXNFB6d6" target="_blank" rel="noopener noreferrer">Community Updates</a>
+        <a href="/tiertagger" onclick="return goToView(event,'tiertagger')">TierTagger</a>
+        <a href="https://discord.gg/rjzSF6Fp75" target="_blank" rel="noopener noreferrer">Discord Server</a>
+        <a href="https://discord.gg/rjzSF6Fp75" target="_blank" rel="noopener noreferrer">Community Updates</a>
       </div>
     </div>
   </div>
@@ -3993,8 +4007,21 @@ function getCurrentView() {
   if (hash === '#tiertaggerSection') return 'tiertagger';
   if (hash === '#leaderboardPane') return 'rankings';
   if (hash === '#ranksSection') return 'ranks';
-  return 'home'; // default view (no hash, or '#homeSection')
+
+  // Pretty paths (/home, /rankings, /testers, /tiertagger) — used for direct
+  // links / refreshes and for SPA nav clicks (pushState, no reload).
+  const path = location.pathname.replace(/\/+$/, '') || '/';
+  if (path === '/testers')   return 'testers';
+  if (path === '/tiertagger') return 'tiertagger';
+  if (path === '/rankings')  return 'rankings';
+
+  return 'home'; // default view (no hash/path, or '#homeSection' / '/home')
 }
+
+// Pretty-path equivalents for the hash-based views, used to drive nav clicks.
+const VIEW_PATHS = {
+  home: '/home', testers: '/testers', rankings: '/rankings', tiertagger: '/tiertagger',
+};
 
 function syncTierTaggerView() {
   const view = getCurrentView();
@@ -4019,7 +4046,14 @@ function syncTierTaggerView() {
   const tiertaggerSection = document.getElementById('tiertaggerSection');
   const ranksSection = document.getElementById('ranksSection');
 
-  const show = el => { if (el) el.style.display = ''; };
+  const show = el => {
+    if (!el) return;
+    el.style.display = '';
+    // Smooth fade/slide-in whenever a section becomes the active view.
+    el.classList.remove('pt-view-enter');
+    void el.offsetWidth; // force reflow so the animation restarts every time
+    el.classList.add('pt-view-enter');
+  };
   const hide = el => { if (el) el.style.display = 'none'; };
 
   // Reset everything, then reveal only what belongs to the active view.
@@ -4031,11 +4065,11 @@ function syncTierTaggerView() {
   // Sync nav active state
   document.querySelectorAll('.pt-nav-link').forEach(a => {
     const href = a.getAttribute('href') || '';
-    const matches = (view === 'home' && href === '#homeSection') ||
-      (view === 'testers' && href === '#testersSection') ||
-      (view === 'rankings' && href === '#leaderboardPane') ||
+    const matches = (view === 'home' && (href === '#homeSection' || href === '/home')) ||
+      (view === 'testers' && (href === '#testersSection' || href === '/testers')) ||
+      (view === 'rankings' && (href === '#leaderboardPane' || href === '/rankings')) ||
       (view === 'ranks' && href === '#ranksSection') ||
-      (view === 'tiertagger' && href === '#tiertaggerSection');
+      (view === 'tiertagger' && (href === '#tiertaggerSection' || href === '/tiertagger'));
     a.classList.toggle('active', matches);
   });
 
@@ -4196,6 +4230,22 @@ async function fetchTesters() {
 }
 
 window.addEventListener('hashchange', syncTierTaggerView);
+
+// ── Pretty-URL SPA navigation (/home, /rankings, /testers, /tiertagger) ──
+// Nav links point at real paths (so direct visits + refreshes work via the
+// server routes), but in-app clicks are intercepted here so switching views
+// stays instant and smoothly animated instead of doing a full page reload.
+function goToView(evt, view) {
+  if (evt) evt.preventDefault();
+  const target = VIEW_PATHS[view] || '/home';
+  if (location.pathname !== target || location.hash) {
+    history.pushState({ view }, '', target);
+  }
+  syncTierTaggerView();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  return false;
+}
+window.addEventListener('popstate', syncTierTaggerView);
 window.addEventListener('DOMContentLoaded', syncTierTaggerView);
 syncTierTaggerView();
 
