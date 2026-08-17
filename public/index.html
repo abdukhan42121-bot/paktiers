@@ -3395,11 +3395,289 @@
   margin-bottom: 6px;
 }
 
+/* ══════════════════════════════════════════════════════════
+   PREMIUM ANIMATION LAYER
+   ══════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: no-preference) {
+
+  /* ── Logo: slow shimmering gradient sweep ── */
+  .logo, .pt-brand-pak {
+    background: linear-gradient(100deg, var(--accent) 0%, var(--accent-violet) 35%, var(--accent) 55%, var(--accent2) 75%, var(--accent) 100%);
+    background-size: 300% auto;
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+    animation: ptLogoShine 7s linear infinite;
+  }
+
+  @keyframes ptLogoShine {
+    0%   { background-position: 0% 50%; }
+    100% { background-position: 300% 50%; }
+  }
+
+  /* ── Rank badges: periodic light sweep across the podium ── */
+  .rank-badge.gold, .rank-badge.silver, .rank-badge.bronze,
+  .pt-top3-rank.gold, .pt-top3-rank.silver, .pt-top3-rank.bronze {
+    position: relative;
+    overflow: hidden;
+  }
+  .rank-badge.gold::after, .rank-badge.silver::after, .rank-badge.bronze::after,
+  .pt-top3-rank.gold::after, .pt-top3-rank.silver::after, .pt-top3-rank.bronze::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.55) 48%, transparent 66%);
+    background-size: 220% 100%;
+    background-position: -120% 0;
+    animation: ptBadgeSweep 3.6s ease-in-out infinite;
+    animation-delay: calc(var(--sweep-delay, 0) * 1s);
+    pointer-events: none;
+    mix-blend-mode: overlay;
+  }
+  .rank-badge.silver::after, .pt-top3-rank.silver::after { animation-delay: .5s; }
+  .rank-badge.bronze::after, .pt-top3-rank.bronze::after { animation-delay: 1s; }
+
+  @keyframes ptBadgeSweep {
+    0%, 55% { background-position: -120% 0; }
+    100%    { background-position: 160% 0; }
+  }
+
+  /* ── #1 rank: soft breathing glow, broadcast-graphic style ── */
+  .lb-row:first-child .rank-badge.gold,
+  .rank-card.featured .rank-badge.gold {
+    animation: ptGoldPulse 2.6s ease-in-out infinite;
+  }
+  @keyframes ptGoldPulse {
+    0%, 100% { box-shadow: 0 10px 24px rgba(255,208,66,.18), inset 0 0 0 1px rgba(255,255,255,.18), 0 0 22px var(--glow-gold); }
+    50%      { box-shadow: 0 10px 30px rgba(255,208,66,.30), inset 0 0 0 1px rgba(255,255,255,.24), 0 0 40px var(--glow-gold); }
+  }
+
+  /* ── Primary buttons: diagonal light sweep on hover ── */
+  .hero-btn, .home-discord-cta, .tiertagger-download, .pt-discord-btn, .weapon-btn.active {
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-btn::before, .home-discord-cta::before, .tiertagger-download::before,
+  .pt-discord-btn::before, .weapon-btn.active::before {
+    content: '';
+    position: absolute; top: 0; left: -60%;
+    width: 40%; height: 100%;
+    background: linear-gradient(115deg, transparent, rgba(255,255,255,.32), transparent);
+    transform: skewX(-20deg);
+    transition: left .55s cubic-bezier(.22,1,.36,1);
+    pointer-events: none;
+  }
+  .hero-btn:hover::before, .home-discord-cta:hover::before, .tiertagger-download:hover::before,
+  .pt-discord-btn:hover::before, .weapon-btn.active:hover::before { left: 130%; }
+
+  /* ── Active queue card: cycling accent-colored glow border ── */
+  .queue-card.active-queue {
+    animation: ptQueueGlow 3.2s ease-in-out infinite;
+  }
+  @keyframes ptQueueGlow {
+    0%, 100% { border-color: rgba(0,224,145,.4); box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 8px 24px -12px rgba(0,0,0,.6), 0 0 0 rgba(0,224,145,0); }
+    50%      { border-color: rgba(139,124,255,.5); box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 8px 24px -12px rgba(0,0,0,.6), 0 0 22px rgba(139,124,255,.25); }
+  }
+
+  /* ── Scroll-reveal: cards fade/rise into place as they enter view ── */
+  .pt-reveal-init {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  .pt-reveal-in {
+    animation: ptRise .6s var(--ease) both;
+  }
+
+  /* ── Live badge: gentle glow breathing to match "live" status ── */
+  .live-dot.connected { animation: pulse 2s infinite, ptDotGlow 2s infinite; }
+  @keyframes ptDotGlow {
+    0%, 100% { box-shadow: 0 0 6px var(--accent2); }
+    50%      { box-shadow: 0 0 14px var(--accent2); }
+  }
+
+  /* ── Stat numbers: subtle pop when they change ── */
+  .stat-num { display: inline-block; }
+  .stat-card.flash .stat-num { animation: ptStatPop .5s var(--ease); }
+  @keyframes ptStatPop {
+    0%   { transform: scale(1); }
+    35%  { transform: scale(1.18); color: var(--accent2); }
+    100% { transform: scale(1); }
+  }
+
+  /* ── Tester chips: gentle idle float, staggered ── */
+  .pt-tester-chip { animation: ptFloat 5s ease-in-out infinite; }
+  .pt-tester-chip:nth-child(2n) { animation-delay: .6s; }
+  .pt-tester-chip:nth-child(3n) { animation-delay: 1.2s; }
+  @keyframes ptFloat {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-4px); }
+  }
+}
+
 /* Respect reduced-motion: kill the extra flourishes entirely */
 @media (prefers-reduced-motion: reduce) {
   #pt-cursor-glow, #pt-cursor-dot, .pt-noise-layer, .pt-ambient-glow, #pt-scroll-progress { display: none !important; }
   .stats-row .stat-card, #leaderboardBody tr.lb-row { animation: none !important; }
+  .logo, .pt-brand-pak, .rank-badge.gold, .rank-badge.silver, .rank-badge.bronze,
+  .queue-card.active-queue, .live-dot.connected, .pt-tester-chip { animation: none !important; }
+  .pt-reveal-init { opacity: 1 !important; transform: none !important; }
 }
+
+
+/* ================================================================
+   PAKTIERS FLAGSHIP LUXURY LAYER
+   Additive visual system — keeps existing markup, API & routes intact.
+   ================================================================ */
+:root{
+  --lux-green:#00e091;
+  --lux-green2:#70ffca;
+  --lux-violet:#8b7cff;
+  --lux-gold:#ffd166;
+  --lux-white:rgba(255,255,255,.92);
+  --lux-glass:rgba(11,16,22,.58);
+  --lux-glass-strong:rgba(13,18,26,.82);
+  --lux-line:rgba(255,255,255,.09);
+  --lux-shadow:0 24px 80px rgba(0,0,0,.42);
+  --lux-ease:cubic-bezier(.16,1,.3,1);
+}
+
+html{background:#05080c;}
+body{position:relative;isolation:isolate;}
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:2;opacity:.05;mix-blend-mode:soft-light;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.95' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.85'/%3E%3C/svg%3E");
+}
+
+/* Deep animated atmosphere */
+.lux-atmosphere{position:fixed;inset:0;pointer-events:none;z-index:-1;overflow:hidden;background:radial-gradient(circle at 50% -10%,rgba(0,224,145,.07),transparent 34%),radial-gradient(circle at 95% 40%,rgba(139,124,255,.05),transparent 34%);}
+.lux-grid{position:absolute;inset:-20%;opacity:.16;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:72px 72px;transform:perspective(850px) rotateX(64deg) translateY(24%);transform-origin:center top;mask-image:linear-gradient(to bottom,transparent 0%,black 24%,black 72%,transparent 100%);animation:luxGridDrift 28s linear infinite;}
+.lux-orb{position:absolute;border-radius:50%;filter:blur(16px);will-change:transform;mix-blend-mode:screen;opacity:.48;}
+.lux-orb.a{width:420px;height:420px;left:-170px;top:8vh;background:radial-gradient(circle,rgba(0,224,145,.16),transparent 70%);animation:luxOrbA 16s ease-in-out infinite;}
+.lux-orb.b{width:520px;height:520px;right:-220px;top:34vh;background:radial-gradient(circle,rgba(139,124,255,.11),transparent 72%);animation:luxOrbB 20s ease-in-out infinite;}
+.lux-orb.c{width:360px;height:360px;left:38%;top:76vh;background:radial-gradient(circle,rgba(112,255,202,.07),transparent 72%);animation:luxOrbC 18s ease-in-out infinite;}
+@keyframes luxGridDrift{to{background-position:0 72px,72px 0;}}
+@keyframes luxOrbA{50%{transform:translate3d(120px,60px,0) scale(1.08);}}
+@keyframes luxOrbB{50%{transform:translate3d(-100px,-60px,0) scale(.94);}}
+@keyframes luxOrbC{50%{transform:translate3d(70px,-80px,0) scale(1.1);}}
+
+/* Header becomes a floating glass command bar */
+header{background:rgba(6,10,15,.68)!important;border-bottom-color:rgba(255,255,255,.07)!important;backdrop-filter:blur(22px) saturate(160%)!important;-webkit-backdrop-filter:blur(22px) saturate(160%)!important;box-shadow:0 10px 40px rgba(0,0,0,.16),inset 0 -1px 0 rgba(255,255,255,.03);}
+header::after{content:"";position:absolute;left:7%;right:7%;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent,rgba(0,224,145,.45),rgba(139,124,255,.26),transparent);opacity:.7;}
+.logo{letter-spacing:2.8px!important;filter:drop-shadow(0 0 12px rgba(0,224,145,.14));}
+.live-badge{border-radius:999px!important;background:rgba(255,255,255,.035)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 10px 30px rgba(0,0,0,.18);}
+
+/* Hero cinematic depth */
+.hero-section{perspective:1400px;}
+.hero-section::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at var(--lux-mx,50%) var(--lux-my,42%),rgba(255,255,255,.035),transparent 26%),linear-gradient(to bottom,transparent 65%,rgba(2,5,8,.3));opacity:.95;}
+.hero-copy,.hero-glass{position:relative;z-index:2;}
+.hero-copy{transform:translateZ(0);}
+.hero-title{text-shadow:0 12px 50px rgba(0,0,0,.38),0 0 38px rgba(0,224,145,.06);}
+.hero-title span{background:linear-gradient(100deg,#fff 0%,var(--lux-green2) 32%,#fff 55%,var(--lux-violet) 82%,#fff 100%);background-size:240% auto;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:luxHeadline 8s linear infinite;}
+@keyframes luxHeadline{to{background-position:240% 50%;}}
+.hero-glass{background:linear-gradient(145deg,rgba(19,27,37,.72),rgba(9,13,20,.52))!important;border-color:rgba(255,255,255,.11)!important;backdrop-filter:blur(28px) saturate(155%)!important;-webkit-backdrop-filter:blur(28px) saturate(155%)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 30px 100px rgba(0,0,0,.26),0 0 0 1px rgba(0,224,145,.025)!important;}
+.hero-glass::before{content:"";position:absolute;inset:1px;border-radius:inherit;pointer-events:none;background:linear-gradient(135deg,rgba(255,255,255,.08),transparent 32%,transparent 66%,rgba(139,124,255,.05));opacity:.7;}
+.hero-mode-card{position:relative;overflow:hidden;transform-style:preserve-3d;will-change:transform;}
+.hero-mode-card::before,.rank-card::before,.gm-tier-card::before,.queue-card::before,.stat-card::before,.tester-top-card::before,.testers-top-card::before,.pt-top3-chip::before{
+  content:"";position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;background:radial-gradient(220px circle at var(--lux-card-x,50%) var(--lux-card-y,50%),rgba(255,255,255,.08),transparent 65%);opacity:0;transition:opacity .35s var(--lux-ease);z-index:0;
+}
+.hero-mode-card:hover::before,.rank-card:hover::before,.gm-tier-card:hover::before,.queue-card:hover::before,.stat-card:hover::before,.tester-top-card:hover::before,.testers-top-card:hover::before,.pt-top3-chip:hover::before{opacity:1;}
+.hero-mode-card>* ,.rank-card>* ,.gm-tier-card>* ,.queue-card>* ,.stat-card>* ,.tester-top-card>* ,.testers-top-card>* ,.pt-top3-chip>*{position:relative;z-index:1;}
+
+/* Premium buttons */
+.hero-btn,.tiertagger-download,.home-discord-cta,.pt-discord-btn,.pt-search-hero-btn{box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 12px 30px rgba(0,0,0,.22)!important;}
+.hero-btn-primary,.tiertagger-download{background:linear-gradient(135deg,#16f59b,#00c864 55%,#00ad79)!important;}
+.hero-btn-primary:hover,.tiertagger-download:hover,.home-discord-cta:hover,.pt-search-hero-btn:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 16px 44px rgba(0,224,145,.18),0 0 32px rgba(0,224,145,.11)!important;}
+
+/* Search: command center */
+.pt-search-hero-wrap{position:relative;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 24px 80px rgba(0,0,0,.25)!important;}
+.pt-search-hero-wrap::before{content:"";position:absolute;inset:0;background:radial-gradient(320px circle at var(--lux-card-x,50%) var(--lux-card-y,50%),rgba(0,224,145,.10),transparent 68%);pointer-events:none;opacity:.8;}
+.pt-search-hero-input{position:relative;z-index:1;}
+.pt-search-hero-btn{position:relative;z-index:1;}
+
+/* Top 3 home strip becomes a luxury podium */
+.pt-top3-row{gap:14px!important;}
+.pt-top3-chip{position:relative!important;min-height:82px!important;border-radius:20px!important;padding:15px 17px!important;overflow:hidden!important;transform-style:preserve-3d;}
+.pt-top3-chip:nth-child(1){background:linear-gradient(145deg,rgba(67,50,18,.5),rgba(16,18,23,.74))!important;border-color:rgba(255,209,102,.26)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 20px 60px rgba(0,0,0,.24),0 0 30px rgba(255,209,102,.045)!important;}
+.pt-top3-chip:nth-child(2){border-color:rgba(205,214,226,.18)!important;}
+.pt-top3-chip:nth-child(3){border-color:rgba(205,135,70,.18)!important;}
+.pt-top3-avatar{box-shadow:0 0 0 2px rgba(255,255,255,.05),0 10px 30px rgba(0,0,0,.3)!important;}
+.pt-top3-chip:nth-child(1) .pt-top3-avatar{box-shadow:0 0 0 2px rgba(255,209,102,.22),0 0 30px rgba(255,209,102,.12)!important;}
+
+/* Leaderboard rows — premium glass table */
+.lb-wrap{overflow:hidden!important;border-radius:22px!important;background:linear-gradient(180deg,rgba(13,18,25,.68),rgba(7,10,15,.58))!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 30px 90px rgba(0,0,0,.23)!important;backdrop-filter:blur(18px) saturate(140%);}
+.lb-table{border-collapse:separate!important;border-spacing:0 5px!important;}
+.lb-table thead tr{background:rgba(255,255,255,.025)!important;}
+.lb-row{position:relative;transition:transform .35s var(--lux-ease),background .35s var(--lux-ease),filter .35s var(--lux-ease)!important;}
+.lb-row td{background:rgba(255,255,255,.018)!important;border-top:1px solid rgba(255,255,255,.035)!important;border-bottom:1px solid rgba(255,255,255,.025)!important;}
+.lb-row td:first-child{border-left:1px solid rgba(255,255,255,.035)!important;border-top-left-radius:14px;border-bottom-left-radius:14px;}
+.lb-row td:last-child{border-right:1px solid rgba(255,255,255,.035)!important;border-top-right-radius:14px;border-bottom-right-radius:14px;}
+.lb-row:hover{transform:translate3d(4px,-2px,0)!important;background:transparent!important;filter:brightness(1.05);}
+.lb-row:hover td{background:linear-gradient(90deg,rgba(0,224,145,.055),rgba(255,255,255,.018))!important;border-top-color:rgba(0,224,145,.14)!important;border-bottom-color:rgba(0,224,145,.08)!important;}
+.lb-row.lux-live-flash td{animation:luxRowFlash .8s var(--lux-ease) both;}
+@keyframes luxRowFlash{0%{background:rgba(0,224,145,.16)!important}100%{background:rgba(255,255,255,.018)!important}}
+.rank-badge{position:relative;overflow:hidden;}
+.lb-row:first-child .rank-badge.gold{transform:scale(1.08);}
+.lb-row:first-child td{background:linear-gradient(90deg,rgba(255,209,102,.055),rgba(255,255,255,.016))!important;}
+
+/* Stat cards: luminous counters */
+.stat-card{position:relative;overflow:hidden!important;border-radius:18px!important;background:linear-gradient(145deg,rgba(17,24,32,.74),rgba(9,13,18,.54))!important;}
+.stat-card .stat-num{font-variant-numeric:tabular-nums;letter-spacing:.02em;text-shadow:0 0 22px rgba(0,224,145,.10);}
+
+/* Gamemode cards */
+.gm-tier-card,.queue-card,.rank-card,.tester-top-card,.testers-top-card{position:relative;overflow:hidden;border-radius:20px!important;}
+.gm-tier-card:hover,.hero-mode-card:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 24px 70px rgba(0,0,0,.28),0 0 35px rgba(0,224,145,.055)!important;}
+
+/* TierTagger product showcase */
+.lux-tag-product{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr);gap:16px;margin-top:16px;}
+.lux-tag-preview,.lux-tag-copy{position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.08);border-radius:22px;background:linear-gradient(145deg,rgba(19,26,36,.72),rgba(8,12,18,.55));box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 20px 60px rgba(0,0,0,.22);backdrop-filter:blur(18px);}
+.lux-tag-preview{min-height:245px;padding:24px;display:flex;align-items:center;justify-content:center;}
+.lux-mc-scene{width:min(100%,460px);height:190px;border-radius:18px;position:relative;overflow:hidden;background:linear-gradient(180deg,#0f1821,#101317 52%,#0a0d10 100%);border:1px solid rgba(255,255,255,.08);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 24px 60px rgba(0,0,0,.26);}
+.lux-mc-scene::before{content:"";position:absolute;inset:0;background:linear-gradient(transparent 60%,rgba(0,224,145,.06)),repeating-linear-gradient(90deg,rgba(255,255,255,.025) 0 1px,transparent 1px 48px),repeating-linear-gradient(0deg,rgba(255,255,255,.02) 0 1px,transparent 1px 48px);opacity:.9;}
+.lux-nametag{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);text-align:center;filter:drop-shadow(0 8px 24px rgba(0,0,0,.55));}
+.lux-player-name{font:800 18px Orbitron,sans-serif;color:#fff;letter-spacing:.5px;}
+.lux-tier-chip{margin:7px auto 0;display:inline-flex;align-items:center;gap:7px;padding:6px 11px;border-radius:999px;font:800 11px 'Share Tech Mono',monospace;letter-spacing:1px;color:#0a120e;background:linear-gradient(135deg,#ffcf63,#ff9f36);box-shadow:0 0 26px rgba(255,172,69,.28),inset 0 1px 0 rgba(255,255,255,.48);animation:luxTagPulse 2.8s ease-in-out infinite;}
+.lux-tier-chip::before{content:"◆";font-size:8px;}
+@keyframes luxTagPulse{50%{transform:translateY(-3px);box-shadow:0 0 38px rgba(255,172,69,.40),inset 0 1px 0 rgba(255,255,255,.56)}}
+.lux-tag-copy{padding:24px;display:flex;flex-direction:column;justify-content:center;}
+.lux-tag-kicker{font:700 10px 'Share Tech Mono',monospace;letter-spacing:2.5px;color:var(--lux-green2);text-transform:uppercase;margin-bottom:8px;}
+.lux-tag-copy h3{font:900 1.45rem Orbitron,sans-serif;color:#fff;margin-bottom:8px;}
+.lux-tag-copy p{color:#aeb9c6;line-height:1.6;font-size:.92rem;margin-bottom:16px;}
+.lux-tag-meta{display:flex;flex-wrap:wrap;gap:8px;}
+.lux-meta-pill{padding:7px 10px;border-radius:999px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07);font:700 10px 'Share Tech Mono',monospace;color:#dfe7ef;}
+
+/* Player modal: flagship profile */
+.player-modal-overlay{backdrop-filter:blur(12px) saturate(130%);}
+.player-modal{position:relative;overflow:hidden!important;background:linear-gradient(145deg,rgba(23,30,41,.94),rgba(9,13,19,.95))!important;border-color:rgba(0,224,145,.24)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 40px 120px rgba(0,0,0,.62),0 0 60px rgba(0,224,145,.06)!important;}
+.player-modal::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(450px circle at 50% 0%,rgba(0,224,145,.10),transparent 60%);}
+
+/* Toasts */
+#toastContainer{z-index:10050!important;}
+.lux-toast{display:flex;align-items:center;gap:12px;min-width:280px;max-width:min(420px,calc(100vw - 32px));padding:13px 15px;border-radius:16px;background:linear-gradient(145deg,rgba(21,28,38,.93),rgba(8,12,17,.92));border:1px solid rgba(255,255,255,.09);box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 24px 70px rgba(0,0,0,.42);backdrop-filter:blur(22px);animation:luxToastIn .55s var(--lux-ease) both;}
+.lux-toast.success{border-color:rgba(0,224,145,.25);}.lux-toast.warn{border-color:rgba(255,177,86,.25);}
+.lux-toast-icon{width:28px;height:28px;border-radius:10px;display:grid;place-items:center;background:rgba(0,224,145,.10);color:var(--lux-green2);font-size:14px;flex:none;}
+.lux-toast-title{font:800 11px 'Share Tech Mono',monospace;letter-spacing:1.2px;color:#f6fbff;text-transform:uppercase;}
+.lux-toast-msg{font:600 12px Rajdhani,sans-serif;color:#aeb9c5;margin-top:2px;line-height:1.25;}
+@keyframes luxToastIn{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
+
+/* Route transition curtain */
+#lux-page-curtain{position:fixed;inset:0;z-index:10080;pointer-events:none;opacity:0;background:linear-gradient(120deg,rgba(3,7,11,.96),rgba(8,15,20,.92),rgba(10,7,17,.96));backdrop-filter:blur(8px);transition:opacity .18s ease;}
+#lux-page-curtain::after{content:"";position:absolute;left:-30%;top:0;width:30%;height:100%;background:linear-gradient(90deg,transparent,rgba(0,224,145,.26),transparent);transform:skewX(-18deg);}
+#lux-page-curtain.active{opacity:1;}
+#lux-page-curtain.active::after{animation:luxCurtainSweep .42s var(--lux-ease) both;}
+@keyframes luxCurtainSweep{to{left:120%;}}
+
+/* Magnetic / tilt surfaces */
+[data-lux-tilt]{transform-style:preserve-3d;will-change:transform;}
+.lux-tilt-shine{position:absolute;inset:-25%;pointer-events:none;opacity:0;transition:opacity .25s ease;background:radial-gradient(220px circle at var(--lux-card-x,50%) var(--lux-card-y,50%),rgba(255,255,255,.10),transparent 67%);z-index:0!important;}
+[data-lux-tilt]:hover .lux-tilt-shine{opacity:1;}
+
+/* Reveal polish */
+.pt-reveal-init{filter:blur(5px);}
+.pt-reveal-in{filter:blur(0);}
+
+/* Responsive */
+@media (max-width:900px){.lux-tag-product{grid-template-columns:1fr;}.lux-tag-preview{min-height:220px;}}
+@media (max-width:700px){.lux-grid{background-size:48px 48px}.lux-orb{display:none}.lux-tag-preview{padding:14px}.lux-tag-copy{padding:18px}.pt-top3-row{grid-template-columns:1fr!important}.pt-top3-chip{min-height:72px!important}}
+@media (pointer:coarse){body::after{opacity:.025}.lux-grid{opacity:.08}}
+@media (prefers-reduced-motion:reduce){.lux-grid,.lux-orb,.hero-title span,.lux-tier-chip{animation:none!important}.lux-page-curtain{display:none!important}}
 
 </style>
 </head>
@@ -3411,6 +3689,8 @@
 <div id="pt-scroll-progress" aria-hidden="true"></div>
 <div id="pt-cursor-glow" aria-hidden="true"></div>
 <div id="pt-cursor-dot" aria-hidden="true"></div>
+<div class="lux-atmosphere" aria-hidden="true"><div class="lux-grid"></div><div class="lux-orb a"></div><div class="lux-orb b"></div><div class="lux-orb c"></div></div>
+<div id="lux-page-curtain" aria-hidden="true"></div>
 
 <header class="pt-topbar">
   <div class="pt-topbar-inner">
@@ -5098,5 +5378,233 @@ setInterval(() => {
   }
 })();
 </script>
+
+<script>
+/* ── Luxury layer, part 2: scroll-reveal + animated stat counting ── */
+(function () {
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* Scroll-reveal for cards as they enter the viewport */
+  if (!reduceMotion && 'IntersectionObserver' in window) {
+    var revealSelectors = '.hero-mode-card, .rank-card, .gm-tier-card, .queue-card, .pt-top3-chip, .tester-row, .testers-top-card';
+
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('pt-reveal-in');
+          entry.target.classList.remove('pt-reveal-init');
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: .12, rootMargin: '0px 0px -40px 0px' });
+
+    function armReveal(root) {
+      (root || document).querySelectorAll(revealSelectors).forEach(function (el) {
+        if (el.classList.contains('pt-reveal-in') || el.dataset.ptArmed) return;
+        el.dataset.ptArmed = '1';
+        el.classList.add('pt-reveal-init');
+        io.observe(el);
+      });
+    }
+
+    armReveal(document);
+
+    /* Cards are re-rendered dynamically (queue, testers, rankings) —
+       watch the page for new batches and arm those too. */
+    var mo = new MutationObserver(function (mutations) {
+      mutations.forEach(function (m) {
+        m.addedNodes.forEach(function (node) {
+          if (node.nodeType === 1) armReveal(node.matches && node.matches(revealSelectors) ? node.parentNode : node);
+        });
+      });
+    });
+    mo.observe(document.body, { childList: true, subtree: true });
+  }
+
+  /* Animated count-up for the top stat cards whenever they refresh */
+  function ptAnimateCount(el) {
+    var raw = (el.textContent || '').trim();
+    var target = parseFloat(raw.replace(/[^\d.-]/g, ''));
+    if (!isFinite(target) || reduceMotion) return;
+    var start = parseFloat(el.dataset.ptPrev || '0') || 0;
+    if (start === target) return;
+    var duration = 700;
+    var t0 = performance.now();
+    function tick(now) {
+      var p = Math.min(1, (now - t0) / duration);
+      var eased = 1 - Math.pow(1 - p, 3);
+      var val = Math.round(start + (target - start) * eased);
+      el.textContent = val.toLocaleString();
+      if (p < 1) requestAnimationFrame(tick);
+      else { el.textContent = target.toLocaleString(); el.dataset.ptPrev = String(target); }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  if (typeof window.renderStats === 'function' || typeof renderStats === 'function') {
+    var _ptOrigRenderStats = (typeof renderStats === 'function') ? renderStats : window.renderStats;
+    window.renderStats = function (d) {
+      _ptOrigRenderStats(d);
+      document.querySelectorAll('#statsRow .stat-num').forEach(ptAnimateCount);
+    };
+  }
+})();
+</script>
+
+<script>
+/* ================================================================
+   PAKTIERS FLAGSHIP INTERACTION ENGINE
+   ================================================================ */
+(function(){
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+
+  function q(sel, root){ return (root||document).querySelector(sel); }
+  function qa(sel, root){ return Array.from((root||document).querySelectorAll(sel)); }
+
+  /* 1) Mouse spotlight for hero + interactive surfaces */
+  if (!coarse) {
+    document.addEventListener('pointermove', function(e){
+      document.documentElement.style.setProperty('--lux-mx', e.clientX+'px');
+      document.documentElement.style.setProperty('--lux-my', e.clientY+'px');
+      var cards=qa('.hero-mode-card,.rank-card,.gm-tier-card,.queue-card,.stat-card,.tester-top-card,.testers-top-card,.pt-top3-chip,.pt-tester-chip,.pt-search-hero-wrap');
+      for(var i=0;i<cards.length;i++){
+        var r=cards[i].getBoundingClientRect();
+        if(e.clientX>=r.left-40&&e.clientX<=r.right+40&&e.clientY>=r.top-40&&e.clientY<=r.bottom+40){
+          cards[i].style.setProperty('--lux-card-x',((e.clientX-r.left)/Math.max(1,r.width)*100)+'%');
+          cards[i].style.setProperty('--lux-card-y',((e.clientY-r.top)/Math.max(1,r.height)*100)+'%');
+        }
+      }
+    },{passive:true});
+  }
+
+  /* 2) Gentle 3D tilt. Applies only to cards, never to buttons/inputs. */
+  function armTilt(root){
+    if(coarse || reduce) return;
+    qa('.hero-mode-card,.rank-card,.gm-tier-card,.queue-card,.tester-top-card,.testers-top-card,.pt-top3-chip,.stat-card',root).forEach(function(el){
+      if(el.dataset.luxTilt) return;
+      el.dataset.luxTilt='1';
+      el.setAttribute('data-lux-tilt','');
+      if(!el.querySelector('.lux-tilt-shine')){var sh=document.createElement('span');sh.className='lux-tilt-shine';el.prepend(sh);}
+      el.addEventListener('pointermove',function(e){
+        var r=el.getBoundingClientRect(), x=(e.clientX-r.left)/r.width-.5, y=(e.clientY-r.top)/r.height-.5;
+        var strength=el.classList.contains('pt-top3-chip')?5:2.3;
+        el.style.transform='perspective(900px) rotateX('+(-y*strength)+'deg) rotateY('+(x*strength)+'deg) translateY(-5px) scale(1.012)';
+        el.style.setProperty('--lux-card-x',((x+.5)*100)+'%');el.style.setProperty('--lux-card-y',((y+.5)*100)+'%');
+      });
+      el.addEventListener('pointerleave',function(){el.style.transform='';});
+    });
+  }
+  armTilt(document);
+  var tiltObserver=new MutationObserver(function(ms){ms.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType===1)armTilt(n);});});});
+  tiltObserver.observe(document.body,{childList:true,subtree:true});
+
+  /* 3) Magnetic buttons — restrained so mobile/keyboard remain normal. */
+  if(!coarse && !reduce){
+    qa('.hero-btn-primary,.hero-btn-secondary,.tiertagger-download,.pt-search-hero-btn,.home-discord-cta,.pt-discord-btn').forEach(function(btn){
+      if(btn.dataset.luxMagnet) return; btn.dataset.luxMagnet='1';
+      btn.addEventListener('pointermove',function(e){var r=btn.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;btn.style.transform='translate('+x*5+'px,'+(y*4-2)+'px)';});
+      btn.addEventListener('pointerleave',function(){btn.style.transform='';});
+    });
+  }
+
+  /* 4) Premium TierTagger product preview, injected once */
+  function mountTierPreview(){
+    var sec=document.getElementById('tiertaggerSection');
+    if(!sec || sec.querySelector('.lux-tag-product')) return;
+    var readme=sec.querySelector('.tiertagger-readme');
+    if(!readme) return;
+    var wrap=document.createElement('div');wrap.className='lux-tag-product';
+    wrap.innerHTML=(
+      '<div class="lux-tag-preview"><div class="lux-mc-scene"><div class="lux-nametag"><div class="lux-player-name">PakTiers_Player</div><div class="lux-tier-chip">HT1 · SWORD</div></div></div></div>' +
+      '<div class="lux-tag-copy"><div class="lux-tag-kicker">LIVE IN-GAME OVERLAY</div><h3>Know their tier before the fight.</h3><p>Pak TierTagger brings live PakTiers rankings into Minecraft nametags, so competitive information stays on-screen while you play.</p><div class="lux-tag-meta"><span class="lux-meta-pill">FABRIC</span><span class="lux-meta-pill">MINECRAFT 1.21.11</span><span class="lux-meta-pill">VERSION 1.3.0</span><span class="lux-meta-pill">LIVE API</span></div></div>'
+    );
+    sec.insertBefore(wrap,readme);
+  }
+  mountTierPreview();
+
+  /* 5) Top-3 links: scroll to leaderboard with a polished handoff. */
+  document.addEventListener('click',function(e){
+    var chip=e.target.closest && e.target.closest('.pt-top3-chip');
+    if(chip){e.preventDefault();var pane=document.getElementById('leaderboardPane');if(pane)pane.scrollIntoView({behavior:reduce?'auto':'smooth',block:'start'});}
+  });
+
+  /* 6) Animate newly-rendered leaderboard rows and highlight changed data. */
+  var lb=document.getElementById('lbBody');
+  if(lb){
+    var previous={};
+    function fingerprint(row){return row.textContent.replace(/\s+/g,' ').trim();}
+    var mo=new MutationObserver(function(){
+      var rows=qa('.lb-row',lb);
+      rows.forEach(function(row){
+        var ign=(q('.ign',row)||{}).textContent||'';var fp=fingerprint(row);
+        if(previous[ign] && previous[ign]!==fp){row.classList.remove('lux-live-flash');void row.offsetWidth;row.classList.add('lux-live-flash');}
+        previous[ign]=fp;
+      });
+      armTilt(lb);
+    });
+    mo.observe(lb,{childList:true,subtree:true,characterData:true});
+  }
+
+  /* 7) Rank movement / NEW labels for top rows */
+  function refreshRankBadges(){
+    var rows=qa('.lb-row'); rows.forEach(function(row,i){
+      var badge=row.querySelector('.rank-badge'); if(!badge) return;
+      if(i===0) badge.setAttribute('data-lux-label','CHAMPION');
+      else if(i===1) badge.setAttribute('data-lux-label','ELITE');
+      else if(i===2) badge.setAttribute('data-lux-label','TOP 3');
+      else badge.removeAttribute('data-lux-label');
+    });
+  }
+  refreshRankBadges();
+  var rankObserver=new MutationObserver(function(){refreshRankBadges();});
+  var lb2=document.getElementById('lbBody'); if(lb2) rankObserver.observe(lb2,{childList:true,subtree:true});
+
+  /* 8) Number count-up for any visible stat with data-lux-count */
+  function countNode(el){
+    if(reduce || el.dataset.luxCounted==='1') return;
+    var txt=(el.textContent||'').trim();var m=txt.match(/[\d,.]+/);if(!m)return;
+    var target=Number(m[0].replace(/,/g,''));if(!isFinite(target))return;
+    el.dataset.luxCounted='1';var start=0,dur=900,t0=performance.now();
+    function tick(now){var p=Math.min(1,(now-t0)/dur),e=1-Math.pow(1-p,4),v=Math.round(start+(target-start)*e);el.textContent=txt.replace(m[0],v.toLocaleString());if(p<1)requestAnimationFrame(tick);}
+    requestAnimationFrame(tick);
+  }
+  qa('.hero-stat strong,.stat-num,.tiertagger-stat .value').forEach(countNode);
+
+  /* 9) Command-key shortcut: / focuses the first player search */
+  document.addEventListener('keydown',function(e){
+    if(e.key==='/' && !/input|textarea|select/i.test(document.activeElement.tagName)){e.preventDefault();var input=q('#heroSearchInput')||q('#lbSearchInput');if(input){input.focus();input.select();}};
+  });
+
+  /* 10) Page-transition curtain for internal navigation */
+  var curtain=document.getElementById('lux-page-curtain');
+  function transition(){
+    if(!curtain || reduce) return;
+    curtain.classList.add('active');
+    setTimeout(function(){curtain.classList.remove('active');},330);
+  }
+  document.addEventListener('click',function(e){
+    var a=e.target.closest && e.target.closest('a,button,.tab');
+    if(!a)return;
+    if(a.matches('.pt-top3-chip'))return;
+    var href=a.getAttribute && a.getAttribute('href');
+    if((href && (href.startsWith('/')||href.startsWith('#'))) || a.classList.contains('tab')) transition();
+  },true);
+
+  /* 11) Give existing toasts a luxury skin without changing their behavior. */
+  function beautifyToasts(){
+    qa('#toastContainer > *').forEach(function(el){if(el.dataset.luxToast)return;el.dataset.luxToast='1';el.classList.add('lux-toast');});
+  }
+  var toast=document.getElementById('toastContainer');if(toast){beautifyToasts();new MutationObserver(beautifyToasts).observe(toast,{childList:true,subtree:true});}
+
+  /* 12) Footer year stays current. */
+  var year=q('#footerYear');if(year)year.textContent=new Date().getFullYear();
+
+  /* 13) Re-arm product preview and tilt after dynamic view changes. */
+  var bodyObserver=new MutationObserver(function(){mountTierPreview();armTilt(document);});
+  bodyObserver.observe(document.body,{childList:true,subtree:true});
+})();
+</script>
+
 </body>
 </html>
