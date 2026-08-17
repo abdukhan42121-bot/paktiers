@@ -126,6 +126,13 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ── Pretty top-level page routes (SPA — all serve index.html) ──
+// Lets people link directly / refresh on /home, /rankings, /testers, /tiertagger
+// and still land on the right section instead of a 404.
+app.get(['/home', '/rankings', '/testers', '/tiertagger'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // ── IN-MEMORY DB ──────────────────────────────────────────
 const MEM = {
   players:   {},
@@ -971,6 +978,20 @@ const LDB = {
     const key = `${type}ManagerUsers`;
     if (!s[key]) s[key] = [];
     if (!s[key].includes(userId)) s[key].push(userId);
+    wDB(SF, s);
+    return s[key];
+  },
+  removeManagerRole(type, roleId) {
+    const s = rDB(SF);
+    const key = `${type}ManagerRoles`;
+    s[key] = (s[key] || []).filter(id => id !== roleId);
+    wDB(SF, s);
+    return s[key];
+  },
+  removeManagerUser(type, userId) {
+    const s = rDB(SF);
+    const key = `${type}ManagerUsers`;
+    s[key] = (s[key] || []).filter(id => id !== userId);
     wDB(SF, s);
     return s[key];
   },
@@ -2789,16 +2810,34 @@ CMDS.setupsupportpnl = {
 CMDS.appmanager = {
   data: new SlashCommandBuilder()
     .setName('appmanager')
-    .setDescription('Application tickets ki access do role/member ko (Admin only)')
-    .addRoleOption(o => o
-      .setName('role')
-      .setDescription('Role jisko sab application tickets dikhni chahiye')
-      .setRequired(false)
+    .setDescription('Manage application ticket access (Admin only)')
+    .addSubcommand(sub => sub
+      .setName('add')
+      .setDescription('Application tickets ki access do role/member ko')
+      .addRoleOption(o => o
+        .setName('role')
+        .setDescription('Role jisko sab application tickets dikhni chahiye')
+        .setRequired(false)
+      )
+      .addUserOption(o => o
+        .setName('member')
+        .setDescription('Member jisko sab application tickets dikhni chahiye')
+        .setRequired(false)
+      )
     )
-    .addUserOption(o => o
-      .setName('member')
-      .setDescription('Member jisko sab application tickets dikhni chahiye')
-      .setRequired(false)
+    .addSubcommand(sub => sub
+      .setName('remove')
+      .setDescription('Application tickets ki access hatao role/member se')
+      .addRoleOption(o => o
+        .setName('role')
+        .setDescription('Role jiski access hatani hai')
+        .setRequired(false)
+      )
+      .addUserOption(o => o
+        .setName('member')
+        .setDescription('Member jiski access hatani hai')
+        .setRequired(false)
+      )
     ),
 
   async execute(i) {
@@ -2807,6 +2846,7 @@ CMDS.appmanager = {
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Sirf Admin yeh command use kar sakta hai.')] });
 
+    const action = i.options.getSubcommand(); // 'add' | 'remove'
     const role   = i.options.getRole('role');
     const member = i.options.getUser('member');
     if (!role && !member)
@@ -2822,29 +2862,50 @@ CMDS.appmanager = {
           .setDescription('❌ Application category could not be found.')] });
 
       const targetId = role ? role.id : member.id;
-      if (role)   LDB.addManagerRole('app', role.id);
-      if (member) LDB.addManagerUser('app', member.id);
-
       const channels = i.guild.channels.cache.filter(
         ch => ch.parentId === category.id && ch.type === ChannelType.GuildText
       );
 
       let updated = 0;
-      for (const ch of channels.values()) {
-        try {
-          await ch.permissionOverwrites.edit(targetId, {
-            ViewChannel: true, SendMessages: true, ReadMessageHistory: true,
-          });
-          updated++;
-        } catch(_) {}
-      }
 
-      const mention = role ? `<@&${role.id}>` : `<@${member.id}>`;
-      return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
-        .setDescription(
-          `✅ ${mention} ko ${updated} open application ticket(s) ki access mil gayi.\n` +
-          `Ab se har naye application ticket mein bhi inko automatically access milegi.`
-        )] });
+      if (action === 'add') {
+        if (role)   LDB.addManagerRole('app', role.id);
+        if (member) LDB.addManagerUser('app', member.id);
+
+        for (const ch of channels.values()) {
+          try {
+            await ch.permissionOverwrites.edit(targetId, {
+              ViewChannel: true, SendMessages: true, ReadMessageHistory: true,
+            });
+            updated++;
+          } catch(_) {}
+        }
+
+        const mention = role ? `<@&${role.id}>` : `<@${member.id}>`;
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+          .setDescription(
+            `✅ ${mention} ko ${updated} open application ticket(s) ki access mil gayi.\n` +
+            `Ab se har naye application ticket mein bhi inko automatically access milegi.`
+          )] });
+      } else {
+        // remove
+        if (role)   LDB.removeManagerRole('app', role.id);
+        if (member) LDB.removeManagerUser('app', member.id);
+
+        for (const ch of channels.values()) {
+          try {
+            await ch.permissionOverwrites.delete(targetId);
+            updated++;
+          } catch(_) {}
+        }
+
+        const mention = role ? `<@&${role.id}>` : `<@${member.id}>`;
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+          .setDescription(
+            `✅ ${mention} ki ${updated} open application ticket(s) se access hata di gayi.\n` +
+            `Ab se naye application tickets mein bhi inko automatically access nahi milegi.`
+          )] });
+      }
     } catch(err) {
       console.error('[APPMANAGER ERROR]', err);
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
