@@ -3247,9 +3247,170 @@
   .pt-footer-bottom { flex-direction: column; text-align: center; }
 }
 
+/* ══════════════════════════════════════════════════════════
+   LUXURY LAYER — glass surfaces, glow, motion, cursor
+   ══════════════════════════════════════════════════════════ */
+
+:root {
+  --glass-bg: rgba(20, 26, 35, .52);
+  --glass-border: rgba(255,255,255,.09);
+  --glass-border-dim: rgba(255,255,255,.03);
+  --glow-gold: rgba(255, 197, 61, .35);
+  --glow-silver: rgba(200, 214, 230, .28);
+  --glow-bronze: rgba(224, 141, 66, .30);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+
+  /* ── Film-grain texture over the whole page ── */
+  .pt-noise-layer {
+    position: fixed; inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    opacity: .035;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ── Ambient glow blobs behind hero/top content ── */
+  .pt-ambient-glow {
+    position: fixed;
+    pointer-events: none;
+    z-index: 0;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: .5;
+  }
+  .pt-ambient-glow.g1 {
+    width: 480px; height: 480px;
+    top: -160px; left: -120px;
+    background: radial-gradient(circle, var(--accent-glow), transparent 70%);
+  }
+  .pt-ambient-glow.g2 {
+    width: 420px; height: 420px;
+    top: 200px; right: -140px;
+    background: radial-gradient(circle, rgba(139,124,255,.25), transparent 70%);
+  }
+
+  /* ── Cursor glow — tracks the pointer with zero delay ── */
+  #pt-cursor-glow {
+    position: fixed;
+    top: 0; left: 0;
+    width: 460px; height: 460px;
+    margin-left: -230px; margin-top: -230px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,224,145,.10) 0%, rgba(139,124,255,.05) 45%, transparent 72%);
+    pointer-events: none;
+    z-index: 3;
+    will-change: transform;
+    transition: none; /* instant — no easing, no lag */
+    opacity: 0;
+  }
+  #pt-cursor-glow.active { opacity: 1; }
+
+  #pt-cursor-dot {
+    position: fixed;
+    top: 0; left: 0;
+    width: 6px; height: 6px;
+    margin-left: -3px; margin-top: -3px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px 2px var(--accent-glow);
+    pointer-events: none;
+    z-index: 10001;
+    will-change: transform;
+    transition: none; /* instant */
+    opacity: 0;
+  }
+  #pt-cursor-dot.active { opacity: 1; }
+
+  /* ── Scroll progress ── */
+  #pt-scroll-progress {
+    position: fixed; top: 0; left: 0;
+    height: 2px;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-violet));
+    box-shadow: 0 0 8px var(--accent-glow);
+    z-index: 10002;
+    transition: none;
+  }
+}
+
+/* ── Glass upgrade for the main surfaces (kept subtle, additive) ── */
+.stat-card, .queue-card, .hero-mode-card, .rank-card, .gm-tier-card,
+.pt-top3-chip, .pt-tester-chip, .tester-top-card, .testers-top-card {
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 8px 24px -12px rgba(0,0,0,.6);
+}
+
+/* ── Rank badge glow — the podium should visibly pop ── */
+.rank-badge.gold  { box-shadow: 0 10px 24px rgba(255,208,66,.18), inset 0 0 0 1px rgba(255,255,255,.18), 0 0 26px var(--glow-gold); }
+.rank-badge.silver{ box-shadow: 0 10px 22px rgba(204,217,235,.12), inset 0 0 0 1px rgba(255,255,255,.18), 0 0 22px var(--glow-silver); }
+.rank-badge.bronze{ box-shadow: 0 10px 22px rgba(208,135,50,.15), inset 0 0 0 1px rgba(255,255,255,.12), 0 0 22px var(--glow-bronze); }
+.pt-top3-rank.gold   { box-shadow: 0 0 18px var(--glow-gold); }
+.pt-top3-rank.silver { box-shadow: 0 0 16px var(--glow-silver); }
+.pt-top3-rank.bronze { box-shadow: 0 0 16px var(--glow-bronze); }
+
+/* ── Sharper, springier hover lift on interactive surfaces ── */
+.hero-mode-card:hover, .rank-card:hover, .gm-tier-card:hover, .queue-card:hover,
+.stat-card:hover, .tester-top-card:hover, .testers-top-card:hover,
+.pt-top3-chip:hover, .pt-tester-chip:hover {
+  transform: translateY(-6px) scale(1.012);
+}
+.weapon-btn, .pt-nav-link, button { transition: transform .18s cubic-bezier(.34,1.56,.64,1), box-shadow .18s var(--ease), color .18s var(--ease), border-color .18s var(--ease) !important; }
+.weapon-btn:hover { transform: translateY(-2px) scale(1.03) !important; }
+.weapon-btn:active, button:active { transform: scale(.97) !important; }
+
+/* ── Staggered reveal for rows/cards as they enter ── */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes ptRise {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .stats-row .stat-card { animation: ptRise .5s var(--ease) both; }
+  .stats-row .stat-card:nth-child(1) { animation-delay: .02s; }
+  .stats-row .stat-card:nth-child(2) { animation-delay: .08s; }
+  .stats-row .stat-card:nth-child(3) { animation-delay: .14s; }
+
+  #leaderboardBody tr.lb-row { animation: ptRise .38s var(--ease) both; }
+  #leaderboardBody tr.lb-row:nth-child(1) { animation-delay: .01s; }
+  #leaderboardBody tr.lb-row:nth-child(2) { animation-delay: .035s; }
+  #leaderboardBody tr.lb-row:nth-child(3) { animation-delay: .06s; }
+  #leaderboardBody tr.lb-row:nth-child(4) { animation-delay: .085s; }
+  #leaderboardBody tr.lb-row:nth-child(5) { animation-delay: .11s; }
+  #leaderboardBody tr.lb-row:nth-child(n+6) { animation-delay: .13s; }
+}
+
+/* ── Eyebrow label utility (used for section pretitles) ── */
+.pt-eyebrow {
+  display: block;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: .72rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 6px;
+}
+
+/* Respect reduced-motion: kill the extra flourishes entirely */
+@media (prefers-reduced-motion: reduce) {
+  #pt-cursor-glow, #pt-cursor-dot, .pt-noise-layer, .pt-ambient-glow, #pt-scroll-progress { display: none !important; }
+  .stats-row .stat-card, #leaderboardBody tr.lb-row { animation: none !important; }
+}
+
 </style>
 </head>
 <body>
+
+<div class="pt-noise-layer" aria-hidden="true"></div>
+<div class="pt-ambient-glow g1" aria-hidden="true"></div>
+<div class="pt-ambient-glow g2" aria-hidden="true"></div>
+<div id="pt-scroll-progress" aria-hidden="true"></div>
+<div id="pt-cursor-glow" aria-hidden="true"></div>
+<div id="pt-cursor-dot" aria-hidden="true"></div>
 
 <header class="pt-topbar">
   <div class="pt-topbar-inner">
@@ -4883,6 +5044,58 @@ setInterval(() => {
       row.innerHTML = '<div class="pt-strip-empty">Couldn\'t load testers.</div>';
     }
   })();
+})();
+</script>
+
+<script>
+/* ── Luxury layer: cursor glow + scroll progress ──
+   No CSS transition/easing is used on the cursor elements —
+   position is written straight from the pointer event, every event,
+   so there is zero perceptible delay between the mouse and the glow. */
+(function () {
+  var glow = document.getElementById('pt-cursor-glow');
+  var dot  = document.getElementById('pt-cursor-dot');
+  var bar  = document.getElementById('pt-scroll-progress');
+  if (!glow || !dot) return;
+
+  var coarsePointer = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  if (coarsePointer) { glow.style.display = 'none'; dot.style.display = 'none'; }
+
+  function place(el, x, y) {
+    el.style.transform = 'translate3d(' + x + 'px,' + y + 'px,0)';
+  }
+
+  window.addEventListener('pointermove', function (e) {
+    if (coarsePointer) return;
+    place(glow, e.clientX, e.clientY);
+    place(dot, e.clientX, e.clientY);
+    if (!glow.classList.contains('active')) glow.classList.add('active');
+    if (!dot.classList.contains('active')) dot.classList.add('active');
+  }, { passive: true });
+
+  window.addEventListener('pointerdown', function () {
+    dot.style.width = '9px'; dot.style.height = '9px';
+    dot.style.marginLeft = '-4.5px'; dot.style.marginTop = '-4.5px';
+  });
+  window.addEventListener('pointerup', function () {
+    dot.style.width = '6px'; dot.style.height = '6px';
+    dot.style.marginLeft = '-3px'; dot.style.marginTop = '-3px';
+  });
+
+  document.addEventListener('mouseleave', function () {
+    glow.classList.remove('active'); dot.classList.remove('active');
+  });
+
+  if (bar) {
+    function updateScrollBar() {
+      var h = document.documentElement;
+      var scrollable = h.scrollHeight - h.clientHeight;
+      var pct = scrollable > 0 ? (h.scrollTop / scrollable) * 100 : 0;
+      bar.style.width = pct + '%';
+    }
+    window.addEventListener('scroll', updateScrollBar, { passive: true });
+    updateScrollBar();
+  }
 })();
 </script>
 </body>
