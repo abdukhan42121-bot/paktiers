@@ -1500,8 +1500,20 @@ async function createSupportTicket(client, guild, member) {
 function buildSupportPanelEmbed() {
   return new EmbedBuilder()
     .setColor(0xF5C842)
-    .setTitle('Open a ticket!')
-    .setDescription('By clicking the button, a ticket will be opened for you.')
+    .setTitle('🎫 Paktiers Support')
+    .setDescription(
+      'Need help with something? Our support team is here for you!\n\n' +
+      'Click the button below to open a new ticket, and our team will get back to you as soon as possible.\n\n' +
+      '📌 **Before opening a ticket:**\n' +
+      '• Clearly describe your issue\n' +
+      '• Attach any relevant screenshots or proof\n' +
+      '• Please open only one ticket per issue\n\n' +
+      '⏳ **Response Time:** Our team typically replies within 24 hours.\n\n' +
+      '👇 Click the button below to open a ticket\n' +
+      'If you want to apply for Media or Staff, please check the requirements category.\n\n' +
+      'Thanks.\n' +
+      '- Paktiers Support Team'
+    )
     .setFooter({ text: 'Paktiers Support' });
 }
 
@@ -1509,8 +1521,8 @@ function buildSupportButtonRow() {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId('support_open_ticket')
-      .setLabel('Open a ticket!')
-      .setEmoji('📩')
+      .setLabel('Press To Create Ticket')
+      .setEmoji('🎫')
       .setStyle(ButtonStyle.Primary),
   );
 }
