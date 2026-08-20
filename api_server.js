@@ -46,6 +46,7 @@ const CONFIG = {
   QUEUE_ANNOUNCE_CHANNEL_ID: process.env.QUEUE_ANNOUNCE_CHANNEL_ID || '',   // Channel where @everyone ping will be sent
   PANEL_CHANNEL_ID:          process.env.PANEL_CHANNEL_ID          || '',   // Channel where waitlist panel message stays (for /setuppanel)
   REG_LOGS_CHANNEL_ID:       process.env.REG_LOGS_CHANNEL_ID       || '',   // Channel for registration logs
+  STAFF_LOGS_CHANNEL_ID:     process.env.STAFF_LOGS_CHANNEL_ID     || '',   // Channel for staff hire/fire logs (also settable via /setstafflogs)
 
   // ── Paktiers Application Panel ──
   APPLICATION_CHANNEL_ID:    process.env.APPLICATION_CHANNEL_ID    || '1518103705889542274', // Channel where /setupticketpnl sends the panel
@@ -738,13 +739,13 @@ initF(PF, {});
 initF(QF, { Mace:[], Crystal:[], Sword:[], Axe:[], Netherite:[], UHC:[], Pot:[], SMP:[], DiaSMP:[] });
 initF(MF, []);
 initF(TF, {});
-initF(SF, { regLogsChannelId: '', appManagerRoles: [], appManagerUsers: [], supManagerRoles: [], supManagerUsers: [] });
+initF(SF, { regLogsChannelId: '', staffLogsChannelId: '', appManagerRoles: [], appManagerUsers: [], supManagerRoles: [], supManagerUsers: [] });
 
 const rDB = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
 const wDB = (f, d) => fs.writeFileSync(f, JSON.stringify(d, null, 2));
 
 function loadSettings() {
-  try { return rDB(SF); } catch(_) { return { regLogsChannelId: '', appManagerRoles: [], appManagerUsers: [], supManagerRoles: [], supManagerUsers: [] }; }
+  try { return rDB(SF); } catch(_) { return { regLogsChannelId: '', staffLogsChannelId: '', appManagerRoles: [], appManagerUsers: [], supManagerRoles: [], supManagerUsers: [] }; }
 }
 function saveSettings(data) {
   try { wDB(SF, data); } catch(_) {}
@@ -753,6 +754,19 @@ function saveSettings(data) {
 const persistedSettings = loadSettings();
 if (persistedSettings?.regLogsChannelId) {
   CONFIG.REG_LOGS_CHANNEL_ID = persistedSettings.regLogsChannelId;
+}
+if (persistedSettings?.staffLogsChannelId) {
+  CONFIG.STAFF_LOGS_CHANNEL_ID = persistedSettings.staffLogsChannelId;
+}
+
+// ── STAFF RECORDS — tracks which roles were granted via /hire ──────
+const STAFF_FILE = path.join(DATA_DIR, 'staff.json');
+initF(STAFF_FILE, {});
+function loadStaff() {
+  try { return rDB(STAFF_FILE); } catch(_) { return {}; }
+}
+function saveStaff(data) {
+  try { wDB(STAFF_FILE, data); } catch(_) {}
 }
 
 function syncToMem() {
@@ -1050,6 +1064,32 @@ async function sendRegistrationLog(client, player) {
         .setFooter({ text: BOT_FOOTER })
         .setTimestamp()],
     });
+  } catch(_) {}
+}
+
+// ── STAFF MOVEMENT LOG (hire / fire) ────────────────────────
+async function sendStaffLog(client, { type, targetUser, roleName, byUser, reason }) {
+  if (!CONFIG.STAFF_LOGS_CHANNEL_ID) return;
+  try {
+    const ch = await client.channels.fetch(CONFIG.STAFF_LOGS_CHANNEL_ID).catch(() => null);
+    if (!ch) return;
+
+    const isHire = type === 'hire';
+    const embed = new EmbedBuilder()
+      .setColor(isHire ? 0x00C864 : 0xFF4444)
+      .setTitle(isHire ? '✅ Staff Hired' : '🔴 Staff Fired')
+      .setThumbnail(targetUser.displayAvatarURL({ size: 128 }))
+      .addFields(
+        { name: '👤 Player',   value: `${targetUser} (${targetUser.tag})`, inline: false },
+        { name: isHire ? '🎖️ Role Assigned' : '🎖️ Role Removed', value: roleName, inline: true },
+        { name: isHire ? '🧑‍💼 Hired By' : '🧑‍💼 Fired By', value: `${byUser}`, inline: true },
+      );
+
+    if (!isHire) embed.addFields({ name: '📝 Reason', value: reason || 'Not specified', inline: false });
+
+    embed.setFooter({ text: 'PakTiers Staff Team' }).setTimestamp();
+
+    await ch.send({ embeds: [embed] });
   } catch(_) {}
 }
 
@@ -1900,6 +1940,30 @@ CMDS.setreglogschannel = {
 
     return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x57F287)
       .setDescription(`✅ Registration logs channel set to ${channel}.`)] });
+  },
+};
+
+// ── /setstafflogs ─────────────────────────────────────────
+CMDS.setstafflogs = {
+  data: new SlashCommandBuilder()
+    .setName('setstafflogs')
+    .setDescription('Set the channel used for staff hire/fire logs')
+    .addChannelOption(o => o.setName('channel').setDescription('Staff movements logs channel').setRequired(true)),
+
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Administrator permission required.')] });
+    }
+
+    const channel = i.options.getChannel('channel');
+    const settings = loadSettings();
+    settings.staffLogsChannelId = channel.id;
+    saveSettings(settings);
+    CONFIG.STAFF_LOGS_CHANNEL_ID = channel.id;
+
+    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x57F287)
+      .setDescription(`✅ Staff logs channel set to ${channel}.`)] });
   },
 };
 
@@ -2989,6 +3053,195 @@ async function refreshSQPanel(client, weapon) {
     console.error(`[SQ PANEL] refresh error (${weapon}):`, err.message);
   }
 }
+
+// ════════════════════════════════════════════════════════════
+//  STAFF MANAGEMENT — /hire, /fire, /staff list
+// ════════════════════════════════════════════════════════════
+
+// ── /hire ─────────────────────────────────────────────────
+CMDS.hire = {
+  data: new SlashCommandBuilder()
+    .setName('hire')
+    .setDescription('Hire a member into a staff role')
+    .addUserOption(o => o.setName('player').setDescription('Member to hire').setRequired(true))
+    .addRoleOption(o => o.setName('role').setDescription('Staff role to assign').setRequired(true)),
+
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Administrator permission required.')] });
+    }
+
+    const targetUser = i.options.getUser('player');
+    const role       = i.options.getRole('role');
+
+    await i.deferReply({ ephemeral:true });
+
+    const member = await i.guild.members.fetch(targetUser.id).catch(() => null);
+    if (!member) return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setDescription('❌ Could not find that member in the server.')] });
+
+    if (member.roles.cache.has(role.id)) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription(`⚠️ **${targetUser.tag}** already has the **${role.name}** role.`)] });
+    }
+
+    await member.roles.add(role).catch(() => {});
+
+    // Track in staff.json
+    const staff = loadStaff();
+    if (!staff[targetUser.id]) staff[targetUser.id] = { roles: [], hiredBy: null, hiredAt: null };
+    if (!staff[targetUser.id].roles.includes(role.id)) staff[targetUser.id].roles.push(role.id);
+    staff[targetUser.id].hiredBy = i.user.id;
+    staff[targetUser.id].hiredAt = Date.now();
+    saveStaff(staff);
+
+    // Staff-movements log
+    await sendStaffLog(i.client, { type:'hire', targetUser, roleName:role.name, byUser:i.user });
+
+    // DM the player
+    await member.send({ embeds:[new EmbedBuilder().setColor(0x00C864)
+      .setTitle('🎉 You\'ve Been Hired!')
+      .setDescription(`Congratulations! You've been hired as **${role.name}** at **PakTiers**. 🇵🇰`)
+      .setFooter({ text:'PakTiers Staff Team' })
+      .setTimestamp()] }).catch(() => {});
+
+    return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+      .setTitle('✅ Staff Hired')
+      .setDescription(`**${targetUser.tag}** has been hired as **${role.name}**.`)
+      .setFooter({ text:'PakTiers Staff Team' })] });
+  },
+};
+
+// ── /fire ─────────────────────────────────────────────────
+CMDS.fire = {
+  data: new SlashCommandBuilder()
+    .setName('fire')
+    .setDescription('Fire a member from staff')
+    .addUserOption(o => o.setName('player').setDescription('Member to fire').setRequired(true))
+    .addRoleOption(o => o.setName('role').setDescription('Specific role to remove (omit to remove all hired roles)').setRequired(false))
+    .addStringOption(o => o.setName('reason').setDescription('Reason for firing').setRequired(false)),
+
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Administrator permission required.')] });
+    }
+
+    const targetUser = i.options.getUser('player');
+    const roleOpt     = i.options.getRole('role');
+    const reason      = i.options.getString('reason');
+
+    await i.deferReply({ ephemeral:true });
+
+    const member = await i.guild.members.fetch(targetUser.id).catch(() => null);
+    if (!member) return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setDescription('❌ Could not find that member in the server.')] });
+
+    const staff = loadStaff();
+    const record = staff[targetUser.id];
+    const trackedRoleIds = record?.roles || [];
+
+    // Determine which roles to remove
+    const roleIdsToRemove = roleOpt ? [roleOpt.id] : trackedRoleIds;
+
+    if (!roleIdsToRemove.length) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription(`⚠️ **${targetUser.tag}** has no tracked staff roles to remove. Specify a role manually if needed.`)] });
+    }
+
+    const removedNames = [];
+    for (const rid of roleIdsToRemove) {
+      const r = i.guild.roles.cache.get(rid);
+      if (r && member.roles.cache.has(rid)) {
+        await member.roles.remove(r).catch(() => {});
+        removedNames.push(r.name);
+      }
+    }
+
+    if (!removedNames.length) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription(`⚠️ **${targetUser.tag}** did not have the specified staff role(s).`)] });
+    }
+
+    // Update staff.json
+    if (record) {
+      record.roles = record.roles.filter(rid => !roleIdsToRemove.includes(rid));
+      if (!record.roles.length) delete staff[targetUser.id];
+      saveStaff(staff);
+    }
+
+    const roleNameStr = removedNames.join(', ');
+
+    // Staff-movements log
+    await sendStaffLog(i.client, { type:'fire', targetUser, roleName:roleNameStr, byUser:i.user, reason });
+
+    // DM the player
+    await member.send({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setTitle('📋 Staff Update')
+      .setDescription(`You've been removed from **${roleNameStr}** at **PakTiers**.${reason ? `\n\n**Reason:** ${reason}` : ''}`)
+      .setFooter({ text:'PakTiers Staff Team' })
+      .setTimestamp()] }).catch(() => {});
+
+    return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setTitle('🔴 Staff Fired')
+      .setDescription(`**${targetUser.tag}** has been removed from **${roleNameStr}**.`)
+      .setFooter({ text:'PakTiers Staff Team' })] });
+  },
+};
+
+// ── /staff ────────────────────────────────────────────────
+CMDS.staff = {
+  data: new SlashCommandBuilder()
+    .setName('staff')
+    .setDescription('Staff management commands')
+    .addSubcommand(s => s.setName('list').setDescription('View the current staff list')),
+
+  async execute(i) {
+    const sub = i.options.getSubcommand();
+    if (sub !== 'list') return;
+
+    await i.deferReply();
+
+    const staff = loadStaff();
+    const entries = Object.entries(staff);
+
+    if (!entries.length) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+        .setTitle('🛡️ PakTiers Staff List')
+        .setDescription('No staff have been hired yet.')
+        .setFooter({ text:'PakTiers Staff Team' })] });
+    }
+
+    // Group members by role
+    const roleGroups = {}; // roleId -> [discordId,...]
+    for (const [discordId, rec] of entries) {
+      for (const rid of rec.roles || []) {
+        if (!roleGroups[rid]) roleGroups[rid] = [];
+        roleGroups[rid].push(discordId);
+      }
+    }
+
+    const fields = [];
+    for (const [rid, ids] of Object.entries(roleGroups)) {
+      const role = i.guild.roles.cache.get(rid);
+      const roleName = role ? role.name : `Unknown Role (${rid})`;
+      fields.push({
+        name: `🎖️ ${roleName}`,
+        value: ids.map(id => `<@${id}>`).join(', ') || '*None*',
+        inline: false,
+      });
+    }
+
+    const totalStaff = new Set(entries.map(([id]) => id)).size;
+
+    return i.editReply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+      .setTitle('🛡️ PakTiers Staff List')
+      .addFields(fields)
+      .setFooter({ text:`Total Staff: ${totalStaff} · PakTiers` })
+      .setTimestamp()] });
+  },
+};
 
 CMDS.startqueue = {
   data: new SlashCommandBuilder()
