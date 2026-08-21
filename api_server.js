@@ -1796,6 +1796,56 @@ CMDS.msgsend = {
   },
 };
 
+// ── /punish ────────────────────────────────────────────────
+CMDS.punish = {
+  data: new SlashCommandBuilder()
+    .setName('punish')
+    .setDescription('Publicly announce a punishment in this channel')
+    .addUserOption(o => o.setName('user').setDescription('User being punished').setRequired(true))
+    .addStringOption(o => o.setName('type').setDescription('Punishment type').setRequired(true)
+      .addChoices(
+        { name: 'Warn', value: 'Warn' },
+        { name: 'Mute', value: 'Mute' },
+        { name: 'Kick', value: 'Kick' },
+        { name: 'Ban',  value: 'Ban'  },
+      ))
+    .addStringOption(o => o.setName('reason').setDescription('Reason for the punishment').setRequired(true))
+    .addStringOption(o => o.setName('duration').setDescription('Duration (e.g. 1h, 7d, Permanent)').setRequired(false)),
+
+  async execute(i) {
+    // Only Admins or the Ticket/Staff role can issue punishments
+    const isStaff = i.member.permissions.has(PermissionFlagsBits.Administrator) ||
+      (CONFIG.TICKET_STAFF_ROLE_ID && i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID));
+    if (!isStaff) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ You do not have permission to use this command.')] });
+    }
+
+    const target   = i.options.getUser('user');
+    const type     = i.options.getString('type');
+    const reason   = i.options.getString('reason');
+    const duration = i.options.getString('duration') || (type === 'Ban' ? 'Permanent' : 'N/A');
+
+    const TYPE_COLOR = { Warn: 0xFFD700, Mute: 0xFFA500, Kick: 0xFF6347, Ban: 0xFF0000 };
+    const TYPE_EMOJI = { Warn: '⚠️',     Mute: '🔇',     Kick: '👢',     Ban: '🔨'    };
+
+    const embed = new EmbedBuilder()
+      .setColor(TYPE_COLOR[type] || BRAND_COLOR)
+      .setTitle(`${TYPE_EMOJI[type] || ''} ${type} Issued`)
+      .addFields(
+        { name:'👤 User',     value:`${target}`,   inline:true },
+        { name:'📋 Reason',   value:reason,         inline:true },
+        { name:'⏱️ Duration', value:duration,       inline:true },
+        { name:'🛡️ Staff',    value:`${i.user}`,    inline:false },
+      )
+      .setFooter({ text: BOT_FOOTER })
+      .setTimestamp();
+
+    // Public reply (not ephemeral) so everyone in the channel sees it
+    return i.reply({ content:`${target}`, embeds:[embed] });
+  },
+};
+
 // ── /backup ────────────────────────────────────────────────
 CMDS.backup = {
   data: new SlashCommandBuilder()
