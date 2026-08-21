@@ -3191,6 +3191,68 @@ CMDS.fire = {
 };
 
 // ── /staff ────────────────────────────────────────────────
+// ── Shared builder: staff list embed (used by /staff list + 🔄 refresh button) ──
+function buildStaffListEmbed(guild) {
+  const staff = loadStaff();
+  const entries = Object.entries(staff);
+
+  if (!entries.length) {
+    return new EmbedBuilder().setColor(BRAND_COLOR)
+      .setTitle('🛡️ PakTiers Staff List')
+      .setDescription('No staff have been hired yet.')
+      .setFooter({ text:'PakTiers Staff Team' })
+      .setTimestamp();
+  }
+
+  // Group members by role
+  const roleGroups = {}; // roleId -> [discordId,...]
+  for (const [discordId, rec] of entries) {
+    for (const rid of rec.roles || []) {
+      if (!roleGroups[rid]) roleGroups[rid] = [];
+      roleGroups[rid].push(discordId);
+    }
+  }
+
+  // Sort roles by the server's actual role hierarchy (highest position first —
+  // same order Discord shows roles in, e.g. Owner > Admin > Tierer > Tester)
+  const sortedRoleIds = Object.keys(roleGroups).sort((a, b) => {
+    const roleA = guild.roles.cache.get(a);
+    const roleB = guild.roles.cache.get(b);
+    return (roleB?.position ?? 0) - (roleA?.position ?? 0);
+  });
+
+  const fields = sortedRoleIds.map(rid => {
+    const role = guild.roles.cache.get(rid);
+    const roleName = role ? role.name : `Unknown Role (${rid})`;
+    const ids = roleGroups[rid];
+    const memberLines = ids.map((id, idx) => `${idx + 1}. <@${id}>`).join('\n');
+    return {
+      name: `🎖️ ${roleName} (${ids.length})`,
+      value: memberLines || '*None*',
+      inline: false,
+    };
+  });
+
+  const totalStaff = new Set(entries.map(([id]) => id)).size;
+
+  return new EmbedBuilder().setColor(BRAND_COLOR)
+    .setTitle('🛡️ PakTiers Staff List')
+    .addFields(fields)
+    .setFooter({ text:`Total Staff: ${totalStaff} · PakTiers` })
+    .setTimestamp();
+}
+
+function buildStaffListButtons() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('staff_list_refresh')
+      .setLabel('Refresh')
+      .setEmoji('🔄')
+      .setStyle(ButtonStyle.Secondary),
+  );
+}
+
+// ── /staff ────────────────────────────────────────────────
 CMDS.staff = {
   data: new SlashCommandBuilder()
     .setName('staff')
@@ -3203,43 +3265,10 @@ CMDS.staff = {
 
     await i.deferReply();
 
-    const staff = loadStaff();
-    const entries = Object.entries(staff);
-
-    if (!entries.length) {
-      return i.editReply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
-        .setTitle('🛡️ PakTiers Staff List')
-        .setDescription('No staff have been hired yet.')
-        .setFooter({ text:'PakTiers Staff Team' })] });
-    }
-
-    // Group members by role
-    const roleGroups = {}; // roleId -> [discordId,...]
-    for (const [discordId, rec] of entries) {
-      for (const rid of rec.roles || []) {
-        if (!roleGroups[rid]) roleGroups[rid] = [];
-        roleGroups[rid].push(discordId);
-      }
-    }
-
-    const fields = [];
-    for (const [rid, ids] of Object.entries(roleGroups)) {
-      const role = i.guild.roles.cache.get(rid);
-      const roleName = role ? role.name : `Unknown Role (${rid})`;
-      fields.push({
-        name: `🎖️ ${roleName}`,
-        value: ids.map(id => `<@${id}>`).join(', ') || '*None*',
-        inline: false,
-      });
-    }
-
-    const totalStaff = new Set(entries.map(([id]) => id)).size;
-
-    return i.editReply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
-      .setTitle('🛡️ PakTiers Staff List')
-      .addFields(fields)
-      .setFooter({ text:`Total Staff: ${totalStaff} · PakTiers` })
-      .setTimestamp()] });
+    return i.editReply({
+      embeds: [buildStaffListEmbed(i.guild)],
+      components: [buildStaffListButtons()],
+    });
   },
 };
 
@@ -3939,6 +3968,15 @@ async function handleSelectMenu(i) {
 
 async function handleButtonClick(i) {
   const parts = i.customId.split('_');
+
+  // ── Staff List: 🔄 Refresh button ─────────────────────────
+  if (i.customId === 'staff_list_refresh') {
+    await i.deferUpdate();
+    return i.editReply({
+      embeds: [buildStaffListEmbed(i.guild)],
+      components: [buildStaffListButtons()],
+    });
+  }
 
   // ── Panel: Register / Update Profile button ──────────────
   if (i.customId === 'panel_register') {
