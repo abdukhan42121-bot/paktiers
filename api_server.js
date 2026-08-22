@@ -2365,7 +2365,142 @@ CMDS.tier = {
   },
 };
 
-// ── /queue ────────────────────────────────────────────────
+// ── /submitresult ─────────────────────────────────────────
+// Usage: /submitresult player:@user tier:HT3 result:Passed gamemode:Sword
+//        region:PK rounds:3 opponent1:@x opponent2:@y opponent3:@z
+CMDS.submitresult = {
+  data: new SlashCommandBuilder()
+    .setName('submitresult')
+    .setDescription('Submit a tier test result (Tierer role required)')
+    .addUserOption(o => o.setName('player').setDescription('Player who was tested').setRequired(true))
+    .addStringOption(o => o.setName('tier').setDescription('Tier tested for').setRequired(true)
+      .addChoices(
+        { name: 'HT3', value: 'HT3' },
+        { name: 'LT2', value: 'LT2' },
+        { name: 'HT2', value: 'HT2' },
+        { name: 'LT1', value: 'LT1' },
+        { name: 'HT1', value: 'HT1' },
+      ))
+    .addStringOption(o => o.setName('result').setDescription('Test result').setRequired(true)
+      .addChoices(
+        { name: 'Passed', value: 'Passed' },
+        { name: 'Failed', value: 'Failed' },
+      ))
+    .addStringOption(o => o.setName('gamemode').setDescription('Gamemode').setRequired(true)
+      .addChoices(...WEAPONS.map(w => ({ name: `${WEAPON_EMOJI[w]} ${w}`, value: w }))))
+    .addStringOption(o => o.setName('region').setDescription('Region').setRequired(true)
+      .addChoices(
+        { name: 'PK',    value: 'PK'    },
+        { name: 'AS/AU', value: 'AS/AU' },
+        { name: 'EU',    value: 'EU'    },
+        { name: 'NA',    value: 'NA'    },
+        { name: 'SA',    value: 'SA'    },
+      ))
+    .addIntegerOption(o => o.setName('rounds').setDescription('How many rounds were played').setRequired(true)
+      .addChoices(
+        { name: '1', value: 1 },
+        { name: '2', value: 2 },
+        { name: '3', value: 3 },
+        { name: '4', value: 4 },
+        { name: '5', value: 5 },
+      ))
+    .addUserOption(o => o.setName('opponent1').setDescription('Opponent for round 1').setRequired(true))
+    .addUserOption(o => o.setName('opponent2').setDescription('Opponent for round 2 (if rounds ≥ 2)').setRequired(false))
+    .addUserOption(o => o.setName('opponent3').setDescription('Opponent for round 3 (if rounds ≥ 3)').setRequired(false))
+    .addUserOption(o => o.setName('opponent4').setDescription('Opponent for round 4 (if rounds ≥ 4)').setRequired(false))
+    .addUserOption(o => o.setName('opponent5').setDescription('Opponent for round 5 (if rounds ≥ 5)').setRequired(false)),
+
+  async execute(i) {
+    const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasTierer = hasTiererPerm(i.member);
+    if (!isAdmin && !hasTierer)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ **Tierer** role required.')]});
+
+    const target   = i.options.getUser('player');
+    const tier     = i.options.getString('tier');
+    const result   = i.options.getString('result');
+    const weapon   = i.options.getString('gamemode');
+    const region   = i.options.getString('region');
+    const rounds   = i.options.getInteger('rounds');
+    const opponents = [1,2,3,4,5]
+      .map(n => i.options.getUser(`opponent${n}`))
+      .slice(0, rounds);
+
+    // ── Validate every round has an opponent ───────────────
+    const missing = opponents.some(o => !o);
+    if (missing)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ You selected **${rounds}** round(s) but did not provide an opponent for each round.`)] });
+
+    const player = LDB.get(target.id);
+    if (!player)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ **${target.username}** must register first with \`/register\`.`)] });
+
+    const emoji     = WEAPON_EMOJI[weapon] || '<:sword:1517752855577104474>';
+    const oldTier   = player.tiers?.[weapon];
+    const passed    = result === 'Passed';
+
+    // ── If passed, apply the tier same as /tier set ────────
+    if (passed) {
+      LDB.setTier(target.id, weapon, tier);
+      saveCooldown(target.id, weapon, tier);
+      saveTierLog({
+        tieredBy:     i.user.id,
+        tieredByTag:  i.user.username,
+        playerId:     target.id,
+        playerIGN:    player.ign,
+        weapon,
+        tier,
+        oldTier:      oldTier || null,
+        timestamp:    Date.now(),
+      });
+      broadcast({ type:'tier_updated', discordId:target.id, ign:player.ign, weapon, tier, oldTier });
+      broadcast({ type:'testers_updated' });
+
+      try {
+        const guild  = i.guild;
+        const member = await guild.members.fetch(target.id).catch(()=>null);
+        if (member) {
+          await assignTierRole(guild, member, weapon, tier, oldTier);
+          const wlRole = guild.roles.cache.find(r => r.name === `Waitlist-${weapon}`);
+          if (wlRole && member.roles.cache.has(wlRole.id)) {
+            await member.roles.remove(wlRole).catch(() => {});
+          }
+        }
+      } catch(_) {}
+
+      await syncEmbed(i.client, player, weapon, tier, i.user.id);
+    }
+
+    // ── Build the fights list ("Win"/"Loss" not tracked — just the round vs opponent) ──
+    const fightLines = opponents
+      .map((opp, idx) => `> Round ${idx + 1} vs <@${opp.id}>`)
+      .join('\n');
+
+    // ── Ephemeral ack to the tierer ────────────────────────
+    await i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(passed ? 0x57F287 : 0xFF4444)
+      .setDescription(`✅ Result submitted for **${player.ign}** — **${result}** their **${tier}** test.`)] });
+
+    // ── Public announcement ─────────────────────────────────
+    const resultColor = passed ? 0x57F287 : 0xFF4444;
+    const announceEmbed = new EmbedBuilder()
+      .setColor(resultColor)
+      .setDescription(
+        `<@${target.id}> - **${player.ign}** - Has **${result.toUpperCase()}** Their **${tier}** Test - ${emoji} - **${region}**\n\n` +
+        `**${tier} FIGHTS (${rounds} Round${rounds > 1 ? 's' : ''})**\n${fightLines}`
+      )
+      .setFooter({ text: `Tested by ${i.user.username} · ${BOT_FOOTER}` })
+      .setTimestamp();
+
+    let publicMsg = null;
+    try {
+      publicMsg = await i.channel.send({ content: `<@${target.id}>`, embeds: [announceEmbed] });
+    } catch(_) {}
+    if (publicMsg) await autoReact(publicMsg);
+  },
+};
 // NOTE: 'join' and 'leave' subcommands were removed — players now
 // join/leave queues via the panel buttons (wl_join/wl_leave, sq_join/sq_leave).
 CMDS.queue = {
