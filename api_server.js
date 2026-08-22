@@ -3101,9 +3101,11 @@ function buildSQEmbed(weapon, region, testerIds) {
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
   });
 
+  const gmEmoji = WEAPON_EMOJI[weapon] || '<:sword:1517752855577104474>';
+
   return new EmbedBuilder()
     .setColor(0x57F287)  // CTL green
-    .setTitle(`✅  ${weapon} Tester Available!`)
+    .setTitle(`${gmEmoji}  ${weapon} Tester Available!`)
     .setDescription(
       `A **${weapon}** queue is open for the **${reg}** region!\n\n` +
       `The queue is now open and updates in real-time.`
@@ -3137,7 +3139,7 @@ async function refreshSQPanel(client, weapon) {
     const msg = await ch.messages.fetch(info.messageId).catch(() => null);
     if (!msg) return;
     await msg.edit({
-      content:    '',
+      content:    info.content || '',
       embeds:     [buildSQEmbed(weapon, info.region, info.testers || [])],
       components: [buildSQButtons(weapon)],
     });
@@ -3472,8 +3474,8 @@ CMDS.startqueue = {
     // ── Send the live panel ───────────────────────────────────
     let sentMsg = null;
     try {
-      const baseContent = `a **${weapon}** queue is open for the **PK** region!`;
-      const fullContent = extraMsg ? `${baseContent}\n\n📢 ${extraMsg}` : baseContent;
+      const baseContent = `**${weapon}** queue is open for the **PK** region!`;
+      const fullContent = extraMsg ? `${extraMsg} ${baseContent}` : baseContent;
       sentMsg = await targetCh.send({
         content:           fullContent,
         embeds:            [buildSQEmbed(weapon, region, [i.user.id])],
@@ -3502,6 +3504,7 @@ CMDS.startqueue = {
       messageId:   sentMsg.id,
       testers:     [i.user.id],   // tester who started it
       region,
+      content:     fullContent,   // preserved on refresh so the mention doesn't disappear
       startedBy:   i.user.id,
       startedAt:   Date.now(),
       lastRefresh: Date.now(),
