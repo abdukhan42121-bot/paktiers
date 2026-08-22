@@ -3444,11 +3444,25 @@ CMDS.startqueue = {
     console.log(`[STARTQUEUE] panels keys: ${Object.keys(panels).join(', ')}`);
 
     if (panels[weapon]?.channelId && panels[weapon]?.messageId) {
+      const { channelId, messageId } = panels[weapon];
       try {
-        const oldCh  = await i.client.channels.fetch(panels[weapon].channelId).catch(() => null);
-        const oldMsg = oldCh ? await oldCh.messages.fetch(panels[weapon].messageId).catch(() => null) : null;
-        if (oldMsg) await oldMsg.delete().catch(() => {});
-      } catch(_) {}
+        const oldCh = await i.client.channels.fetch(channelId, { force: true });
+        if (!oldCh) {
+          console.error(`[STARTQUEUE] Could not fetch old panel channel ${channelId} for ${weapon}`);
+        } else {
+          const oldMsg = await oldCh.messages.fetch({ message: messageId, force: true }).catch(err => {
+            console.error(`[STARTQUEUE] Could not fetch old panel message ${messageId} for ${weapon}:`, err.message);
+            return null;
+          });
+          if (oldMsg) {
+            await oldMsg.delete().catch(err =>
+              console.error(`[STARTQUEUE] Could not delete old panel message ${messageId} for ${weapon}:`, err.message)
+            );
+          }
+        }
+      } catch(err) {
+        console.error(`[STARTQUEUE] Old panel cleanup error for ${weapon}:`, err.message);
+      }
     }
 
     // ── Delete "Queue Closed" embed if it exists ──────────────
@@ -3473,9 +3487,9 @@ CMDS.startqueue = {
 
     // ── Send the live panel ───────────────────────────────────
     let sentMsg = null;
+    const baseContent = `**${weapon}** queue is open for the **PK** region!`;
+    const fullContent = extraMsg ? `${extraMsg} ${baseContent}` : baseContent;
     try {
-      const baseContent = `**${weapon}** queue is open for the **PK** region!`;
-      const fullContent = extraMsg ? `${extraMsg} ${baseContent}` : baseContent;
       sentMsg = await targetCh.send({
         content:           fullContent,
         embeds:            [buildSQEmbed(weapon, region, [i.user.id])],
@@ -3578,11 +3592,25 @@ CMDS.closequeue = {
     // ── Delete the live panel message if it exists ────────────
     const sqPanels = loadSQPanels();
     if (sqPanels[weapon]?.channelId && sqPanels[weapon]?.messageId) {
+      const { channelId, messageId } = sqPanels[weapon];
       try {
-        const oldCh  = await i.client.channels.fetch(sqPanels[weapon].channelId).catch(() => null);
-        const oldMsg = oldCh ? await oldCh.messages.fetch(sqPanels[weapon].messageId).catch(() => null) : null;
-        if (oldMsg) await oldMsg.delete().catch(() => {});
-      } catch(_) {}
+        const oldCh = await i.client.channels.fetch(channelId, { force: true });
+        if (!oldCh) {
+          console.error(`[CLOSEQUEUE] Could not fetch panel channel ${channelId} for ${weapon}`);
+        } else {
+          const oldMsg = await oldCh.messages.fetch({ message: messageId, force: true }).catch(err => {
+            console.error(`[CLOSEQUEUE] Could not fetch panel message ${messageId} for ${weapon}:`, err.message);
+            return null;
+          });
+          if (oldMsg) {
+            await oldMsg.delete().catch(err =>
+              console.error(`[CLOSEQUEUE] Could not delete panel message ${messageId} for ${weapon}:`, err.message)
+            );
+          }
+        }
+      } catch(err) {
+        console.error(`[CLOSEQUEUE] Panel cleanup error for ${weapon}:`, err.message);
+      }
       // Clear panel record
       delete sqPanels[weapon];
       saveSQPanels(sqPanels);
@@ -3591,11 +3619,25 @@ CMDS.closequeue = {
     // Also clear old live panel if exists
     const livePanels = loadLivePanels();
     if (livePanels[weapon]?.channelId && livePanels[weapon]?.messageId) {
+      const { channelId, messageId } = livePanels[weapon];
       try {
-        const oldCh  = await i.client.channels.fetch(livePanels[weapon].channelId).catch(() => null);
-        const oldMsg = oldCh ? await oldCh.messages.fetch(livePanels[weapon].messageId).catch(() => null) : null;
-        if (oldMsg) await oldMsg.delete().catch(() => {});
-      } catch(_) {}
+        const oldCh = await i.client.channels.fetch(channelId, { force: true });
+        if (!oldCh) {
+          console.error(`[CLOSEQUEUE] Could not fetch live panel channel ${channelId} for ${weapon}`);
+        } else {
+          const oldMsg = await oldCh.messages.fetch({ message: messageId, force: true }).catch(err => {
+            console.error(`[CLOSEQUEUE] Could not fetch live panel message ${messageId} for ${weapon}:`, err.message);
+            return null;
+          });
+          if (oldMsg) {
+            await oldMsg.delete().catch(err =>
+              console.error(`[CLOSEQUEUE] Could not delete live panel message ${messageId} for ${weapon}:`, err.message)
+            );
+          }
+        }
+      } catch(err) {
+        console.error(`[CLOSEQUEUE] Live panel cleanup error for ${weapon}:`, err.message);
+      }
       delete livePanels[weapon];
       saveLivePanels(livePanels);
     }
