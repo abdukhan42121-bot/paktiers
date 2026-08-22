@@ -454,8 +454,8 @@ app.get('/api/testers', async (req, res) => {
 const WEAPONS = ['Mace','Crystal','Sword','Axe','Netherite','UHC','Pot','SMP','DiaSMP'];
 const TIERS   = ['HT1','LT1','HT2','LT2','HT3','LT3','HT4','LT4','HT5','LT5'];
 const WEAPON_EMOJI = {
-  Mace:'🔨', Crystal:'💠', Sword:'⚔️', Axe:'🪓', Netherite:'🪨',
-  UHC:'🔥', Pot:'🧪', SMP:'🟢', DiaSMP:'💎',
+  Mace:'<:Mace:1513965730968637681>', Crystal:'<:vanilla:1540732140579323935>', Sword:'<:sword:1517752855577104474>', Axe:'<:Axe:1517753158812696646>', Netherite:'<:nethop:1522172951502258176>',
+  UHC:'<:UHC:1517753244288552972>', Pot:'<:diapot:1520829962385494076>', SMP:'<:SMP:1520830247606423652>', DiaSMP:'<:Diasmp:1520830093981913192>',
 };
 const WEAPON_TO_MCTIERS = {
   Mace:'mace', Crystal:'crystal', Sword:'sword', Axe:'axe', Netherite:'netherite',
@@ -2021,21 +2021,22 @@ CMDS.setstafflogs = {
 CMDS.openticket = {
   data: new SlashCommandBuilder()
     .setName('openticket')
-    .setDescription('Open a ticket for a player and show full details')
-    .addUserOption(o => o.setName('player').setDescription('Player to open ticket for').setRequired(true))
+    .setDescription('Open a ticket for a player (or every registered member of a role) and show full details')
+    .addUserOption(o => o.setName('player').setDescription('Player to open ticket for').setRequired(false))
+    .addRoleOption(o => o.setName('role').setDescription('Open a ticket for every registered member with this role').setRequired(false))
     .addStringOption(o => o.setName('gamemode')
-      .setDescription('Gamemode for which the ticket should be opened')
-      .setRequired(true)
+      .setDescription('Gamemode for which the ticket should be opened (defaults to General)')
+      .setRequired(false)
       .addChoices(
-        { name: '🔨 Mace',       value: 'Mace'       },
-        { name: '💠 Crystal',    value: 'Crystal'    },
-        { name: '⚔️ Sword',      value: 'Sword'      },
-        { name: '🪓 Axe',        value: 'Axe'        },
-        { name: '🪨 Netherite',  value: 'Netherite'  },
-        { name: '🔥 UHC',        value: 'UHC'        },
-        { name: '🧪 Pot',        value: 'Pot'        },
-        { name: '🟢 SMP',        value: 'SMP'        },
-        { name: '💎 DiaSMP',     value: 'DiaSMP'     },
+        { name: 'Mace',       value: 'Mace'       },
+        { name: 'Crystal',    value: 'Crystal'    },
+        { name: 'Sword',      value: 'Sword'      },
+        { name: 'Axe',        value: 'Axe'        },
+        { name: 'Netherite',  value: 'Netherite'  },
+        { name: 'UHC',        value: 'UHC'        },
+        { name: 'Pot',        value: 'Pot'        },
+        { name: 'SMP',        value: 'SMP'        },
+        { name: 'DiaSMP',     value: 'DiaSMP'     },
       )),
 
   async execute(i) {
@@ -2049,28 +2050,71 @@ CMDS.openticket = {
     }
 
     const user     = i.options.getUser('player');
-    const gamemode = i.options.getString('gamemode');
-    const player   = LDB.get(user.id);
-    if (!player) {
+    const role     = i.options.getRole('role');
+    const gamemode = i.options.getString('gamemode') || 'General';
+
+    if (!user && !role) {
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription(`❌ **${user.username}** not is registered.`)] });
-    }
-
-    await i.deferReply({ ephemeral:true });
-
-    const ticketChannel = await createQueueTicket(i.client, i.guild, player, gamemode, user.id, i.user.id);
-    if (!ticketChannel) {
-      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription('❌ Ticket could not be created. Check the category / permissions.')] });
+        .setDescription('❌ Provide either a **player** or a **role**.')] });
     }
 
     const gmEmoji = WEAPON_EMOJI[gamemode] || '🎮';
+
+    // ── Single player ticket ───────────────────────────────
+    if (user) {
+      const player = LDB.get(user.id);
+      if (!player) {
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription(`❌ **${user.username}** not is registered.`)] });
+      }
+
+      await i.deferReply({ ephemeral:true });
+
+      const ticketChannel = await createQueueTicket(i.client, i.guild, player, gamemode, user.id, i.user.id);
+      if (!ticketChannel) {
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription('❌ Ticket could not be created. Check the category / permissions.')] });
+      }
+
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0x57F287)
+        .setTitle('✅ Ticket Opened!')
+        .addFields(
+          { name: '👤 Player',   value: `<@${user.id}> (**${player.ign}**)`, inline: true },
+          { name: '🎮 Gamemode', value: `${gmEmoji} **${gamemode}**`,         inline: true },
+          { name: '📩 Channel',  value: `${ticketChannel}`,                   inline: false },
+        )
+        .setFooter({ text: BOT_FOOTER })
+        .setTimestamp()] });
+    }
+
+    // ── Role: open a ticket for every registered member ────
+    await i.deferReply({ ephemeral:true });
+
+    const members = await i.guild.members.fetch();
+    const roleMembers = members.filter(m => m.roles.cache.has(role.id) && !m.user.bot);
+
+    const opened  = [];
+    const skipped = [];
+
+    for (const member of roleMembers.values()) {
+      const player = LDB.get(member.id);
+      if (!player) { skipped.push(`<@${member.id}>`); continue; }
+
+      const ticketChannel = await createQueueTicket(i.client, i.guild, player, gamemode, member.id, i.user.id);
+      if (ticketChannel) {
+        opened.push(`<@${member.id}> → ${ticketChannel}`);
+      } else {
+        skipped.push(`<@${member.id}> (failed)`);
+      }
+    }
+
     return i.editReply({ embeds:[new EmbedBuilder().setColor(0x57F287)
-      .setTitle('✅ Ticket Opened!')
+      .setTitle('✅ Tickets Opened!')
       .addFields(
-        { name: '👤 Player',   value: `<@${user.id}> (**${player.ign}**)`, inline: true },
-        { name: '🎮 Gamemode', value: `${gmEmoji} **${gamemode}**`,         inline: true },
-        { name: '📩 Channel',  value: `${ticketChannel}`,                   inline: false },
+        { name: '🎭 Role',     value: `${role}`,                                       inline: true },
+        { name: '🎮 Gamemode', value: `${gmEmoji} **${gamemode}**`,                     inline: true },
+        { name: `📩 Opened (${opened.length})`,  value: opened.length  ? opened.join('\n')  : '*None*', inline: false },
+        { name: `⚠️ Skipped (${skipped.length})`, value: skipped.length ? skipped.join('\n') : '*None*', inline: false },
       )
       .setFooter({ text: BOT_FOOTER })
       .setTimestamp()] });
@@ -3363,7 +3407,7 @@ CMDS.startqueue = {
     const weapon = i.options.getString('gamemode');
     const region = i.options.getString('region') || 'AS/AU';
     const extraMsg = i.options.getString('message') || null;
-    const emoji  = WEAPON_EMOJI[weapon] || '⚔️';
+    const emoji  = WEAPON_EMOJI[weapon] || '<:sword:1517752855577104474>';
 
     // ── Find target channel: waitlist-<weapon> ────────────────
     const targetName = `waitlist-${weapon.toLowerCase()}`;
@@ -3514,7 +3558,7 @@ CMDS.closequeue = {
 
     const weapon = i.options.getString('gamemode');
     const reason = i.options.getString('reason') || 'Last tester left the queue';
-    const emoji  = WEAPON_EMOJI[weapon] || '⚔️';
+    const emoji  = WEAPON_EMOJI[weapon] || '<:sword:1517752855577104474>';
 
     // ── Find waitlist channel ─────────────────────────────────
     const targetName = `waitlist-${weapon.toLowerCase()}`;
@@ -3804,7 +3848,7 @@ CMDS.logs = {
     }
     const weaponLines = Object.entries(weaponCount)
       .sort((a, b) => b[1] - a[1])
-      .map(([w, c]) => `${WEAPON_EMOJI[w] || '⚔️'} **${w}** — ${c} test${c > 1 ? 's' : ''}`)
+      .map(([w, c]) => `${WEAPON_EMOJI[w] || '<:sword:1517752855577104474>'} **${w}** — ${c} test${c > 1 ? 's' : ''}`)
       .join('\n');
 
     // Per-tier breakdown
@@ -3824,7 +3868,7 @@ CMDS.logs = {
         hour: '2-digit', minute: '2-digit', hour12: true,
       });
       const arrow = l.oldTier ? `~~${l.oldTier}~~ → ` : '';
-      return `• \`${time}\` **${l.playerIGN}** — ${WEAPON_EMOJI[l.weapon] || '⚔️'} ${l.weapon} ${arrow}**${l.tier}**`;
+      return `• \`${time}\` **${l.playerIGN}** — ${WEAPON_EMOJI[l.weapon] || '<:sword:1517752855577104474>'} ${l.weapon} ${arrow}**${l.tier}**`;
     }).join('\n');
 
     // Date label for embed title
