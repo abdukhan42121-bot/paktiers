@@ -3468,15 +3468,16 @@ function buildStaffListEmbed(guild) {
     return (roleB?.position ?? 0) - (roleA?.position ?? 0);
   });
 
-  const fields = sortedRoleIds.map(rid => {
+  const fields = sortedRoleIds.map((rid, idx) => {
     const role = guild.roles.cache.get(rid);
     const roleName = role ? role.name : `Unknown Role (${rid})`;
     const ids = roleGroups[rid];
-    const memberLines = ids.map((id, idx) => `${idx + 1}. <@${id}>`).join('\n');
+    const bullet = '<a:Purple_dot:1508415801894371388>';
+    const memberLines = ids.map(id => `${bullet} <@${id}>`).join('\n');
     return {
-      name: `🎖️ ${roleName} (${ids.length})`,
+      name: `${roleName} (${ids.length})`,
       value: memberLines || '*None*',
-      inline: false,
+      inline: idx < 2,   // only the top 2 highest-ranked roles get the compact inline box
     };
   });
 
