@@ -3472,7 +3472,7 @@ function buildStaffListEmbed(guild) {
     const role = guild.roles.cache.get(rid);
     const roleName = role ? role.name : `Unknown Role (${rid})`;
     const ids = roleGroups[rid];
-    const bullet = '<a:Purple_dot:1508415801894371388>';
+    const bullet = '<a:Purple_dot:1540434035594109148>';
     const memberLines = ids.map(id => `${bullet} <@${id}>`).join('\n');
     return {
       name: `${roleName} (${ids.length})`,
