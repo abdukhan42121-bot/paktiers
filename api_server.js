@@ -2405,10 +2405,20 @@ CMDS.submitresult = {
         { name: '5', value: 5 },
       ))
     .addUserOption(o => o.setName('opponent1').setDescription('Opponent for round 1').setRequired(true))
+    .addIntegerOption(o => o.setName('score1').setDescription('Your score in round 1 (1-10)').setRequired(true).setMinValue(1).setMaxValue(10))
+    .addIntegerOption(o => o.setName('oppscore1').setDescription("Opponent's score in round 1 (1-10)").setRequired(true).setMinValue(1).setMaxValue(10))
     .addUserOption(o => o.setName('opponent2').setDescription('Opponent for round 2 (if rounds ≥ 2)').setRequired(false))
+    .addIntegerOption(o => o.setName('score2').setDescription('Your score in round 2 (1-10)').setRequired(false).setMinValue(1).setMaxValue(10))
+    .addIntegerOption(o => o.setName('oppscore2').setDescription("Opponent's score in round 2 (1-10)").setRequired(false).setMinValue(1).setMaxValue(10))
     .addUserOption(o => o.setName('opponent3').setDescription('Opponent for round 3 (if rounds ≥ 3)').setRequired(false))
+    .addIntegerOption(o => o.setName('score3').setDescription('Your score in round 3 (1-10)').setRequired(false).setMinValue(1).setMaxValue(10))
+    .addIntegerOption(o => o.setName('oppscore3').setDescription("Opponent's score in round 3 (1-10)").setRequired(false).setMinValue(1).setMaxValue(10))
     .addUserOption(o => o.setName('opponent4').setDescription('Opponent for round 4 (if rounds ≥ 4)').setRequired(false))
-    .addUserOption(o => o.setName('opponent5').setDescription('Opponent for round 5 (if rounds ≥ 5)').setRequired(false)),
+    .addIntegerOption(o => o.setName('score4').setDescription('Your score in round 4 (1-10)').setRequired(false).setMinValue(1).setMaxValue(10))
+    .addIntegerOption(o => o.setName('oppscore4').setDescription("Opponent's score in round 4 (1-10)").setRequired(false).setMinValue(1).setMaxValue(10))
+    .addUserOption(o => o.setName('opponent5').setDescription('Opponent for round 5 (if rounds ≥ 5)').setRequired(false))
+    .addIntegerOption(o => o.setName('score5').setDescription('Your score in round 5 (1-10)').setRequired(false).setMinValue(1).setMaxValue(10))
+    .addIntegerOption(o => o.setName('oppscore5').setDescription("Opponent's score in round 5 (1-10)").setRequired(false).setMinValue(1).setMaxValue(10)),
 
   async execute(i) {
     const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
@@ -2423,15 +2433,18 @@ CMDS.submitresult = {
     const weapon   = i.options.getString('gamemode');
     const region   = i.options.getString('region');
     const rounds   = i.options.getInteger('rounds');
-    const opponents = [1,2,3,4,5]
-      .map(n => i.options.getUser(`opponent${n}`))
-      .slice(0, rounds);
 
-    // ── Validate every round has an opponent ───────────────
-    const missing = opponents.some(o => !o);
-    if (missing)
+    const roundData = [1,2,3,4,5].slice(0, rounds).map(n => ({
+      opponent: i.options.getUser(`opponent${n}`),
+      score:    i.options.getInteger(`score${n}`),
+      oppScore: i.options.getInteger(`oppscore${n}`),
+    }));
+
+    // ── Validate every active round has an opponent + both scores ──
+    const incomplete = roundData.some(r => !r.opponent || r.score === null || r.oppScore === null);
+    if (incomplete)
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription(`❌ You selected **${rounds}** round(s) but did not provide an opponent for each round.`)] });
+        .setDescription(`❌ You selected **${rounds}** round(s) but a round is missing an opponent or score. Every active round needs \`opponentN\`, \`scoreN\`, and \`oppscoreN\`.`)] });
 
     const player = LDB.get(target.id);
     if (!player)
@@ -2474,9 +2487,12 @@ CMDS.submitresult = {
       await syncEmbed(i.client, player, weapon, tier, i.user.id);
     }
 
-    // ── Build the fights list ("Win"/"Loss" not tracked — just the round vs opponent) ──
-    const fightLines = opponents
-      .map((opp, idx) => `> Round ${idx + 1} vs <@${opp.id}>`)
+    // ── Build the fights list: "Round N vs @opp  Score X-Y won/lose" ──
+    const fightLines = roundData
+      .map((r, idx) => {
+        const outcome = r.score > r.oppScore ? 'won' : r.score < r.oppScore ? 'lose' : 'tied';
+        return `> Round ${idx + 1} vs <@${r.opponent.id}>  Score ${r.score}-${r.oppScore} ${outcome}`;
+      })
       .join('\n');
 
     // ── Ephemeral ack to the tierer ────────────────────────
