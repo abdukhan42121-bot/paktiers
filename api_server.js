@@ -1138,7 +1138,7 @@ async function resolveTicketCategory(guild) {
   return category;
 }
 
-function buildTicketEmbed({ player, discordId, weapon = null, pullerId = null, openedById = null, mode = 'queue' }) {
+function buildTicketEmbed({ player, discordId, weapon = null, pullerId = null, openedById = null, mode = 'queue', reason = null }) {
   const previousTier = weapon ? (player.tiers?.[weapon] || null) : null;
   const previousRank = previousTier ? getTierLabel(previousTier) : 'Unranked';
 
@@ -1146,7 +1146,7 @@ function buildTicketEmbed({ player, discordId, weapon = null, pullerId = null, o
     ? '🎫 Player Ticket Opened'
     : '🎫 Queue Ticket Opened';
 
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(BRAND_COLOR)
     .setTitle(title)
     .addFields(
@@ -1154,13 +1154,19 @@ function buildTicketEmbed({ player, discordId, weapon = null, pullerId = null, o
       { name: 'Game Mode',          value: weapon ? `**${weapon}**` : 'General',   inline: false },
       { name: 'Previous Rank',      value: previousRank,                           inline: false },
       { name: 'Region',             value: formatRegion(player.region),        inline: false },
-    )
+    );
+
+  if (reason) {
+    embed.addFields({ name: '📝 Reason', value: reason, inline: false });
+  }
+
+  return embed
     .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
     .setFooter({ text: 'PakTiers Queue Ticket \u00b7 Close when testing is done' })
     .setTimestamp();
 }
 
-async function createQueueTicket(client, guild, player, weapon, discordId, pullerId = null) {
+async function createQueueTicket(client, guild, player, weapon, discordId, pullerId = null, reason = null) {
   if (!guild) return null;
 
   try {
@@ -1206,7 +1212,7 @@ async function createQueueTicket(client, guild, player, weapon, discordId, pulle
       type: ChannelType.GuildText,
       parent: category.id,
       permissionOverwrites: permOverwrites,
-      topic: `Queue Ticket — ${player.ign} | ${weapon} | <@${discordId}> | pulledBy=${pullerId || 'unknown'}`,
+      topic: `Queue Ticket — ${player.ign} | ${weapon} | <@${discordId}> | pulledBy=${pullerId || 'unknown'}${reason ? ` | reason=${reason}` : ''}`,
     });
 
     LDB.setTicket(discordId, {
@@ -1234,6 +1240,7 @@ async function createQueueTicket(client, guild, player, weapon, discordId, pulle
         weapon,
         pullerId,
         mode: 'queue',
+        reason,
       })],
       components: [row],
     });
@@ -1241,6 +1248,103 @@ async function createQueueTicket(client, guild, player, weapon, discordId, pulle
     return ticketChannel;
   } catch(err) {
     console.error('[TICKET ERROR]', err);
+    return null;
+  }
+}
+
+// ── ONE combined ticket for every registered member of a role ──
+async function createGroupTicket(client, guild, players, weapon, roleName, pullerId = null, reason = null) {
+  if (!guild || !players.length) return null;
+
+  try {
+    const category = await resolveTicketCategory(guild);
+    if (!category) return null;
+
+    const safeName = roleName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'role';
+    const channelName = `ticket-${safeName}`;
+
+    const permOverwrites = [
+      { id: guild.roles.everyone.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+    ];
+    for (const { discordId } of players) {
+      permOverwrites.push({
+        id: discordId,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      });
+    }
+    if (pullerId) {
+      permOverwrites.push({
+        id: pullerId,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      });
+    }
+    if (CONFIG.TICKET_STAFF_ROLE_ID) {
+      permOverwrites.push({
+        id: CONFIG.TICKET_STAFF_ROLE_ID,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      });
+    }
+
+    const ticketChannel = await guild.channels.create({
+      name: channelName,
+      type: ChannelType.GuildText,
+      parent: category.id,
+      permissionOverwrites: permOverwrites,
+      topic: `Group Ticket — Role: ${roleName} | ${weapon} | pulledBy=${pullerId || 'unknown'}${reason ? ` | reason=${reason}` : ''}`,
+    });
+
+    // Track this same channel against every member so /closeticket-style lookups still work
+    for (const { discordId, player } of players) {
+      LDB.setTicket(discordId, {
+        channelId: ticketChannel.id,
+        playerId:  discordId,
+        playerIGN: player.ign,
+        weapon,
+        testerId:  pullerId || null,
+        createdAt: Date.now(),
+      });
+    }
+
+    const staffPing   = CONFIG.TICKET_STAFF_ROLE_ID ? `<@&${CONFIG.TICKET_STAFF_ROLE_ID}>` : '';
+    const memberPings = players.map(p => `<@${p.discordId}>`).join(' ');
+
+    const playerLines = players
+      .map(({ discordId, player }) => `• <@${discordId}> — **${player.ign}**`)
+      .join('\n');
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`close_group_ticket_${ticketChannel.id}`)
+        .setLabel('🔒 Close Ticket')
+        .setStyle(ButtonStyle.Danger),
+    );
+
+    const embed = new EmbedBuilder()
+      .setColor(BRAND_COLOR)
+      .setTitle('🎫 Group Ticket Opened')
+      .addFields(
+        { name: 'Role',     value: roleName,                                inline: false },
+        { name: 'Game Mode', value: weapon ? `**${weapon}**` : 'General',   inline: false },
+        { name: `Players (${players.length})`, value: playerLines,          inline: false },
+      );
+
+    if (reason) {
+      embed.addFields({ name: '📝 Reason', value: reason, inline: false });
+    }
+
+    embed
+      .setFooter({ text: 'PakTiers Group Ticket \u00b7 Close when done' })
+      .setTimestamp();
+
+    await ticketChannel.send({
+      content: `${staffPing} ${memberPings}`.trim(),
+      embeds: [embed],
+      components: [row],
+    });
+
+    return ticketChannel;
+  } catch(err) {
+    console.error('[GROUP TICKET ERROR]', err);
     return null;
   }
 }
@@ -2037,7 +2141,8 @@ CMDS.openticket = {
         { name: 'Pot',        value: 'Pot'        },
         { name: 'SMP',        value: 'SMP'        },
         { name: 'DiaSMP',     value: 'DiaSMP'     },
-      )),
+      ))
+    .addStringOption(o => o.setName('reason').setDescription('Reason for opening this ticket').setRequired(true)),
 
   async execute(i) {
     const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
@@ -2052,6 +2157,7 @@ CMDS.openticket = {
     const user     = i.options.getUser('player');
     const role     = i.options.getRole('role');
     const gamemode = i.options.getString('gamemode') || 'General';
+    const reason   = i.options.getString('reason');
 
     if (!user && !role) {
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
@@ -2070,7 +2176,7 @@ CMDS.openticket = {
 
       await i.deferReply({ ephemeral:true });
 
-      const ticketChannel = await createQueueTicket(i.client, i.guild, player, gamemode, user.id, i.user.id);
+      const ticketChannel = await createQueueTicket(i.client, i.guild, player, gamemode, user.id, i.user.id, reason);
       if (!ticketChannel) {
         return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setDescription('❌ Ticket could not be created. Check the category / permissions.')] });
@@ -2081,40 +2187,48 @@ CMDS.openticket = {
         .addFields(
           { name: '👤 Player',   value: `<@${user.id}> (**${player.ign}**)`, inline: true },
           { name: '🎮 Gamemode', value: `${gmEmoji} **${gamemode}**`,         inline: true },
+          { name: '📝 Reason',   value: reason,                               inline: false },
           { name: '📩 Channel',  value: `${ticketChannel}`,                   inline: false },
         )
         .setFooter({ text: BOT_FOOTER })
         .setTimestamp()] });
     }
 
-    // ── Role: open a ticket for every registered member ────
+    // ── Role: open ONE combined ticket for every registered member ──
     await i.deferReply({ ephemeral:true });
 
     const members = await i.guild.members.fetch();
     const roleMembers = members.filter(m => m.roles.cache.has(role.id) && !m.user.bot);
 
-    const opened  = [];
-    const skipped = [];
+    const registered = [];
+    const skipped    = [];
 
     for (const member of roleMembers.values()) {
       const player = LDB.get(member.id);
       if (!player) { skipped.push(`<@${member.id}>`); continue; }
+      registered.push({ discordId: member.id, player });
+    }
 
-      const ticketChannel = await createQueueTicket(i.client, i.guild, player, gamemode, member.id, i.user.id);
-      if (ticketChannel) {
-        opened.push(`<@${member.id}> → ${ticketChannel}`);
-      } else {
-        skipped.push(`<@${member.id}> (failed)`);
-      }
+    if (!registered.length) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ No registered members found in ${role}.`)] });
+    }
+
+    const ticketChannel = await createGroupTicket(i.client, i.guild, registered, gamemode, role.name, i.user.id, reason);
+    if (!ticketChannel) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Ticket could not be created. Check the category / permissions.')] });
     }
 
     return i.editReply({ embeds:[new EmbedBuilder().setColor(0x57F287)
-      .setTitle('✅ Tickets Opened!')
+      .setTitle('✅ Ticket Opened!')
       .addFields(
-        { name: '🎭 Role',     value: `${role}`,                                       inline: true },
-        { name: '🎮 Gamemode', value: `${gmEmoji} **${gamemode}**`,                     inline: true },
-        { name: `📩 Opened (${opened.length})`,  value: opened.length  ? opened.join('\n')  : '*None*', inline: false },
-        { name: `⚠️ Skipped (${skipped.length})`, value: skipped.length ? skipped.join('\n') : '*None*', inline: false },
+        { name: '🎭 Role',     value: `${role}`,                                      inline: true },
+        { name: '🎮 Gamemode', value: `${gmEmoji} **${gamemode}**`,                    inline: true },
+        { name: '📝 Reason',   value: reason,                                          inline: false },
+        { name: `👥 Included (${registered.length})`, value: registered.map(r => `<@${r.discordId}>`).join('\n'), inline: false },
+        { name: `⚠️ Skipped (${skipped.length})`,      value: skipped.length ? skipped.join('\n') : '*None*',      inline: false },
+        { name: '📩 Channel',  value: `${ticketChannel}`,                              inline: false },
       )
       .setFooter({ text: BOT_FOOTER })
       .setTimestamp()] });
@@ -4326,6 +4440,34 @@ async function handleButtonClick(i) {
       return i.reply({ ephemeral:true, content:'❌ You do not have permission to close this ticket.' });
     await i.reply({ ephemeral:true, content:'🔒 Closing ticket...' });
     return closeTicket(i.client, i.guild, targetId, i.user.id);
+  }
+
+  // Close GROUP ticket button (one channel shared by several members)
+  if (i.customId.startsWith('close_group_ticket_')) {
+    const channelId = i.customId.replace('close_group_ticket_','');
+    const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasStaff  = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
+    const hasTierer = hasTiererPerm(i.member);
+    if (!isAdmin && !hasStaff && !hasTierer)
+      return i.reply({ ephemeral:true, content:'❌ You do not have permission to close this ticket.' });
+    await i.reply({ ephemeral:true, content:'🔒 Closing ticket...' });
+    try {
+      const ch = await i.client.channels.fetch(channelId).catch(() => null);
+      if (ch) {
+        await ch.send({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription(`🔒 Ticket closed by <@${i.user.id}>. This channel will be deleted in 5 seconds.`)] });
+        setTimeout(() => ch.delete().catch(() => {}), 5000);
+      }
+      // Remove any per-member ticket records pointing at this channel
+      const db = rDB(TF);
+      for (const [discordId, ticket] of Object.entries(db)) {
+        const cid = ticket?.channelId || ticket;
+        if (cid === channelId) LDB.delTicket(discordId);
+      }
+    } catch(err) {
+      console.error('[GROUP TICKET CLOSE ERROR]', err);
+    }
+    return;
   }
 
   // Close application ticket button
