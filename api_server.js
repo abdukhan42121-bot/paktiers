@@ -540,6 +540,12 @@ async function autoReact(message) {
 const roleCache = {};   // populated on first use / bot ready
 
 function roleName(weapon, tier) {
+  return `${weapon} ${tier}`;
+}
+
+// Old naming format — kept only so we can auto-migrate (rename) roles that
+// were created before the "[PakTiers] " prefix was dropped.
+function legacyRoleName(weapon, tier) {
   return `[PakTiers] ${weapon} ${tier}`;
 }
 
@@ -550,9 +556,24 @@ async function ensureRole(guild, weapon, tier) {
     if (cached) return cached;
   }
 
-  // Search existing roles by name
+  // Search existing roles by (new) name
   const name = roleName(weapon, tier);
   let role = guild.roles.cache.find(r => r.name === name);
+
+  // Not found under the new name — check for the old-prefixed version and
+  // rename it in place instead of creating a duplicate role.
+  if (!role) {
+    const oldName = legacyRoleName(weapon, tier);
+    const legacyRole = guild.roles.cache.find(r => r.name === oldName);
+    if (legacyRole) {
+      try {
+        role = await legacyRole.setName(name, 'PakTiers role rename — dropped [PakTiers] prefix');
+        console.log(`[ROLE] Renamed: ${oldName} -> ${name}`);
+      } catch(err) {
+        console.error(`[ROLE] Failed to rename ${oldName}:`, err.message);
+      }
+    }
+  }
 
   if (!role) {
     // Create the role
