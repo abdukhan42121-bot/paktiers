@@ -114,6 +114,31 @@ function hasTiererPerm(member) {
   return perms.roles.some(rid => member.roles.cache.has(rid));
 }
 
+// ── HIGHTIERER PERM ROLES + MEMBERS — runtime settings via /hightierer ──
+// This is a STANDALONE gate for /submitresult only. Having Tierer perm
+// (or even Administrator role in Discord's sense, minus real Admin perm)
+// does NOT automatically grant this — it must be set explicitly.
+const HIGHTIERER_PERM_FILE = path.join(__dirname, 'paktiers_data', 'hightierer_perms.json');
+function loadHighTiererPerms() {
+  try {
+    if (fs.existsSync(HIGHTIERER_PERM_FILE)) return JSON.parse(fs.readFileSync(HIGHTIERER_PERM_FILE, 'utf8'));
+  } catch(_) {}
+  return { roles: [], members: [] };
+}
+function saveHighTiererPerms(data) {
+  try {
+    if (!fs.existsSync(path.join(__dirname, 'paktiers_data')))
+      fs.mkdirSync(path.join(__dirname, 'paktiers_data'), { recursive: true });
+    fs.writeFileSync(HIGHTIERER_PERM_FILE, JSON.stringify(data, null, 2));
+  } catch(_) {}
+}
+function hasHighTiererPerm(member) {
+  if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
+  const perms = loadHighTiererPerms();
+  if (perms.members.includes(member.id)) return true;
+  return perms.roles.some(rid => member.roles.cache.has(rid));
+}
+
 
 // ════════════════════════════════════════════════════════════
 //  EXPRESS + WEBSOCKET
@@ -2556,11 +2581,11 @@ CMDS.submitresult = {
     .addIntegerOption(o => o.setName('oppscore5').setDescription("Opponent's score in round 5 (1-10)").setRequired(false).setMinValue(1).setMaxValue(10)),
 
   async execute(i) {
-    const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
-    const hasTierer = hasTiererPerm(i.member);
-    if (!isAdmin && !hasTierer)
+    const isAdmin       = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasHighTierer = hasHighTiererPerm(i.member);
+    if (!isAdmin && !hasHighTierer)
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription('❌ **Tierer** role required.')]});
+        .setDescription('❌ **HighTierer** permission required. Ask an admin to grant it with `/hightierer add`.')]});
 
     const target   = i.options.getUser('player');
     const tier     = i.options.getString('tier');
@@ -3039,6 +3064,140 @@ CMDS.tiererperm = {
   },
 };
 
+// ── /hightierer ──────────────────────────────────────────────
+// STANDALONE gate for /submitresult. Nobody — not even someone with
+// regular Tierer permission — can use /submitresult unless an Admin
+// has explicitly granted them HighTierer permission here.
+CMDS.hightierer = {
+  data: new SlashCommandBuilder()
+    .setName('hightierer')
+    .setDescription('Grant or revoke /submitresult permission for a role/member (Admin only)')
+    .addSubcommand(s => s
+      .setName('add')
+      .setDescription('Grant HighTierer (/submitresult) permission to a role or member')
+      .addRoleOption(o => o.setName('role').setDescription('Role to grant HighTierer permission to').setRequired(false))
+      .addUserOption(o => o.setName('member').setDescription('Member to grant HighTierer permission to').setRequired(false)))
+    .addSubcommand(s => s
+      .setName('remove')
+      .setDescription('Role ya member ki HighTierer permission hato')
+      .addRoleOption(o => o.setName('role').setDescription('Role to remove HighTierer permission from').setRequired(false))
+      .addUserOption(o => o.setName('member').setDescription('Member to remove HighTierer permission from').setRequired(false)))
+    .addSubcommand(s => s
+      .setName('list')
+      .setDescription('View all roles and members with HighTierer permission')),
+
+  async execute(i) {
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isAdmin)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Only **Admin** can use this command.')] });
+
+    const sub   = i.options.getSubcommand();
+    const perms = loadHighTiererPerms();
+
+    // ── LIST ─────────────────────────────────────────────────
+    if (sub === 'list') {
+      const roleLines = perms.roles.length
+        ? perms.roles.map(rid => `• <@&${rid}>`).join('\n')
+        : '*No custom role*';
+
+      const memberLines = perms.members.length
+        ? perms.members.map(uid => `• <@${uid}>`).join('\n')
+        : '*No custom member*';
+
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+        .setTitle('🛡️ HighTierer Permission List')
+        .addFields(
+          { name:'Roles (/hightierer add role)', value: roleLines, inline:false },
+          { name:'Members (/hightierer add member)', value: memberLines, inline:false },
+        )
+        .setDescription('Only these can use `/submitresult`. Without this permission, **no one** — including regular Tierers — can submit test results.')
+        .setFooter({ text: BOT_FOOTER })] });
+    }
+
+    const role   = i.options.getRole('role');
+    const member = i.options.getUser('member');
+
+    if (!role && !member)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription('⚠️ You must provide at least one **role** or **member**.')] });
+
+    // ── ADD ──────────────────────────────────────────────────
+    if (sub === 'add') {
+      const added = [];
+      const already = [];
+
+      if (role) {
+        if (perms.roles.includes(role.id)) {
+          already.push(`<@&${role.id}> (${role.name})`);
+        } else {
+          perms.roles.push(role.id);
+          added.push(`<@&${role.id}> (${role.name})`);
+        }
+      }
+
+      if (member) {
+        if (perms.members.includes(member.id)) {
+          already.push(`<@${member.id}> (${member.username})`);
+        } else {
+          perms.members.push(member.id);
+          added.push(`<@${member.id}> (${member.username})`);
+        }
+      }
+
+      if (added.length) saveHighTiererPerms(perms);
+
+      const lines = [];
+      if (added.length)   lines.push(`✅ **Permission granted:**\n${added.join('\n')}`);
+      if (already.length) lines.push(`⚠️ **Already has permission:**\n${already.join('\n')}`);
+
+      return i.reply({ embeds:[new EmbedBuilder()
+        .setColor(added.length ? 0x00C864 : 0xFF9933)
+        .setTitle('🛡️ HighTierer Permission — Add')
+        .setDescription(lines.join('\n\n') + '\n\nThey can now use `/submitresult`.')
+        .setFooter({ text: BOT_FOOTER })
+        .setTimestamp()] });
+    }
+
+    // ── REMOVE ───────────────────────────────────────────────
+    if (sub === 'remove') {
+      const removed = [];
+      const notFound = [];
+
+      if (role) {
+        if (!perms.roles.includes(role.id)) {
+          notFound.push(`<@&${role.id}> (${role.name})`);
+        } else {
+          perms.roles = perms.roles.filter(rid => rid !== role.id);
+          removed.push(`<@&${role.id}> (${role.name})`);
+        }
+      }
+
+      if (member) {
+        if (!perms.members.includes(member.id)) {
+          notFound.push(`<@${member.id}> (${member.username})`);
+        } else {
+          perms.members = perms.members.filter(uid => uid !== member.id);
+          removed.push(`<@${member.id}> (${member.username})`);
+        }
+      }
+
+      if (removed.length) saveHighTiererPerms(perms);
+
+      const lines = [];
+      if (removed.length)  lines.push(`🗑️ **Permission removed:**\n${removed.join('\n')}`);
+      if (notFound.length) lines.push(`⚠️ **Did not have permission:**\n${notFound.join('\n')}`);
+
+      return i.reply({ embeds:[new EmbedBuilder()
+        .setColor(removed.length ? 0xFF4444 : 0xFF9933)
+        .setTitle('🛡️ HighTierer Permission — Remove')
+        .setDescription(lines.join('\n\n'))
+        .setFooter({ text: BOT_FOOTER })
+        .setTimestamp()] });
+    }
+  },
+};
+
 // ── /setuppanel ────────────────────────────────────────────
 CMDS.setuppanel = {
   data: new SlashCommandBuilder()
@@ -3327,6 +3486,70 @@ CMDS.supmanager = {
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ An error occurred: ${err.message}`)] });
     }
+  },
+};
+
+
+// ── /add ──────────────────────────────────────────────────
+// Run INSIDE any ticket channel (queue ticket, group ticket,
+// application ticket, or support ticket) to give a role or
+// player access to that one ticket. Unlike /appmanager and
+// /supmanager, this only touches the current channel — it does
+// not persist for future tickets.
+CMDS.add = {
+  data: new SlashCommandBuilder()
+    .setName('add')
+    .setDescription('Add a role or player to this ticket (Staff/Tierer only)')
+    .addRoleOption(o => o.setName('role').setDescription('Role to add to this ticket').setRequired(false))
+    .addUserOption(o => o.setName('player').setDescription('Player/member to add to this ticket').setRequired(false)),
+
+  async execute(i) {
+    const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasStaff  = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
+    const hasTierer = hasTiererPerm(i.member);
+    const canUse    = isAdmin || hasStaff || hasTierer || hasQueuePerm(i.member);
+    if (!canUse)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ You do not have permission to add members to tickets.')] });
+
+    const role   = i.options.getRole('role');
+    const member = i.options.getUser('player');
+    if (!role && !member)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Provide at least one **role** or **player**.')] });
+
+    const channel = i.channel;
+
+    // Make sure this is actually a ticket channel — queue/group ticket,
+    // application ticket, or support ticket category.
+    const [ticketCat, appCat, supCat] = await Promise.all([
+      resolveTicketCategory(i.guild).catch(() => null),
+      resolveApplicationCategory(i.guild).catch(() => null),
+      resolveSupportCategory(i.guild).catch(() => null),
+    ]);
+    const validParentIds = [ticketCat?.id, appCat?.id, supCat?.id].filter(Boolean);
+
+    if (!channel?.parentId || !validParentIds.includes(channel.parentId)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ This command can only be used inside a ticket channel.')] });
+    }
+
+    const targetId = role ? role.id : member.id;
+    try {
+      await channel.permissionOverwrites.edit(targetId, {
+        ViewChannel: true, SendMessages: true, ReadMessageHistory: true,
+      });
+    } catch(err) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Could not update channel permissions: ${err.message}`)] });
+    }
+
+    const mention = role ? `<@&${role.id}>` : `<@${member.id}>`;
+    return i.reply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+      .setTitle('✅ Added to Ticket')
+      .setDescription(`${mention} has been added to this ticket and can now view and send messages here.`)
+      .setFooter({ text: BOT_FOOTER })
+      .setTimestamp()] });
   },
 };
 
