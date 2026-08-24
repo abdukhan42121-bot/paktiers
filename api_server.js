@@ -2126,6 +2126,7 @@ CMDS.openticket = {
   data: new SlashCommandBuilder()
     .setName('openticket')
     .setDescription('Open a ticket for a player (or every registered member of a role) and show full details')
+    .addStringOption(o => o.setName('reason').setDescription('Reason for opening this ticket').setRequired(true))
     .addUserOption(o => o.setName('player').setDescription('Player to open ticket for').setRequired(false))
     .addRoleOption(o => o.setName('role').setDescription('Open a ticket for every registered member with this role').setRequired(false))
     .addStringOption(o => o.setName('gamemode')
@@ -2141,8 +2142,7 @@ CMDS.openticket = {
         { name: 'Pot',        value: 'Pot'        },
         { name: 'SMP',        value: 'SMP'        },
         { name: 'DiaSMP',     value: 'DiaSMP'     },
-      ))
-    .addStringOption(o => o.setName('reason').setDescription('Reason for opening this ticket').setRequired(true)),
+      )),
 
   async execute(i) {
     const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
@@ -2157,7 +2157,7 @@ CMDS.openticket = {
     const user     = i.options.getUser('player');
     const role     = i.options.getRole('role');
     const gamemode = i.options.getString('gamemode') || 'General';
-    const reason   = i.options.getString('reason');
+    const reason   = i.options.getString('reason') || 'No reason provided';
 
     if (!user && !role) {
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
@@ -2187,7 +2187,7 @@ CMDS.openticket = {
         .addFields(
           { name: '👤 Player',   value: `<@${user.id}> (**${player.ign}**)`, inline: true },
           { name: '🎮 Gamemode', value: `${gmEmoji} **${gamemode}**`,         inline: true },
-          { name: '📝 Reason',   value: reason,                               inline: false },
+          { name: '📝 Reason',   value: reason || 'No reason provided',      inline: false },
           { name: '📩 Channel',  value: `${ticketChannel}`,                   inline: false },
         )
         .setFooter({ text: BOT_FOOTER })
@@ -2225,7 +2225,7 @@ CMDS.openticket = {
       .addFields(
         { name: '🎭 Role',     value: `${role}`,                                      inline: true },
         { name: '🎮 Gamemode', value: `${gmEmoji} **${gamemode}**`,                    inline: true },
-        { name: '📝 Reason',   value: reason,                                          inline: false },
+        { name: '📝 Reason',   value: reason || 'No reason provided',                 inline: false },
         { name: `👥 Included (${registered.length})`, value: registered.map(r => `<@${r.discordId}>`).join('\n'), inline: false },
         { name: `⚠️ Skipped (${skipped.length})`,      value: skipped.length ? skipped.join('\n') : '*None*',      inline: false },
         { name: '📩 Channel',  value: `${ticketChannel}`,                              inline: false },
