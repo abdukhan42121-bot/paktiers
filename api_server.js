@@ -226,10 +226,16 @@ function getRankTitle(pts) {
   return               { label:'Rookie',             emoji:'⚪' };
 }
 
+// Skin display name — cracked players can borrow a real premium
+// player's skin via /skin set; falls back to their own IGN otherwise.
+function skinName(p) {
+  return (p.skinSource || p.ign);
+}
+
 function enrichPlayer(p) {
   const totalPts = Object.values(p.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
   return { ...p, totalPts, rankTitle:getRankTitle(totalPts),
-    avatar:`https://mc-heads.net/avatar/${p.ign}/64` };
+    avatar:`https://mc-heads.net/avatar/${skinName(p)}/64` };
 }
 
 // ════════════════════════════════════════════════════════════
@@ -341,7 +347,10 @@ app.get('/api/player/:ign', (req,res) => {
 app.get('/api/queue', (req,res) => {
   const queues={};
   for (const [w,q] of Object.entries(MEM.queues))
-    queues[w]=q.map(e=>({ ...e, avatar:`https://mc-heads.net/avatar/${e.ign}/32` }));
+    queues[w]=q.map(e=>{
+      const p = MEM.players[e.discordId];
+      return { ...e, avatar:`https://mc-heads.net/avatar/${p?skinName(p):e.ign}/32` };
+    });
   res.json({ queues });
 });
 
@@ -367,7 +376,7 @@ function toModPlayer(p) {
       tierRank:TIER_TO_MOD_VALUE[tier]||0, retired:false };
   }
   return { ingameName:p.ign, uuid:p.ign, region:p.region||'PK',
-    avatar:`https://mc-heads.net/avatar/${p.ign}/64`,
+    avatar:`https://mc-heads.net/avatar/${skinName(p)}/64`,
     totalPoints:totalPts, overallRank:totalPts, tierRank:totalPts,
     title:rankInfo.label, rank:rankInfo.label, ranks };
 }
@@ -406,6 +415,7 @@ function toV2Player(p) {
   }
   const totalPts = Object.values(p.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
   return { uuid:p.ign, name:p.ign, rankings, region:p.region||'PK',
+    avatar:`https://mc-heads.net/avatar/${skinName(p)}/64`,
     points:totalPts, overall:totalPts, badges:[], combat_master:false };
 }
 
@@ -790,6 +800,74 @@ initF(SF, { regLogsChannelId: '', staffLogsChannelId: '', appManagerRoles: [], a
 const rDB = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
 const wDB = (f, d) => fs.writeFileSync(f, JSON.stringify(d, null, 2));
 
+// ════════════════════════════════════════════════════════════
+//  UUID VERIFICATION — Cracked/Premium name-ownership check
+//  Requires Node 18+ for global fetch().
+// ════════════════════════════════════════════════════════════
+const crypto = require('crypto');
+
+// Standard offline-mode UUID algorithm (same one vanilla servers
+// use for cracked/offline players): UUIDv3 of "OfflinePlayer:<name>"
+function offlineUUID(username) {
+  const hash = crypto.createHash('md5').update('OfflinePlayer:' + username).digest();
+  hash[6] = (hash[6] & 0x0f) | 0x30; // version 3
+  hash[8] = (hash[8] & 0x3f) | 0x80; // variant
+  const hex = hash.toString('hex');
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+}
+// Looks up a username against Mojang. Returns:
+//   { exists:true,  uuid, name }   -> real premium account, `name` is canonical capitalization
+//   { exists:false }               -> no premium account with this name
+//   { exists:null }                -> lookup failed (Mojang down/rate-limited) — caller should not hard-block on this
+async function lookupMojangName(username) {
+  try {
+    const res = await fetch(`https://api.minecraftservices.com/minecraft/profile/lookup/name/${encodeURIComponent(username)}`);
+    if (res.status === 404) return { exists: false };
+    if (!res.ok) return { exists: null };
+    const data = await res.json();
+    if (!data || !data.id) return { exists: null };
+    const hex = data.id.replace(/-/g, '');
+    const hyphenated = `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+    return { exists: true, uuid: hyphenated, name: data.name };
+  } catch(_) {
+    return { exists: null };
+  }
+}
+
+// Backfills `uuid`/`verified` for players registered before this feature
+// existed (their record has no uuid field at all).
+//   Cracked (Free) -> generate the standard offline UUID from their IGN.
+//   Premium (Paid) -> look up their real UUID on Mojang if possible;
+//                      falls back to an offline UUID as a placeholder if
+//                      the name can't be resolved (e.g. Mojang is down,
+//                      or the account has since been renamed/deleted).
+//                      `verified` stays false either way — this only fills
+//                      in a UUID, it does not prove ownership (that's the
+//                      separate OAuth verification piece).
+async function backfillMissingUUIDs() {
+  const db = rDB(PF);
+  const toFix = Object.entries(db).filter(([, p]) => !p.uuid);
+  if (!toFix.length) return { fixed: 0, total: Object.keys(db).length };
+
+  let fixed = 0;
+  for (const [id, p] of toFix) {
+    if (p.accountType === 'Cracked (Free)') {
+      db[id].uuid = offlineUUID(p.ign);
+      db[id].verified = false;
+    } else {
+      const lookup = await lookupMojangName(p.ign);
+      db[id].uuid = lookup.exists === true ? lookup.uuid : offlineUUID(p.ign);
+      db[id].verified = false;
+      await new Promise(r => setTimeout(r, 150)); // stay well under Mojang's rate limit
+    }
+    fixed++;
+  }
+
+  wDB(PF, db);
+  Object.assign(MEM.players, db);
+  return { fixed, total: Object.keys(db).length };
+}
+
 function loadSettings() {
   try { return rDB(SF); } catch(_) { return { regLogsChannelId: '', staffLogsChannelId: '', appManagerRoles: [], appManagerUsers: [], supManagerRoles: [], supManagerUsers: [] }; }
 }
@@ -942,10 +1020,11 @@ const LDB = {
   all:      ()  => rDB(PF),
   findIGN:  ign => Object.values(rDB(PF)).find(p=>p.ign.toLowerCase()===ign.toLowerCase())||null,
 
-  register(id, ign, platform, accountType, region) {
+  register(id, ign, platform, accountType, region, uuid, verified) {
     const db = rDB(PF); if (db[id]) return null;
     db[id] = { discordId:id, ign, platform:platform||'Java Edition',
       accountType:accountType||'Premium (Paid)', region:region||'Pakistan 🇵🇰',
+      uuid: uuid || offlineUUID(ign), verified: verified===true,
       tiers:{}, registeredAt:Date.now() };
     wDB(PF, db); MEM.players[id]=db[id]; return db[id];
   },
@@ -1104,6 +1183,7 @@ async function sendRegistrationLog(client, player) {
           { name: 'Platform', value: player.platform || 'Java Edition', inline: true },
           { name: 'Account', value: player.accountType || 'Premium (Paid)', inline: true },
           { name: 'Region', value: formatRegion(player.region), inline: true },
+          { name: 'UUID', value: `${player.uuid || '—'}${player.accountType === 'Cracked (Free)' ? ' (Offline/Cracked)' : ''}`, inline: true },
           { name: 'Registered At', value: `<t:${Math.floor((player.registeredAt || Date.now()) / 1000)}:F>`, inline: false },
         )
         .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
@@ -2366,9 +2446,80 @@ CMDS.profile = {
         { name:'📅 Registered', value:`<t:${Math.floor(player.registeredAt/1000)}:D>`, inline:true },
         { name:'🔰 Season',     value:'Season 1',                         inline:true },
       )
-      .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
+      .setThumbnail(`https://mc-heads.net/avatar/${skinName(player)}/128`)
       .setFooter({ text:BOT_FOOTER })
       .setTimestamp()] });
+  },
+};
+
+// ── /skin ─────────────────────────────────────────────────
+// Lets cracked/offline players choose any real premium player's
+// skin to display on the website (leaderboard, profile, tiertagger).
+// Purely cosmetic — does not change their IGN, UUID, or identity.
+CMDS.skin = {
+  data: new SlashCommandBuilder()
+    .setName('skin')
+    .setDescription('Choose which skin shows on your website profile (Cracked/offline accounts only)')
+    .addSubcommand(s=>s.setName('set').setDescription('Set your displayed skin to any real premium player\'s skin')
+      .addStringOption(o=>o.setName('username').setDescription('A premium Minecraft username to borrow the skin from').setRequired(true)))
+    .addSubcommand(s=>s.setName('clear').setDescription('Reset your displayed skin back to default'))
+    .addSubcommand(s=>s.setName('view').setDescription('View your current skin setting')),
+
+  async execute(i) {
+    const player = LDB.get(i.user.id);
+    if (!player)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ You must `/register` first.')] });
+
+    const sub = i.options.getSubcommand();
+
+    if (sub === 'view') {
+      const current = player.skinSource
+        ? `**${player.skinSource}**'s skin`
+        : `your own IGN (**${player.ign}**)`;
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+        .setDescription(`🖼️ Your website profile currently shows ${current}.`)
+        .setThumbnail(`https://mc-heads.net/avatar/${skinName(player)}/128`)] });
+    }
+
+    // set/clear are cosmetic-identity changes — restrict to Cracked accounts.
+    // Premium accounts already display their own real skin.
+    if (player.accountType !== 'Cracked (Free)')
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ `/skin` is only for **Cracked (Free)** accounts. Premium accounts already show their real skin.')] });
+
+    if (sub === 'clear') {
+      LDB.updateField(i.user.id, 'skinSource', null);
+      broadcast({ type:'player_updated', player: LDB.get(i.user.id) });
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+        .setDescription(`✅ Skin reset. Your website profile will now show the default skin for **${player.ign}**.`)] });
+    }
+
+    // sub === 'set'
+    const username = i.options.getString('username').trim();
+    if (!/^[a-zA-Z0-9_]+$/.test(username))
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Invalid username. Only letters, numbers, and underscores are allowed.')] });
+
+    await i.deferReply({ ephemeral:true });
+    const lookup = await lookupMojangName(username);
+
+    if (lookup.exists === false)
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ **${username}** isn't a real premium Minecraft account, so there's no skin to borrow.`)] });
+
+    // lookup.exists === true -> use Mojang's canonical capitalization
+    // lookup.exists === null -> Mojang lookup failed (down/rate-limited); proceed with what was typed
+    const finalName = lookup.exists === true ? lookup.name : username;
+
+    LDB.updateField(i.user.id, 'skinSource', finalName);
+    broadcast({ type:'player_updated', player: LDB.get(i.user.id) });
+
+    return i.editReply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+      .setTitle('✅ Skin Updated!')
+      .setDescription(`Your website profile will now show **${finalName}**'s skin.\nThis is cosmetic only — your IGN, UUID, and tiers are unchanged.`)
+      .setThumbnail(`https://mc-heads.net/avatar/${finalName}/128`)
+      .setFooter({ text: lookup.exists === null ? '⚠️ Could not verify against Mojang right now — showing anyway.' : BOT_FOOTER })] });
   },
 };
 
@@ -2756,7 +2907,7 @@ CMDS.help = {
       .setTitle('🏆 PakTiers Bot — Commands')
       .setDescription("Pakistan's Minecraft Java PvP ranking system 🇵🇰")
       .addFields(
-        { name:'👤 Player',   value:'`/register` · `/profile [user]` · `/leaderboard [weapon]`' },
+        { name:'👤 Player',   value:'`/register` · `/profile [user]` · `/leaderboard [weapon]` · `/skin set/clear/view` *(Cracked accounts)*' },
         { name:'⚔️ Queue',   value:'Queue panel · `/queue status`' },
         { name:'🛡️ Tierer',  value:'`/tier set` · `/tier remove` · `/tier view` *(Tierer role required)*' },
         { name:'📊 Tiers',   value:'`HT1 > LT1 > HT2 > LT2 > HT3 > LT3 > HT4 > LT4 > HT5 > LT5`' },
@@ -2846,6 +2997,40 @@ CMDS.syncroles = {
           : { name:'​', value:'​', inline:false },
       )
       .setDescription(`Roles have been assigned to all registered players according to their tiers.`)
+      .setFooter({ text:BOT_FOOTER })
+      .setTimestamp()] });
+  },
+};
+
+
+// ── /backfilluuids ────────────────────────────────────────
+// Manually re-runs the uuid/verified backfill for any registered
+// player whose record predates uuid tracking, without needing a
+// bot restart. Admin/Tierer only.
+CMDS.backfilluuids = {
+  data: new SlashCommandBuilder()
+    .setName('backfilluuids')
+    .setDescription('Backfill missing UUIDs for players registered before UUID tracking (Admin/Tierer only)'),
+
+  async execute(i) {
+    const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasTierer = hasTiererPerm(i.member);
+    if (!isAdmin && !hasTierer)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Admin or Tierer role required.')] });
+
+    await i.deferReply({ ephemeral:true });
+    const { fixed, total } = await backfillMissingUUIDs();
+
+    return i.editReply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+      .setTitle('✅ UUID Backfill Complete')
+      .addFields(
+        { name:'🆔 Backfilled', value:`**${fixed}** players`, inline:true },
+        { name:'👥 Total registered', value:`**${total}** players`, inline:true },
+      )
+      .setDescription(fixed
+        ? 'Cracked accounts got an offline UUID; Premium accounts were looked up on Mojang where possible.'
+        : 'Nothing to do — every registered player already has a UUID.')
       .setFooter({ text:BOT_FOOTER })
       .setTimestamp()] });
   },
@@ -5155,6 +5340,28 @@ async function handleModal(i) {
     return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
       .setDescription('❌ Invalid IGN. Only letters, numbers, and underscores are allowed.')] });
 
+  // ── CRACKED IMPERSONATION GUARD ────────────────────────────
+  // A "Cracked (Free)" registrant must not be able to use a name
+  // that belongs to a real premium Minecraft account (name-squatting
+  // / impersonation of a known premium player). If it's genuinely
+  // unclaimed on Mojang, generate the standard offline-mode UUID for it.
+  // (Premium-side ownership verification is a separate, follow-up piece.)
+  const accountType = state.accountType || 'Premium (Paid)';
+  let uuid = null;
+  let verified = false;
+
+  if (accountType === 'Cracked (Free)') {
+    const lookup = await lookupMojangName(ign);
+    if (lookup.exists === true) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ **${ign}** belongs to an existing **premium** Minecraft account.\nCracked/offline players can't register a name that's already claimed by a real premium account. Please pick a different IGN.`)] });
+    }
+    // lookup.exists === false -> genuinely unclaimed, safe to use
+    // lookup.exists === null  -> Mojang lookup failed (down/rate-limited); don't hard-block, just proceed unverified
+    uuid = offlineUUID(ign);
+    verified = false;
+  }
+
   // ── UPDATE flow (existing player re-registering) ──────────
   if (state.isUpdate) {
     const existing = LDB.get(i.user.id);
@@ -5179,8 +5386,10 @@ async function handleModal(i) {
       ...db[i.user.id],
       ign,
       platform:    state.platform    || existing.platform,
-      accountType: state.accountType || existing.accountType,
+      accountType: accountType,
       region:      state.region      || existing.region,
+      uuid:        accountType === 'Cracked (Free)' ? uuid : (db[i.user.id].uuid || null),
+      verified:    accountType === 'Cracked (Free)' ? verified : (db[i.user.id].verified || false),
       updatedAt:   Date.now(),
     };
     fs.writeFileSync(PF, JSON.stringify(db, null, 2));
@@ -5214,8 +5423,9 @@ async function handleModal(i) {
         { name:'🔄 Old IGN',    value:`\`${oldIgn}\``,            inline:true },
         { name:'✅ New IGN',    value:`\`${ign}\``,               inline:true },
         { name:'💻 Platform',   value:state.platform||'?',        inline:true },
-        { name:'🔑 Account',    value:state.accountType||'?',     inline:true },
+        { name:'🔑 Account',    value:accountType,                inline:true },
         { name:'🌍 Region',     value:state.region||'?',          inline:true },
+        { name:'🆔 UUID',       value:`\`${db[i.user.id].uuid||'—'}\`${accountType==='Cracked (Free)' ? ' (Offline/Cracked)' : ''}`, inline:true },
         { name:'⚔️ Tiers Transferred', value: tierSummary,        inline:false },
       )
       .setFooter({ text:BOT_FOOTER })
@@ -5229,7 +5439,7 @@ async function handleModal(i) {
     return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
       .setDescription(`❌ **${ign}** is already registered. Please double-check your IGN.`)] });
 
-  const result = LDB.register(i.user.id, ign, state.platform, state.accountType, state.region);
+  const result = LDB.register(i.user.id, ign, state.platform, accountType, state.region, uuid, verified);
   if (!result) {
     const ex = LDB.get(i.user.id);
     // Player already exists — treat as update
@@ -5260,8 +5470,9 @@ async function handleModal(i) {
     .addFields(
       { name:'🎮 IGN',         value:`\`${ign}\``,           inline:true },
       { name:'💻 Platform',    value:state.platform||'?',    inline:true },
-      { name:'🔑 Account',     value:state.accountType||'?', inline:true },
+      { name:'🔑 Account',     value:accountType,            inline:true },
       { name:'🌍 Region',      value:state.region||'?',      inline:true },
+      { name:'🆔 UUID',        value:`\`${MEM.players[i.user.id].uuid||'—'}\`${accountType==='Cracked (Free)' ? ' (Offline/Cracked)' : ''}`, inline:true },
       { name:'🔰 Season',      value:'Season 1',             inline:true },
       { name:'📋 Next Steps',  value:'1. Get evaluated by a Tierer\n2. use queue access to find a match\n3. View your card with `/profile`', inline:false },
     )
@@ -5292,6 +5503,13 @@ client.once('ready', async () => {
   console.log(`🤖 Bot online as ${client.user.tag}`);
   client.user.setPresence({ activities:[{ name:'⚔️ •Paktiers · PakTiers', type:0 }], status:'online' });
   try { await deployCommands(); } catch(e) { console.error('Deploy error:', e); }
+
+  // Backfill uuid/verified for players registered before UUID tracking existed
+  try {
+    console.log('[UUID BACKFILL] Checking for players missing a uuid...');
+    const { fixed, total } = await backfillMissingUUIDs();
+    console.log(`[UUID BACKFILL] Done — ${fixed}/${total} players backfilled.`);
+  } catch(e) { console.error('[UUID BACKFILL]', e); }
 
   // Auto-create all HT1-LT5 roles for every gamemode
   // Then sync existing players' roles
