@@ -1294,11 +1294,14 @@ function buildTicketEmbed({ player, discordId, weapon = null, pullerId = null, o
     ? '🎫 Player Ticket Opened'
     : '🎫 Queue Ticket Opened';
 
+  const accountLabel = player.accountType === 'Cracked (Free)' ? '🔓 Cracked' : '💎 Premium';
+
   const embed = new EmbedBuilder()
     .setColor(BRAND_COLOR)
     .setTitle(title)
     .addFields(
       { name: 'Minecraft Username', value: `**${player.ign}**`,                    inline: false },
+      { name: 'Account Type',       value: accountLabel,                           inline: false },
       { name: 'Game Mode',          value: weapon ? `**${weapon}**` : 'General',   inline: false },
       { name: 'Previous Rank',      value: previousRank,                           inline: false },
       { name: 'Region',             value: formatRegion(player.region),        inline: false },
@@ -2367,6 +2370,47 @@ CMDS.tester = {
       .setDescription(added
         ? `✅ ${emoji} **${target.username}** is now a tester for **${gamemode}**.`
         : `➖ ${emoji} **${target.username}** is no longer a tester for **${gamemode}**.`)
+      .setFooter({ text: BOT_FOOTER })
+      .setTimestamp()] });
+  },
+};
+
+// ── /testerremove ─────────────────────────────────────────
+// Explicitly removes a gamemode tester assignment (dedicated command,
+// unlike /tester which toggles). No-op with a warning if not assigned.
+CMDS.testerremove = {
+  data: new SlashCommandBuilder()
+    .setName('testerremove')
+    .setDescription('Remove a user as a tester for a gamemode (Admin only)')
+    .addStringOption(o => o.setName('gamemode').setDescription('Gamemode to remove').setRequired(true)
+      .addChoices(...WEAPONS.map(w => ({ name: w, value: w }))))
+    .addUserOption(o => o.setName('username').setDescription('The user to remove').setRequired(true)),
+
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Administrator permission required.')] });
+    }
+
+    const gamemode = i.options.getString('gamemode');
+    const target   = i.options.getUser('username');
+    const emoji    = WEAPON_EMOJI[gamemode] || '⚔️';
+
+    const data = loadTesterGamemodes();
+    const list = data[target.id] || [];
+    const idx  = list.indexOf(gamemode);
+
+    if (idx === -1) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription(`⚠️ ${emoji} **${target.username}** is not a tester for **${gamemode}**.`)] });
+    }
+
+    list.splice(idx, 1);
+    if (list.length === 0) delete data[target.id]; else data[target.id] = list;
+    saveTesterGamemodes(data);
+
+    return i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setDescription(`➖ ${emoji} **${target.username}** is no longer a tester for **${gamemode}**.`)
       .setFooter({ text: BOT_FOOTER })
       .setTimestamp()] });
   },
