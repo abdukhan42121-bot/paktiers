@@ -2248,11 +2248,15 @@ CMDS.setstafflogs = {
 };
 
 // ── /testerprofile ────────────────────────────────────────
+// Looks up a REAL registered tester by their Discord account (autocomplete
+// picker, not free text) and pulls their actual stored IGN, Discord tag,
+// and every gamemode tier they've earned — using the real custom emojis
+// already defined in WEAPON_EMOJI.
 CMDS.testerprofile = {
   data: new SlashCommandBuilder()
     .setName('testerprofile')
-    .setDescription('Display a tester profile card (Admin only)')
-    .addStringOption(o => o.setName('name').setDescription('Tester name to display').setRequired(true)),
+    .setDescription("View a tester's full profile (Admin only)")
+    .addUserOption(o => o.setName('user').setDescription('The tester to look up').setRequired(true)),
 
   async execute(i) {
     if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
@@ -2260,19 +2264,31 @@ CMDS.testerprofile = {
         .setDescription('❌ Administrator permission required.')] });
     }
 
-    const name = i.options.getString('name');
-    const gmEmoji = WEAPON_EMOJI.Netherite || '⚔️'; // nethpot emoji
+    const target = i.options.getUser('user');
+    const player = LDB.get(target.id);
+
+    if (!player) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ **${target.username}** is not registered.`)] });
+    }
+
+    const tiers   = player.tiers || {};
+    const entries = Object.entries(tiers).sort((a,b)=>(TIER_PTS[b[1]]||0)-(TIER_PTS[a[1]]||0));
+
+    const tierBlock = entries.length
+      ? entries.map(([w,t]) => `${WEAPON_EMOJI[w] || '⚔️'} **${w}** — \`${t}\` (${getTierLabel(t)})`).join('\n')
+      : '*No gamemode tiers yet.*';
 
     const embed = new EmbedBuilder()
-      .setColor(BRAND_COLOR)
+      .setColor(entries[0] ? (TIER_COLOR[entries[0][1]] || BRAND_COLOR) : BRAND_COLOR)
       .setAuthor({ name: '🧪 Tester Profile' })
-      .setTitle(`✨ ${name} ✨`)
-      .setThumbnail(`https://mc-heads.net/avatar/${encodeURIComponent(name)}/128`)
+      .setTitle(`✨ ${player.ign} ✨`)
+      .setThumbnail(`https://mc-heads.net/avatar/${skinName(player)}/128`)
       .addFields(
-        { name: '🎮 IGN',            value: '```I3rvz_```',        inline: true },
-        { name: '🌍 DC',             value: '```empireisempire```', inline: true },
-        { name: '🏆 Tier',           value: '```LT3```',            inline: true },
-        { name: `${gmEmoji} Gamemode`, value: '```NethPot```',      inline: true },
+        { name: '🎮 IGN', value: `\`${player.ign}\``,       inline: true },
+        { name: '🌍 DC',  value: `\`${target.username}\``,  inline: true },
+        { name: '🔑 Account', value: player.accountType || 'Premium', inline: true },
+        { name: '⚔️ Gamemode Tiers', value: tierBlock, inline: false },
       )
       .setFooter({ text: BOT_FOOTER })
       .setTimestamp();
