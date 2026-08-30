@@ -4232,6 +4232,75 @@ CMDS.staff = {
   },
 };
 
+// ── /testerpnl ────────────────────────────────────────────
+// Shows every gamemode with its assigned testers (set via /tester),
+// each gamemode with its own custom emoji, in the same sequence/style
+// as the /staff list panel — used with the 🔄 refresh button.
+function buildTesterPnlEmbed() {
+  const data = loadTesterGamemodes(); // { discordId: [gamemode,...] }
+
+  // Invert into gamemode -> [discordId,...], keeping WEAPONS order
+  const gamemodeGroups = {};
+  for (const w of WEAPONS) gamemodeGroups[w] = [];
+  for (const [discordId, gamemodes] of Object.entries(data)) {
+    for (const gm of gamemodes) {
+      if (!gamemodeGroups[gm]) gamemodeGroups[gm] = [];
+      gamemodeGroups[gm].push(discordId);
+    }
+  }
+
+  const bullet = '<a:Purple_dot:1540434035594109148>';
+  const fields = WEAPONS
+    .filter(w => gamemodeGroups[w] && gamemodeGroups[w].length)
+    .map(w => {
+      const ids   = gamemodeGroups[w];
+      const emoji = WEAPON_EMOJI[w] || '⚔️';
+      const memberLines = ids.map(id => `${bullet} <@${id}>`).join('\n');
+      return { name: `${emoji} ${w} (${ids.length})`, value: memberLines, inline: false };
+    });
+
+  const totalTesters = new Set(Object.keys(data)).size;
+
+  if (!fields.length) {
+    return new EmbedBuilder().setColor(BRAND_COLOR)
+      .setTitle('🧪 PakTiers Tester List')
+      .setDescription('No testers have been assigned to any gamemode yet. Use `/tester` to assign one.')
+      .setFooter({ text: 'PakTiers Tester Team' })
+      .setTimestamp();
+  }
+
+  return new EmbedBuilder().setColor(BRAND_COLOR)
+    .setTitle('🧪 PakTiers Tester List')
+    .addFields(fields)
+    .setFooter({ text: `Total Testers: ${totalTesters} · PakTiers` })
+    .setTimestamp();
+}
+
+function buildTesterPnlButtons() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('tester_pnl_refresh')
+      .setLabel('Refresh')
+      .setEmoji('🔄')
+      .setStyle(ButtonStyle.Secondary),
+  );
+}
+
+// ── /testerpnl ────────────────────────────────────────────
+CMDS.testerpnl = {
+  data: new SlashCommandBuilder()
+    .setName('testerpnl')
+    .setDescription('View all testers grouped by gamemode'),
+
+  async execute(i) {
+    await i.deferReply();
+    return i.editReply({
+      embeds: [buildTesterPnlEmbed()],
+      components: [buildTesterPnlButtons()],
+    });
+  },
+};
+
 CMDS.startqueue = {
   data: new SlashCommandBuilder()
     .setName('startqueue')
@@ -4978,6 +5047,15 @@ async function handleButtonClick(i) {
     return i.editReply({
       embeds: [buildStaffListEmbed(i.guild)],
       components: [buildStaffListButtons()],
+    });
+  }
+
+  // ── Tester Panel: 🔄 Refresh button ───────────────────────
+  if (i.customId === 'tester_pnl_refresh') {
+    await i.deferUpdate();
+    return i.editReply({
+      embeds: [buildTesterPnlEmbed()],
+      components: [buildTesterPnlButtons()],
     });
   }
 
