@@ -190,7 +190,7 @@ const MEM = {
   tickets:   {},   // { discordId: channelId }
 };
 
-const REMOVED_GAMEMODES = new Set(['Vanilla', 'NethOP', 'Cart', 'Carting', 'SpearMace']);
+const REMOVED_GAMEMODES = new Set(['Vanilla', 'NethOP', 'Cart', 'Carting']);
 const GAMEMODE_ALIASES = {};
 
 function normalizeGamemodeName(name) {
@@ -452,7 +452,7 @@ app.get('/v2/mode/list', (req,res) => {
   res.json({
     mace:'Mace', crystal:'Crystal', sword:'Sword', axe:'Axe',
     netherite:'Netherite', vanilla:'Vanilla', uhc:'UHC',
-    pot:'Pot', nethop:'NethOP', smp:'SMP', diasmp:'DiaSMP',
+    pot:'Pot', nethop:'NethOP', smp:'SMP', diasmp:'DiaSMP', spearmace:'SpearMace',
   });
 });
 
@@ -508,15 +508,16 @@ app.get('/api/testers', async (req, res) => {
 // ════════════════════════════════════════════════════════════
 //  DISCORD BOT
 // ════════════════════════════════════════════════════════════
-const WEAPONS = ['Mace','Crystal','Sword','Axe','Netherite','UHC','Pot','SMP','DiaSMP'];
+const WEAPONS = ['Mace','Crystal','Sword','Axe','Netherite','UHC','Pot','SMP','DiaSMP','SpearMace'];
 const TIERS   = ['HT1','LT1','HT2','LT2','HT3','LT3','HT4','LT4','HT5','LT5'];
 const WEAPON_EMOJI = {
   Mace:'<:Mace:1513965730968637681>', Crystal:'<:vanilla:1540732140579323935>', Sword:'<:sword:1517752855577104474>', Axe:'<:Axe:1517753158812696646>', Netherite:'<:nethop:1522172951502258176>',
   UHC:'<:UHC:1517753244288552972>', Pot:'<:diapot:1520829962385494076>', SMP:'<:SMP:1520830247606423652>', DiaSMP:'<:Diasmp:1520830093981913192>',
+  SpearMace:'<:spear:1517753301700182197>',
 };
 const WEAPON_TO_MCTIERS = {
   Mace:'mace', Crystal:'crystal', Sword:'sword', Axe:'axe', Netherite:'netherite',
-  UHC:'uhc', Pot:'pot', SMP:'smp', DiaSMP:'diasmp',
+  UHC:'uhc', Pot:'pot', SMP:'smp', DiaSMP:'diasmp', SpearMace:'spearmace',
 };
 const TIER_COLOR = {
   HT1:0xFF6B00, LT1:0xFF9933, HT2:0xFFB800, LT2:0xFFD700,
@@ -1842,7 +1843,7 @@ async function assignTierRole(guild, member, weapon, tier, oldTier) {
 
 // Pre-warm role cache on bot ready (ensure all 100 roles exist)
 async function ensureAllRoles(guild) {
-  const WEAPONS_LIST = ['Mace','Crystal','Sword','Axe','Netherite','UHC','Pot','SMP','DiaSMP'];
+  const WEAPONS_LIST = ['Mace','Crystal','Sword','Axe','Netherite','UHC','Pot','SMP','DiaSMP','SpearMace'];
   const TIERS_LIST   = ['HT1','LT1','HT2','LT2','HT3','LT3','HT4','LT4','HT5','LT5'];
   console.log('[ROLE] Ensuring all tier roles exist...');
   for (const w of WEAPONS_LIST) {
