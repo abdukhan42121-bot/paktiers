@@ -2247,6 +2247,40 @@ CMDS.setstafflogs = {
   },
 };
 
+// ── /testerprofile ────────────────────────────────────────
+CMDS.testerprofile = {
+  data: new SlashCommandBuilder()
+    .setName('testerprofile')
+    .setDescription('Display a tester profile card (Admin only)')
+    .addStringOption(o => o.setName('name').setDescription('Tester name to display').setRequired(true)),
+
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Administrator permission required.')] });
+    }
+
+    const name = i.options.getString('name');
+    const gmEmoji = WEAPON_EMOJI.Netherite || '⚔️'; // nethpot emoji
+
+    const embed = new EmbedBuilder()
+      .setColor(BRAND_COLOR)
+      .setAuthor({ name: '🧪 Tester Profile' })
+      .setTitle(`✨ ${name} ✨`)
+      .setThumbnail(`https://mc-heads.net/avatar/${encodeURIComponent(name)}/128`)
+      .addFields(
+        { name: '🎮 IGN',            value: '```I3rvz_```',        inline: true },
+        { name: '🌍 DC',             value: '```empireisempire```', inline: true },
+        { name: '🏆 Tier',           value: '```LT3```',            inline: true },
+        { name: `${gmEmoji} Gamemode`, value: '```NethPot```',      inline: true },
+      )
+      .setFooter({ text: BOT_FOOTER })
+      .setTimestamp();
+
+    return i.reply({ embeds: [embed] });
+  },
+};
+
 // ── /openticket ───────────────────────────────────────────
 CMDS.openticket = {
   data: new SlashCommandBuilder()
