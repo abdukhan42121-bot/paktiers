@@ -139,6 +139,28 @@ function hasHighTiererPerm(member) {
   return perms.roles.some(rid => member.roles.cache.has(rid));
 }
 
+// ── TESTER-OF-GAMEMODE ASSIGNMENTS — set via /tester ─────────────────
+// Tracks which gamemodes each Discord user is an assigned tester of.
+// { [discordId]: ['Mace','Pot', ...] } — separate from earned tier ranks.
+const TESTER_GAMEMODES_FILE = path.join(__dirname, 'paktiers_data', 'tester_gamemodes.json');
+function loadTesterGamemodes() {
+  try {
+    if (fs.existsSync(TESTER_GAMEMODES_FILE)) return JSON.parse(fs.readFileSync(TESTER_GAMEMODES_FILE, 'utf8'));
+  } catch(_) {}
+  return {};
+}
+function saveTesterGamemodes(data) {
+  try {
+    if (!fs.existsSync(path.join(__dirname, 'paktiers_data')))
+      fs.mkdirSync(path.join(__dirname, 'paktiers_data'), { recursive: true });
+    fs.writeFileSync(TESTER_GAMEMODES_FILE, JSON.stringify(data, null, 2));
+  } catch(_) {}
+}
+function getTesterGamemodes(discordId) {
+  const data = loadTesterGamemodes();
+  return data[discordId] || [];
+}
+
 
 // ════════════════════════════════════════════════════════════
 //  EXPRESS + WEBSOCKET
@@ -2279,6 +2301,12 @@ CMDS.testerprofile = {
       ? entries.map(([w,t]) => `${WEAPON_EMOJI[w] || '⚔️'} **${w}** — \`${t}\` (${getTierLabel(t)})`).join('\n')
       : '*No gamemode tiers yet.*';
 
+    // Gamemodes this person is an assigned tester of (set via /tester)
+    const testerOf = getTesterGamemodes(target.id);
+    const gamemodesBlock = testerOf.length
+      ? testerOf.map(w => `${WEAPON_EMOJI[w] || '⚔️'} **${w}**`).join('\n')
+      : '*Not assigned as a tester for any gamemode yet. Use `/tester` to assign one.*';
+
     const embed = new EmbedBuilder()
       .setColor(entries[0] ? (TIER_COLOR[entries[0][1]] || BRAND_COLOR) : BRAND_COLOR)
       .setAuthor({ name: '🧪 Tester Profile' })
@@ -2288,12 +2316,59 @@ CMDS.testerprofile = {
         { name: '🎮 IGN', value: `\`${player.ign}\``,       inline: true },
         { name: '🌍 DC',  value: `\`${target.username}\``,  inline: true },
         { name: '🔑 Account', value: player.accountType || 'Premium', inline: true },
-        { name: '⚔️ Gamemode Tiers', value: tierBlock, inline: false },
+        { name: '⚔️ Gamemodes', value: gamemodesBlock, inline: false },
+        { name: '🏆 Tiers', value: tierBlock, inline: false },
       )
       .setFooter({ text: BOT_FOOTER })
       .setTimestamp();
 
     return i.reply({ embeds: [embed] });
+  },
+};
+
+// ── /tester ────────────────────────────────────────────────
+// Assign (or unassign) which gamemode a Discord user is a tester of.
+// Toggle behavior: running it again for the same gamemode+user removes
+// the assignment. Shows up on /testerprofile under ⚔️ Gamemodes.
+CMDS.tester = {
+  data: new SlashCommandBuilder()
+    .setName('tester')
+    .setDescription('Assign a user as a tester for a gamemode (Admin only)')
+    .addStringOption(o => o.setName('gamemode').setDescription('Gamemode to assign').setRequired(true)
+      .addChoices(...WEAPONS.map(w => ({ name: w, value: w }))))
+    .addUserOption(o => o.setName('username').setDescription('The user to assign').setRequired(true)),
+
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Administrator permission required.')] });
+    }
+
+    const gamemode = i.options.getString('gamemode');
+    const target   = i.options.getUser('username');
+    const emoji    = WEAPON_EMOJI[gamemode] || '⚔️';
+
+    const data = loadTesterGamemodes();
+    if (!data[target.id]) data[target.id] = [];
+
+    const idx = data[target.id].indexOf(gamemode);
+    let added;
+    if (idx === -1) {
+      data[target.id].push(gamemode);
+      added = true;
+    } else {
+      data[target.id].splice(idx, 1);
+      added = false;
+    }
+    if (data[target.id].length === 0) delete data[target.id];
+    saveTesterGamemodes(data);
+
+    return i.reply({ embeds:[new EmbedBuilder().setColor(added ? 0x00C864 : 0xFF9933)
+      .setDescription(added
+        ? `✅ ${emoji} **${target.username}** is now a tester for **${gamemode}**.`
+        : `➖ ${emoji} **${target.username}** is no longer a tester for **${gamemode}**.`)
+      .setFooter({ text: BOT_FOOTER })
+      .setTimestamp()] });
   },
 };
 
