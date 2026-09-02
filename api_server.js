@@ -184,10 +184,11 @@ app.get(['/home', '/rankings', '/testers', '/tiertagger'], (req, res) => {
 // ── IN-MEMORY DB ──────────────────────────────────────────
 const MEM = {
   players:   {},
-  queues:    { Mace:[], Crystal:[], Sword:[], Axe:[], Netherite:[], UHC:[], Pot:[], SMP:[], DiaSMP:[] },
+  queues:    { Mace:[], Crystal:[], Sword:[], Axe:[], Netherite:[], UHC:[], Pot:[], SMP:[], DiaSMP:[], SpearMace:[] },
   matches:   [],
-  cooldowns: {},   // { discordId: { weapon: timestamp } }
+  cooldowns: {},   // { discordId: { weapon: {ts, tier} } }
   tickets:   {},   // { discordId: channelId }
+  blacklist: {},   // { discordId: { by, at, reason } }
 };
 
 const REMOVED_GAMEMODES = new Set(['Vanilla', 'NethOP', 'Cart', 'Carting']);
@@ -257,6 +258,7 @@ function skinName(p) {
 function enrichPlayer(p) {
   const totalPts = Object.values(p.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
   return { ...p, totalPts, rankTitle:getRankTitle(totalPts),
+    retiredTiers:p.retiredTiers || {},
     avatar:`https://mc-heads.net/avatar/${skinName(p)}/64` };
 }
 
@@ -394,8 +396,13 @@ function toModPlayer(p) {
   const ranks = {};
   for (const [weapon, tier] of Object.entries(p.tiers||{})) {
     const gamemode = WEAPON_TO_MOD_GAMEMODE[weapon] || weapon.toLowerCase();
-    ranks[gamemode] = { gamemode, tier, rank:tier, tierValue:TIER_TO_MOD_VALUE[tier]||0,
-      tierRank:TIER_TO_MOD_VALUE[tier]||0, retired:false };
+    const retired = Boolean(p.retiredTiers?.[weapon]);
+    const displayTier = retired ? formatRetiredTier(tier) : tier;
+    ranks[gamemode] = {
+      gamemode, tier, rank:displayTier, displayTier,
+      tierValue:TIER_TO_MOD_VALUE[tier]||0,
+      tierRank:TIER_TO_MOD_VALUE[tier]||0, retired
+    };
   }
   return { ingameName:p.ign, uuid:p.ign, region:p.region||'PK',
     avatar:`https://mc-heads.net/avatar/${skinName(p)}/64`,
@@ -432,8 +439,12 @@ function toV2Player(p) {
   const rankings = {};
   for (const [weapon, tier] of Object.entries(p.tiers||{})) {
     const gamemode = WEAPON_TO_MOD_GAMEMODE[weapon] || weapon.toLowerCase();
-    rankings[gamemode] = { tier:TIER_TO_INT[tier]||5, pos:TIER_TO_POS[tier]||2,
-      peakTier:null, peakPos:null, attained:0, retired:false };
+    const retired = Boolean(p.retiredTiers?.[weapon]);
+    rankings[gamemode] = {
+      tier:TIER_TO_INT[tier]||5, pos:TIER_TO_POS[tier]||2,
+      tierName:tier, displayTier: retired ? formatRetiredTier(tier) : tier,
+      peakTier:null, peakPos:null, attained:0, retired
+    };
   }
   const totalPts = Object.values(p.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
   return { uuid:p.ign, name:p.ign, rankings, region:p.region||'PK',
@@ -471,8 +482,11 @@ app.get('/v2/profile/:uuid/rankings', (req,res) => {
     const rankings = {};
     for (const [weapon, tier] of Object.entries(p.tiers||{})) {
       const gamemode = WEAPON_TO_MOD_GAMEMODE[weapon] || weapon.toLowerCase();
-      rankings[gamemode] = { tier:TIER_TO_INT[tier]||5, pos:TIER_TO_POS[tier]||2,
-        peakTier:null, peakPos:null, attained:0, retired:false };
+      rankings[gamemode] = {
+        tier:TIER_TO_INT[tier]||5, pos:TIER_TO_POS[tier]||2,
+        tierName:tier, displayTier:p.retiredTiers?.[weapon] ? formatRetiredTier(tier) : tier,
+        peakTier:null, peakPos:null, attained:0, retired:Boolean(p.retiredTiers?.[weapon])
+      };
     }
     res.json(rankings);
   } catch(e) { res.status(500).json({ error:e.message }); }
@@ -815,7 +829,7 @@ const SF = path.join(DATA_DIR, 'settings.json');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive:true });
 const initF = (f, d) => { if (!fs.existsSync(f)) fs.writeFileSync(f, JSON.stringify(d, null, 2)); };
 initF(PF, {});
-initF(QF, { Mace:[], Crystal:[], Sword:[], Axe:[], Netherite:[], UHC:[], Pot:[], SMP:[], DiaSMP:[] });
+initF(QF, { Mace:[], Crystal:[], Sword:[], Axe:[], Netherite:[], UHC:[], Pot:[], SMP:[], DiaSMP:[], SpearMace:[] });
 initF(MF, []);
 initF(TF, {});
 initF(SF, { regLogsChannelId: '', staffLogsChannelId: '', appManagerRoles: [], appManagerUsers: [], supManagerRoles: [], supManagerUsers: [] });
@@ -916,6 +930,76 @@ function saveStaff(data) {
   try { wDB(STAFF_FILE, data); } catch(_) {}
 }
 
+// ── BLACKLIST — permanent manual restriction until /unblacklist ──
+// Blacklisted members cannot register/update profile, join queues,
+// receive/take tier tests, or have tiers set manually.
+const BLACKLIST_FILE = path.join(DATA_DIR, 'blacklist.json');
+initF(BLACKLIST_FILE, {});
+
+function loadBlacklist() {
+  try { return rDB(BLACKLIST_FILE); } catch(_) { return {}; }
+}
+function saveBlacklist(data) {
+  try { wDB(BLACKLIST_FILE, data); } catch(_) {}
+}
+function parseBlacklistDuration(duration) {
+  if (!duration || duration === 'Permanent') return null;
+  const m = String(duration).match(/^(\d+)([smhdw])$/i);
+  if (!m) return null;
+  const amount = Number(m[1]);
+  const unitMs = { s:1000, m:60000, h:3600000, d:86400000, w:604800000 };
+  const ms = amount * (unitMs[m[2].toLowerCase()] || 0);
+  return ms > 0 ? ms : null;
+}
+
+function isBlacklisted(id) {
+  const db = loadBlacklist();
+  const entry = db[id];
+  if (!entry) return false;
+  if (entry.expiresAt && Date.now() >= entry.expiresAt) {
+    delete db[id];
+    saveBlacklist(db);
+    MEM.blacklist = db;
+    return false;
+  }
+  return true;
+}
+function getBlacklistEntry(id) {
+  const db = loadBlacklist();
+  return db[id] || null;
+}
+function blacklistReason(id) {
+  const e = getBlacklistEntry(id);
+  if (!e) return '';
+  const durationText = e.duration && e.duration !== 'Permanent' ? `\n**Duration:** ${e.duration}` : '\n**Duration:** Permanent';
+  const expiryText = e.expiresAt ? `\n**Expires:** <t:${Math.floor(e.expiresAt / 1000)}:F> (<t:${Math.floor(e.expiresAt / 1000)}:R>)` : '';
+  return `${e.reason ? `\n**Reason:** ${e.reason}` : ''}${durationText}${expiryText}`;
+}
+function setBlacklisted(id, byId, reason, duration = 'Permanent') {
+  const db = loadBlacklist();
+  const at = Date.now();
+  const ms = parseBlacklistDuration(duration);
+  db[id] = { by: byId, at, reason: reason || 'No reason provided', duration: duration || 'Permanent', expiresAt: ms ? at + ms : null };
+  saveBlacklist(db);
+  MEM.blacklist = db;
+}
+function clearBlacklisted(id) {
+  const db = loadBlacklist();
+  delete db[id];
+  saveBlacklist(db);
+  MEM.blacklist = db;
+}
+
+function formatRetiredTier(tier) {
+  return tier ? `R${String(tier).toLowerCase()}` : tier;
+}
+function isRetirableTier(tier) {
+  return new Set(['HT1','LT1','HT2','LT2']).has(tier);
+}
+function getDisplayTier(player, weapon, tier) {
+  return player?.retiredTiers?.[weapon] ? formatRetiredTier(tier) : tier;
+}
+
 function syncToMem() {
   try {
     const p=rDB(PF), q=rDB(QF), m=rDB(MF);
@@ -932,6 +1016,8 @@ function syncToMem() {
       Object.assign(MEM.cooldowns, rDB(getCooldownFile()));
     if (fs.existsSync(TF))
       Object.assign(MEM.tickets, rDB(TF));
+    if (fs.existsSync(BLACKLIST_FILE))
+      Object.assign(MEM.blacklist, rDB(BLACKLIST_FILE));
     console.log(`📂 Loaded ${Object.keys(p).length} players from disk`);
   } catch(_) {}
 }
@@ -1011,6 +1097,7 @@ function getBackupFileMap() {
     settings:    SF,
     tierLogs:    TIER_LOG_FILE,
     cooldowns:   getCooldownFile(),
+    blacklist:   BLACKLIST_FILE,
     queuePerms:  QUEUE_PERM_FILE,
     tiererPerms: TIERER_PERM_FILE,
   };
@@ -1048,7 +1135,7 @@ const LDB = {
     db[id] = { discordId:id, ign, platform:platform||'Java Edition',
       accountType:accountType||'Premium (Paid)', region:region||'Pakistan 🇵🇰',
       uuid: uuid || offlineUUID(ign), verified: verified===true,
-      tiers:{}, registeredAt:Date.now() };
+      tiers:{}, retiredTiers:{}, registeredAt:Date.now() };
     wDB(PF, db); MEM.players[id]=db[id]; return db[id];
   },
   updateField(id, field, value) {
@@ -2597,7 +2684,12 @@ CMDS.profile = {
     const color   = entries[0] ? TIER_COLOR[entries[0][1]] : BRAND_COLOR;
     const block   = entries.length===0
       ? '```\nThere are no tiers yet. Ask a Tierer to set one!\n```'
-      : '```\n'+entries.map(([w,t])=>`${w.padEnd(11)} ${getTierLabel(t).padEnd(8)}  ${TIER_BAR[t]||'▱▱▱▱▱▱▱▱▱▱'}  +${TIER_PTS[t]}pt`).join('\n')+'\n```';
+      : '```\n'+entries.map(([w,t])=>{
+          const retired = Boolean(player.retiredTiers?.[w]);
+          const displayTier = retired ? formatRetiredTier(t) : t;
+          const label = retired ? displayTier : getTierLabel(t);
+          return `${w.padEnd(11)} ${label.padEnd(8)}  ${TIER_BAR[t]||'▱▱▱▱▱▱▱▱▱▱'}  +${TIER_PTS[t]}pt`;
+        }).join('\n')+'\n```';
 
     const ranked = Object.values(LDB.all())
       .filter(p=>Object.keys(p.tiers||{}).length>0)
@@ -2702,13 +2794,15 @@ CMDS.tier = {
       .addUserOption(o=>o.setName('player').setDescription('Discord user').setRequired(true))
       .addStringOption(o=>o.setName('weapon').setDescription('Weapon').setRequired(true)
         .addChoices(...WEAPONS.map(w=>({name:w,value:w}))))
-      .addStringOption(o=>o.setName('tier').setDescription('Tier').setRequired(true)
-        .addChoices(...TIERS.map(t=>({name:t,value:t})))))
+      .addStringOption(o=>o.setName('tier').setDescription('Tier (LT3 or lower)').setRequired(true)
+        .addChoices(...['LT3','HT4','LT4','HT5','LT5'].map(t=>({name:t,value:t})))))
     .addSubcommand(s=>s.setName('remove').setDescription("Remove a player's tier")
       .addUserOption(o=>o.setName('player').setDescription('Discord user').setRequired(true))
       .addStringOption(o=>o.setName('weapon').setDescription('Weapon').setRequired(true)
         .addChoices(...WEAPONS.map(w=>({name:w,value:w})))))
     .addSubcommand(s=>s.setName('view').setDescription('View all tiers for a player')
+      .addUserOption(o=>o.setName('player').setDescription('Discord user').setRequired(true)))
+    .addSubcommand(s=>s.setName('wipe').setDescription("Remove ALL tiers from a player")
       .addUserOption(o=>o.setName('player').setDescription('Discord user').setRequired(true))),
 
   async execute(i) {
@@ -2724,6 +2818,12 @@ CMDS.tier = {
     const tier   = i.options.getString('tier');
     const player = LDB.get(target.id);
 
+    if (sub !== 'view' && isBlacklisted(target.id)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('🚫 Player Blacklisted')
+        .setDescription(`**${target.username}** is blacklisted and cannot be tiered.${blacklistReason(target.id)}`)] });
+    }
+
     if (sub==='view') {
       if (!player) return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ **${target.username}** not registered.`)] });
@@ -2736,6 +2836,62 @@ CMDS.tier = {
           ? entries.map(([w,t])=>`${WEAPON_EMOJI[w]} **${w}** — ${getTierLabel(t)} \`${t}\``).join('\n')
           : '*No tiers yet*')
         .setFooter({ text:`Total: ${pts} pts` })] });
+    }
+
+    if (sub==='wipe') {
+      if (!i.member.permissions.has(PermissionFlagsBits.Administrator))
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription('❌ Only **Admin** can use `/tier wipe`.')] });
+      if (!player)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription(`❌ **${target.username}** is not registered.`)] });
+
+      const oldTiers = { ...(player.tiers || {}) };
+      const oldWeapons = Object.keys(oldTiers);
+      for (const weapon of oldWeapons) {
+        LDB.delTier(target.id, weapon);
+        await syncEmbed(i.client, player, weapon, 'REMOVED', i.user.id);
+      }
+
+      const db = rDB(PF);
+      if (db[target.id]) {
+        db[target.id].tiers = {};
+        db[target.id].retiredTiers = {};
+        wDB(PF, db);
+      }
+      if (MEM.players[target.id]) {
+        MEM.players[target.id].tiers = {};
+        MEM.players[target.id].retiredTiers = {};
+      }
+
+      const cdb = fs.existsSync(getCooldownFile()) ? rDB(getCooldownFile()) : {};
+      if (cdb[target.id]) {
+        delete cdb[target.id];
+        fs.writeFileSync(getCooldownFile(), JSON.stringify(cdb, null, 2));
+      }
+      delete MEM.cooldowns[target.id];
+
+      try {
+        const member = await i.guild.members.fetch(target.id).catch(()=>null);
+        if (member) {
+          for (const [weapon, tier] of Object.entries(oldTiers)) {
+            const roleId = getGamemodeRoleId(i.guild, weapon, tier);
+            if (roleId) {
+              const role = i.guild.roles.cache.get(roleId);
+              if (role) await member.roles.remove(role).catch(()=>{});
+            }
+          }
+        }
+      } catch(_) {}
+
+      broadcast({ type:'player_updated', player:LDB.get(target.id) });
+      broadcast({ type:'testers_updated' });
+
+      return i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('🧹 Tier Wipe Complete')
+        .setDescription(`All PakTiers tiers, retirement flags, and tier cooldowns were removed from **${player.ign}**.`)
+        .addFields({ name:'🗑️ Removed', value: oldWeapons.length ? oldWeapons.join(', ') : 'No tiers', inline:false })
+        .setFooter({ text: BOT_FOOTER }).setTimestamp()] });
     }
 
     if (sub==='set') {
@@ -2931,6 +3087,10 @@ CMDS.submitresult = {
     if (!player)
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ **${target.username}** must register first with \`/register\`.`)] });
+    if (isBlacklisted(target.id))
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('🚫 Player Blacklisted')
+        .setDescription(`**${target.username}** is blacklisted and cannot receive a tier test result.${blacklistReason(target.id)}`)] });
 
     const emoji     = WEAPON_EMOJI[weapon] || '<:sword:1517752855577104474>';
     const oldTier   = player.tiers?.[weapon];
@@ -2998,6 +3158,325 @@ CMDS.submitresult = {
     if (publicMsg) await autoReact(publicMsg);
   },
 };
+// ════════════════════════════════════════════════════════════
+//  /blacklist + /unblacklist
+// ════════════════════════════════════════════════════════════
+CMDS.blacklist = {
+  data: new SlashCommandBuilder()
+    .setName('blacklist')
+    .setDescription('Blacklist a member from PakTiers queue/testing/profile actions (Admin only)')
+    .addUserOption(o=>o.setName('player').setDescription('Member to blacklist').setRequired(true))
+    .addStringOption(o=>o.setName('duration').setDescription('How long the blacklist lasts').setRequired(true)
+      .addChoices(
+        { name:'1 Hour', value:'1h' }, { name:'6 Hours', value:'6h' }, { name:'12 Hours', value:'12h' },
+        { name:'1 Day', value:'1d' }, { name:'3 Days', value:'3d' }, { name:'7 Days', value:'7d' },
+        { name:'14 Days', value:'14d' }, { name:'30 Days', value:'30d' }, { name:'Permanent', value:'Permanent' },
+      ))
+    .addStringOption(o=>o.setName('reason').setDescription('Reason for blacklist').setRequired(false)),
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator))
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Only **Admin** can use this command.')] });
+
+    const target = i.options.getUser('player');
+    const duration = i.options.getString('duration') || 'Permanent';
+    const reason = i.options.getString('reason') || 'No reason provided';
+
+    setBlacklisted(target.id, i.user.id, reason, duration);
+    try { LDB.leaveAllQ(target.id); } catch(_) {}
+    for (const w of WEAPONS) refreshSQPanel(i.client, w).catch(()=>{});
+
+    const entry = getBlacklistEntry(target.id);
+    return i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setTitle('🚫 Player Blacklisted')
+      .setDescription(`**${target.tag}** is now blacklisted from PakTiers queue/testing/profile actions.\n\n**Duration:** ${duration}\n**Reason:** ${reason}${entry?.expiresAt ? `\n**Expires:** <t:${Math.floor(entry.expiresAt / 1000)}:F> (<t:${Math.floor(entry.expiresAt / 1000)}:R>)` : ''}${duration === 'Permanent' ? '\n\nUse \`/unblacklist\` to remove the blacklist.' : ''}`)
+      .setFooter({ text: BOT_FOOTER }).setTimestamp()] });
+  },
+};
+
+CMDS.unblacklist = {
+  data: new SlashCommandBuilder()
+    .setName('unblacklist')
+    .setDescription('Remove a PakTiers blacklist (Admin only)')
+    .addUserOption(o=>o.setName('player').setDescription('Member to unblacklist').setRequired(true)),
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator))
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Only **Admin** can use this command.')] });
+
+    const target = i.options.getUser('player');
+    if (!isBlacklisted(target.id))
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription(`⚠️ **${target.tag}** is not blacklisted.`)] });
+
+    clearBlacklisted(target.id);
+    return i.reply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+      .setTitle('✅ Player Unblacklisted')
+      .setDescription(`**${target.tag}** can use PakTiers queue/testing/profile actions again.`)
+      .setFooter({ text: BOT_FOOTER }).setTimestamp()] });
+  },
+};
+
+// ════════════════════════════════════════════════════════════
+//  /ban — Discord server ban
+// ════════════════════════════════════════════════════════════
+CMDS.ban = {
+  data: new SlashCommandBuilder()
+    .setName('ban')
+    .setDescription('Ban a member from the Discord server (Admin only)')
+    .addUserOption(o=>o.setName('player').setDescription('Member to ban').setRequired(true))
+    .addStringOption(o=>o.setName('reason').setDescription('Ban reason').setRequired(false)),
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator))
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Only **Admin** can use this command.')] });
+
+    const target = i.options.getUser('player');
+    const reason = i.options.getString('reason') || 'PakTiers moderation';
+    if (target.id === i.user.id)
+      return i.reply({ ephemeral:true, content:'❌ You cannot ban yourself.' });
+
+    await i.deferReply({ ephemeral:true });
+    try {
+      await i.guild.members.ban(target.id, { reason, deleteMessageSeconds: 0 });
+    } catch(err) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('❌ Ban Failed')
+        .setDescription(`Could not ban **${target.tag}**.\n\`${err.message}\``)
+        .setFooter({ text: BOT_FOOTER })] });
+    }
+
+    return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setTitle('🔨 Discord Ban Applied')
+      .setDescription(`**${target.tag}** has been banned from the Discord server.\n\n**Reason:** ${reason}`)
+      .setFooter({ text: BOT_FOOTER }).setTimestamp()] });
+  },
+};
+
+// ════════════════════════════════════════════════════════════
+//  /retire — keep the tier but mark it retired as RHt/RLt style
+// ════════════════════════════════════════════════════════════
+CMDS.retire = {
+  data: new SlashCommandBuilder()
+    .setName('retire')
+    .setDescription("Retire a player's HT1/LT1/HT2/LT2 gamemode tier (Admin/Tierer)")
+    .addUserOption(o=>o.setName('player').setDescription('Player to retire').setRequired(true))
+    .addStringOption(o=>o.setName('gamemode').setDescription('Gamemode to retire').setRequired(true)
+      .addChoices(...WEAPONS.map(w=>({name:`${WEAPON_EMOJI[w]} ${w}`,value:w})))),
+  async execute(i) {
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasTierer = hasTiererPerm(i.member);
+    if (!isAdmin && !hasTierer)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ **Tierer** permission required.')] });
+
+    const target = i.options.getUser('player');
+    const weapon = i.options.getString('gamemode');
+    const player = LDB.get(target.id);
+    if (!player)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ **${target.username}** is not registered.`)] });
+
+    const tier = player.tiers?.[weapon];
+    if (!tier)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription(`⚠️ **${player.ign}** has no **${weapon}** tier.`)] });
+    if (!isRetirableTier(tier))
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Only **HT1, LT1, HT2, or LT2** can be retired. Current **${weapon}** tier is **${tier}**.`)] });
+    if (player.retiredTiers?.[weapon])
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription(`⚠️ **${player.ign}** is already retired in **${weapon}** as **${formatRetiredTier(tier)}**.`)] });
+
+    const db = rDB(PF);
+    db[target.id].retiredTiers = { ...(db[target.id].retiredTiers || {}), [weapon]: tier };
+    wDB(PF, db);
+    if (!player.retiredTiers) player.retiredTiers = {};
+    player.retiredTiers[weapon] = tier;
+    MEM.players[target.id] = player;
+
+    broadcast({ type:'player_updated', player });
+    broadcast({ type:'testers_updated' });
+
+    return i.reply({ embeds:[new EmbedBuilder().setColor(TIER_COLOR[tier] || BRAND_COLOR)
+      .setTitle('🏅 Gamemode Retired')
+      .setDescription(`**${player.ign}** is now shown as **${formatRetiredTier(tier)}** for **${weapon}** on PakTiers bot/API profiles.`)
+      .addFields(
+        { name:'⚔️ Gamemode', value:weapon, inline:true },
+        { name:'🏆 Previous Tier', value:tier, inline:true },
+        { name:'📌 Displayed Tier', value:formatRetiredTier(tier), inline:true },
+      )
+      .setFooter({ text:BOT_FOOTER }).setTimestamp()] });
+  },
+};
+
+// ════════════════════════════════════════════════════════════
+//  /migrate — import tiers by the player's Minecraft username
+//  Sources supported: MCTiers and PvPTiers public profile APIs.
+// ════════════════════════════════════════════════════════════
+const MIGRATE_MODE_ALIASES = {
+  mace:'Mace', crystal:'Crystal', sword:'Sword', axe:'Axe',
+  netherite:'Netherite', neth_pot:'Netherite', netheritepot:'Netherite', nethop:'Netherite',
+  uhc:'UHC', pot:'Pot', smp:'SMP', diasmp:'DiaSMP', spearmace:'SpearMace',
+  vanilla:'Vanilla'
+};
+const KNOWN_MIGRATE_TIERS = new Set(TIERS);
+
+function normalizeExternalMode(key) {
+  return MIGRATE_MODE_ALIASES[String(key || '').toLowerCase()] || null;
+}
+function looksLikeTier(v) {
+  return typeof v === 'string' && /^(?:H|L)T[1-5]$/i.test(v.trim());
+}
+function collectExternalRankings(payload) {
+  const found = {};
+  const walk = (node, depth = 0) => {
+    if (!node || typeof node !== 'object' || depth > 8) return;
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item, depth + 1);
+      return;
+    }
+    for (const [k, v] of Object.entries(node)) {
+      const mode = normalizeExternalMode(k);
+      if (mode && v && typeof v === 'object') {
+        let tier = v.tier || v.rank || v.tierName || v.displayTier;
+        if (!looksLikeTier(tier) && Number.isInteger(Number(v.tier)) && Number.isInteger(Number(v.pos))) {
+          const n = Number(v.tier), pos = Number(v.pos);
+          if (n >= 1 && n <= 5 && (pos === 1 || pos === 2)) tier = `${pos === 1 ? 'HT' : 'LT'}${n}`;
+        }
+        if (looksLikeTier(tier) && !found[mode]) {
+          found[mode] = { tier:String(tier).toUpperCase(), retired:Boolean(v.retired) || /^R/i.test(String(tier)) };
+        }
+      }
+      if (mode && looksLikeTier(v)) {
+        found[mode] = { tier:String(v).toUpperCase(), retired:false };
+      }
+      walk(v, depth + 1);
+    }
+  };
+  walk(payload);
+  // Some providers wrap the actual player in profile.players[0].
+  if (payload?.profile?.players?.[0]) walk(payload.profile.players[0], 0);
+  if (payload?.players?.[0]) walk(payload.players[0], 0);
+  return found;
+}
+async function fetchJsonWithTimeout(url, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent':'PakTiers-Tier-Migration/1.0', 'Accept':'application/json' },
+      signal: controller.signal
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    try { return JSON.parse(text); }
+    catch(_) { throw new Error('Response was not valid JSON'); }
+  } finally {
+    clearTimeout(timer);
+  }
+}
+async function fetchExternalPlayer(source, ign) {
+  const encoded = encodeURIComponent(ign);
+  if (source === 'mctiers') {
+    return fetchJsonWithTimeout(`https://mctiers.com/api/v2/profile/by-name/${encoded}`);
+  }
+  return fetchJsonWithTimeout(`https://pvptiers.com/api/search_profile/${encodeURIComponent(ign.toLowerCase())}`);
+}
+
+CMDS.migrate = {
+  data: new SlashCommandBuilder()
+    .setName('migrate')
+    .setDescription('Import tiers into PakTiers from MCTiers or PvPTiers using the registered IGN')
+    .addUserOption(o=>o.setName('player').setDescription('PakTiers player to update').setRequired(true))
+    .addStringOption(o=>o.setName('source').setDescription('Source tierlist').setRequired(true)
+      .addChoices(
+        { name:'MCTiers', value:'mctiers' },
+        { name:'PvPTiers', value:'pvptiers' },
+      ))
+    .addStringOption(o=>o.setName('gamemode').setDescription('Optional: migrate only one gamemode').setRequired(false)
+      .addChoices(...WEAPONS.map(w=>({name:`${WEAPON_EMOJI[w]} ${w}`,value:w})))),
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator))
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Only **Admin** can use this command.')] });
+
+    const target = i.options.getUser('player');
+    const source = i.options.getString('source');
+    const modeFilter = i.options.getString('gamemode');
+    const player = LDB.get(target.id);
+    if (!player)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ **${target.username}** must register first with \`/register\`.`)] });
+    if (isBlacklisted(target.id))
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ **${target.username}** is blacklisted and cannot be migrated until unblacklisted.`)] });
+
+    await i.deferReply({ ephemeral:true });
+    let payload;
+    try {
+      payload = await fetchExternalPlayer(source, player.ign);
+    } catch(err) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('❌ Migration Failed')
+        .setDescription(`Could not fetch **${player.ign}** from **${source}**.\n\`${err.message}\``)
+        .setFooter({ text: BOT_FOOTER })] });
+    }
+
+    const rankings = collectExternalRankings(payload);
+    const selected = modeFilter ? { [modeFilter]: rankings[modeFilter] } : rankings;
+    const imported = [];
+    const skipped = [];
+    const retiredImported = [];
+
+    for (const [weapon, rec] of Object.entries(selected)) {
+      if (!rec?.tier || !KNOWN_MIGRATE_TIERS.has(rec.tier)) continue;
+      if (!WEAPONS.includes(weapon)) {
+        skipped.push(`${weapon}: unsupported`);
+        continue;
+      }
+      const oldTier = player.tiers?.[weapon] || null;
+      LDB.setTier(target.id, weapon, rec.tier);
+      if (rec.retired && isRetirableTier(rec.tier)) {
+        const db = rDB(PF);
+        db[target.id].retiredTiers = { ...(db[target.id].retiredTiers || {}), [weapon]: rec.tier };
+        wDB(PF, db);
+        if (!player.retiredTiers) player.retiredTiers = {};
+        player.retiredTiers[weapon] = rec.tier;
+        retiredImported.push(`${weapon} → ${formatRetiredTier(rec.tier)}`);
+      } else if (player.retiredTiers?.[weapon] && !rec.retired) {
+        delete player.retiredTiers[weapon];
+        const db = rDB(PF);
+        db[target.id].retiredTiers = { ...(db[target.id].retiredTiers || {}) };
+        delete db[target.id].retiredTiers[weapon];
+        wDB(PF, db);
+      }
+      imported.push(`${weapon}: ${oldTier ? `${oldTier} → ` : ''}${rec.tier}`);
+      await syncEmbed(i.client, player, weapon, rec.tier, i.user.id);
+      try {
+        const member = await i.guild.members.fetch(target.id).catch(()=>null);
+        if (member) await assignTierRole(i.guild, member, weapon, rec.tier, oldTier);
+      } catch(_) {}
+    }
+
+    MEM.players[target.id] = LDB.get(target.id);
+    broadcast({ type:'player_updated', player:MEM.players[target.id] });
+    broadcast({ type:'testers_updated' });
+
+    return i.editReply({ embeds:[new EmbedBuilder().setColor(imported.length ? 0x00C864 : 0xFF9933)
+      .setTitle(imported.length ? '✅ Tier Migration Complete' : '⚠️ No Supported Tiers Found')
+      .setDescription(imported.length
+        ? `Imported **${imported.length}** tier${imported.length === 1 ? '' : 's'} for **${player.ign}** from **${source}** using the player's registered Minecraft username.`
+        : `No HT/LT tier data was found for **${player.ign}** on **${source}**.`)
+      .addFields(
+        ...(imported.length ? [{ name:'📥 Imported', value:imported.slice(0,25).join('\\n'), inline:false }] : []),
+        ...(retiredImported.length ? [{ name:'🏅 Retired', value:retiredImported.slice(0,25).join('\\n'), inline:false }] : []),
+        ...(skipped.length ? [{ name:'⏭️ Skipped', value:skipped.slice(0,25).join('\\n'), inline:false }] : []),
+      )
+      .setFooter({ text: `${BOT_FOOTER} · ${source}` }).setTimestamp()] });
+  },
+};
+
 // NOTE: 'join' and 'leave' subcommands were removed — players now
 // join/leave queues via the panel buttons (wl_join/wl_leave, sq_join/sq_leave).
 CMDS.queue = {
@@ -3983,6 +4462,10 @@ function buildSQEmbed(weapon, region, testerIds) {
     .setFooter({ text: `🌍 Region: ${reg} | 🕐 Last Refresh: ${now}` });
 }
 
+// Discord components are shared by every viewer of one message, so the Pull
+// button cannot literally be hidden for only non-tierers. The interaction is
+// strictly permission-gated; Join/Leave remain public. Keep this in one row
+// to preserve the current panel layout.
 // Build Join / Leave / Pull buttons row
 function buildSQButtons(weapon) {
   return new ActionRowBuilder().addComponents(
@@ -4421,7 +4904,7 @@ CMDS.startqueue = {
 
     // ── Send the live panel ───────────────────────────────────
     let sentMsg = null;
-    const baseContent = `**${weapon}** queue is open for the **PK** region!`;
+    const baseContent = `@here **${weapon}** queue is open for the **${region}** region!`;
     const fullContent = extraMsg ? `${extraMsg} ${baseContent}` : baseContent;
     try {
       sentMsg = await targetCh.send({
@@ -4881,6 +5364,12 @@ CMDS.logs = {
 const regState = new Map(); // userId -> { platform, accountType, region, step }
 
 async function handleSelectMenu(i) {
+  if (isBlacklisted(i.user.id)) {
+    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setTitle('🚫 Blacklisted')
+      .setDescription(`Your PakTiers account is blacklisted. You cannot use registration/profile actions or queue/test features.${blacklistReason(i.user.id)}`)
+      .setFooter({ text: BOT_FOOTER })] });
+  }
   const [prefix, step, uid] = i.customId.split('_');
 
   // ── Panel: gamemode waitlist role select ──────────────────
@@ -5062,6 +5551,12 @@ async function handleButtonClick(i) {
 
   // ── Panel: Register / Update Profile button ──────────────
   if (i.customId === 'panel_register') {
+    if (isBlacklisted(i.user.id)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('🚫 Blacklisted')
+        .setDescription(`You cannot register or update your profile while blacklisted.${blacklistReason(i.user.id)}`)
+        .setFooter({ text: BOT_FOOTER })] });
+    }
     // Check if already registered
     const existing = LDB.get(i.user.id);
 
@@ -5203,6 +5698,10 @@ async function handleButtonClick(i) {
 
     // ── JOIN ──────────────────────────────────────────────────
     if (action === 'join') {
+      if (isBlacklisted(i.user.id))
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setTitle('🚫 Blacklisted')
+          .setDescription(`You cannot join the **${weapon}** queue while blacklisted.${blacklistReason(i.user.id)}`)] });
       if (!player)
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setDescription('❌ Please use `/register` first.')] });
@@ -5377,6 +5876,10 @@ async function handleButtonClick(i) {
 
     // ── SQ JOIN ───────────────────────────────────────────────
     if (action === 'join') {
+      if (isBlacklisted(i.user.id))
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setTitle('🚫 Blacklisted')
+          .setDescription(`You cannot join the **${weapon}** queue while blacklisted.${blacklistReason(i.user.id)}`)] });
       if (!player)
         return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setTitle('❌ Not Registered')
@@ -5578,6 +6081,12 @@ async function handleButtonClick(i) {
 async function handleModal(i) {
   if (!i.customId.startsWith('reg_modal_')) return;
   const uid = i.customId.replace('reg_modal_','');
+  if (isBlacklisted(i.user.id)) {
+    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setTitle('🚫 Blacklisted')
+      .setDescription(`You cannot register or update your profile while blacklisted.${blacklistReason(i.user.id)}`)
+      .setFooter({ text: BOT_FOOTER })] });
+  }
   if (uid !== i.user.id)
     return i.reply({ ephemeral:true, content:'❌ This is not your form.' });
 
