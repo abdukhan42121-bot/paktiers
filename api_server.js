@@ -1,5 +1,5 @@
 // ============================================================
-//  PakTiers — ALL IN ONE v5 (Combined + Ticket Fix)
+//  EclipseTiers — ALL IN ONE v5 (Combined + Ticket Fix)
 //  NEW FEATURES:
 //  ✅ Android/Bedrock + Java platform selection on register
 //  ✅ Registration: crack/premium, region, IGN (ephemeral to player)
@@ -48,15 +48,15 @@ const CONFIG = {
   REG_LOGS_CHANNEL_ID:       process.env.REG_LOGS_CHANNEL_ID       || '',   // Channel for registration logs
   STAFF_LOGS_CHANNEL_ID:     process.env.STAFF_LOGS_CHANNEL_ID     || '',   // Channel for staff hire/fire logs (also settable via /setstafflogs)
 
-  // ── Paktiers Application Panel ──
+  // ── EclipseTiers Application Panel ──
   APPLICATION_CHANNEL_ID:    process.env.APPLICATION_CHANNEL_ID    || '1518103705889542274', // Channel where /setupticketpnl sends the panel
   APPLICATION_CATEGORY_ID:   process.env.APPLICATION_CATEGORY_ID   || '',   // Category where application tickets get created (auto-created if empty)
 
-  // ── Paktiers Support Panel (simple "Open a ticket!" button) ──
+  // ── EclipseTiers Support Panel (simple "Open a ticket!" button) ──
   SUPPORT_CHANNEL_ID:        process.env.SUPPORT_CHANNEL_ID        || '1517571631550038256', // Channel where /setupsupportpnl sends the panel
   SUPPORT_CATEGORY_ID:       process.env.SUPPORT_CATEGORY_ID       || '',   // Category where support tickets get created (auto-created if empty)
 
-  API_SECRET: process.env.API_SECRET || 'paktiers-secret-change-me',
+  API_SECRET: process.env.API_SECRET || 'eclipsetiers-secret-change-me',
   PORT:       process.env.PORT       || 3001,
 
   // Cooldown days after tier assignment per gamemode
@@ -66,11 +66,11 @@ const CONFIG = {
   GITHUB_TOKEN:      process.env.GITHUB_TOKEN      || '',            // GitHub Personal Access Token (repo scope)
   GITHUB_REPO:       process.env.GITHUB_REPO       || '',            // format: username/repo
   GITHUB_BRANCH:     process.env.GITHUB_BRANCH     || 'main',
-  GITHUB_BACKUP_DIR: process.env.GITHUB_BACKUP_DIR || 'paktiers-backups', // folder inside repo
+  GITHUB_BACKUP_DIR: process.env.GITHUB_BACKUP_DIR || 'eclipsetiers-backups', // folder inside repo
 };
 
 // ── QUEUE PERM ROLES — runtime settings via /queueperm ──────────────
-const QUEUE_PERM_FILE = path.join(__dirname, 'paktiers_data', 'queue_perms.json');
+const QUEUE_PERM_FILE = path.join(__dirname, 'eclipsetiers_data', 'queue_perms.json');
 function loadQueuePerms() {
   try {
     if (fs.existsSync(QUEUE_PERM_FILE)) return JSON.parse(fs.readFileSync(QUEUE_PERM_FILE, 'utf8'));
@@ -79,8 +79,8 @@ function loadQueuePerms() {
 }
 function saveQueuePerms(data) {
   try {
-    if (!fs.existsSync(path.join(__dirname, 'paktiers_data')))
-      fs.mkdirSync(path.join(__dirname, 'paktiers_data'), { recursive: true });
+    if (!fs.existsSync(path.join(__dirname, 'eclipsetiers_data')))
+      fs.mkdirSync(path.join(__dirname, 'eclipsetiers_data'), { recursive: true });
     fs.writeFileSync(QUEUE_PERM_FILE, JSON.stringify(data, null, 2));
   } catch(_) {}
 }
@@ -92,7 +92,7 @@ function hasQueuePerm(member) {
 }
 
 // ── TIERER PERM ROLES + MEMBERS — runtime settings via /tiererperm ──
-const TIERER_PERM_FILE = path.join(__dirname, 'paktiers_data', 'tierer_perms.json');
+const TIERER_PERM_FILE = path.join(__dirname, 'eclipsetiers_data', 'tierer_perms.json');
 function loadTiererPerms() {
   try {
     if (fs.existsSync(TIERER_PERM_FILE)) return JSON.parse(fs.readFileSync(TIERER_PERM_FILE, 'utf8'));
@@ -101,8 +101,8 @@ function loadTiererPerms() {
 }
 function saveTiererPerms(data) {
   try {
-    if (!fs.existsSync(path.join(__dirname, 'paktiers_data')))
-      fs.mkdirSync(path.join(__dirname, 'paktiers_data'), { recursive: true });
+    if (!fs.existsSync(path.join(__dirname, 'eclipsetiers_data')))
+      fs.mkdirSync(path.join(__dirname, 'eclipsetiers_data'), { recursive: true });
     fs.writeFileSync(TIERER_PERM_FILE, JSON.stringify(data, null, 2));
   } catch(_) {}
 }
@@ -118,7 +118,7 @@ function hasTiererPerm(member) {
 // This is a STANDALONE gate for /submitresult only. Having Tierer perm
 // (or even Administrator role in Discord's sense, minus real Admin perm)
 // does NOT automatically grant this — it must be set explicitly.
-const HIGHTIERER_PERM_FILE = path.join(__dirname, 'paktiers_data', 'hightierer_perms.json');
+const HIGHTIERER_PERM_FILE = path.join(__dirname, 'eclipsetiers_data', 'hightierer_perms.json');
 function loadHighTiererPerms() {
   try {
     if (fs.existsSync(HIGHTIERER_PERM_FILE)) return JSON.parse(fs.readFileSync(HIGHTIERER_PERM_FILE, 'utf8'));
@@ -127,8 +127,8 @@ function loadHighTiererPerms() {
 }
 function saveHighTiererPerms(data) {
   try {
-    if (!fs.existsSync(path.join(__dirname, 'paktiers_data')))
-      fs.mkdirSync(path.join(__dirname, 'paktiers_data'), { recursive: true });
+    if (!fs.existsSync(path.join(__dirname, 'eclipsetiers_data')))
+      fs.mkdirSync(path.join(__dirname, 'eclipsetiers_data'), { recursive: true });
     fs.writeFileSync(HIGHTIERER_PERM_FILE, JSON.stringify(data, null, 2));
   } catch(_) {}
 }
@@ -142,7 +142,7 @@ function hasHighTiererPerm(member) {
 // ── TESTER-OF-GAMEMODE ASSIGNMENTS — set via /tester ─────────────────
 // Tracks which gamemodes each Discord user is an assigned tester of.
 // { [discordId]: ['Mace','Pot', ...] } — separate from earned tier ranks.
-const TESTER_GAMEMODES_FILE = path.join(__dirname, 'paktiers_data', 'tester_gamemodes.json');
+const TESTER_GAMEMODES_FILE = path.join(__dirname, 'eclipsetiers_data', 'tester_gamemodes.json');
 function loadTesterGamemodes() {
   try {
     if (fs.existsSync(TESTER_GAMEMODES_FILE)) return JSON.parse(fs.readFileSync(TESTER_GAMEMODES_FILE, 'utf8'));
@@ -151,8 +151,8 @@ function loadTesterGamemodes() {
 }
 function saveTesterGamemodes(data) {
   try {
-    if (!fs.existsSync(path.join(__dirname, 'paktiers_data')))
-      fs.mkdirSync(path.join(__dirname, 'paktiers_data'), { recursive: true });
+    if (!fs.existsSync(path.join(__dirname, 'eclipsetiers_data')))
+      fs.mkdirSync(path.join(__dirname, 'eclipsetiers_data'), { recursive: true });
     fs.writeFileSync(TESTER_GAMEMODES_FILE, JSON.stringify(data, null, 2));
   } catch(_) {}
 }
@@ -544,7 +544,7 @@ const TIER_BAR = {
   HT5:'▰▰▱▱▱▱▱▱▱▱', LT5:'▰▱▱▱▱▱▱▱▱▱',
 };
 const BRAND_COLOR = 0x7FFF00;
-const BOT_FOOTER  = 'PakTiers · Pakistan Minecraft Community';
+const BOT_FOOTER  = 'EclipseTiers · Global Minecraft Community';
 
 // ── PLATFORM / REGION / ACCOUNT DATA ──────────────────────
 const PLATFORMS    = ['Java Edition'];
@@ -582,7 +582,7 @@ const REGION_FLAG_MAP = {
 const EMOJI_RE = /\p{Extended_Pictographic}/u;
 
 function formatRegion(region) {
-  if (!region) return 'Pakistan 🇵🇰';
+  if (!region) return 'Other 🌍';
   const raw = String(region).trim();
   if (EMOJI_RE.test(raw)) return raw; // already has a flag/emoji — leave as-is
 
@@ -607,7 +607,7 @@ async function autoReact(message) {
 
 // ── GAMEMODE ROLE MAP — AUTO CREATE ───────────────────────
 // The bot automatically creates roles if they do not exist.
-// Role name format: "[PakTiers] Sword HT1" etc.
+// Role name format: "[EclipseTiers] Sword HT1" etc.
 // In-memory cache: roleCache[weapon][tier] = roleId
 const roleCache = {};   // populated on first use / bot ready
 
@@ -616,9 +616,9 @@ function roleName(weapon, tier) {
 }
 
 // Old naming format — kept only so we can auto-migrate (rename) roles that
-// were created before the "[PakTiers] " prefix was dropped.
+// were created before the "[EclipseTiers] " prefix was dropped.
 function legacyRoleName(weapon, tier) {
-  return `[PakTiers] ${weapon} ${tier}`;
+  return `[EclipseTiers] ${weapon} ${tier}`;
 }
 
 async function ensureRole(guild, weapon, tier) {
@@ -639,7 +639,7 @@ async function ensureRole(guild, weapon, tier) {
     const legacyRole = guild.roles.cache.find(r => r.name === oldName);
     if (legacyRole) {
       try {
-        role = await legacyRole.setName(name, 'PakTiers role rename — dropped [PakTiers] prefix');
+        role = await legacyRole.setName(name, 'EclipseTiers role rename — dropped [EclipseTiers] prefix');
         console.log(`[ROLE] Renamed: ${oldName} -> ${name}`);
       } catch(err) {
         console.error(`[ROLE] Failed to rename ${oldName}:`, err.message);
@@ -658,7 +658,7 @@ async function ensureRole(guild, weapon, tier) {
       role = await guild.roles.create({
         name,
         color: TIER_COLORS_HEX[tier] || 0x99AAB5,
-        reason: 'PakTiers auto-created tier role',
+        reason: 'EclipseTiers auto-created tier role',
         mentionable: false,
       });
       console.log(`[ROLE] Created: ${name}`);
@@ -737,7 +737,7 @@ function isOnCooldown(discordId, weapon) {
 }
 
 // ── LOCAL FILE DB ─────────────────────────────────────────
-const DATA_DIR = path.join(__dirname, 'paktiers_data');
+const DATA_DIR = path.join(__dirname, 'eclipsetiers_data');
 const PF = path.join(DATA_DIR, 'players.json');
 
 // ── TIER LOGS — for the /logs command ────────────────────────
@@ -1035,7 +1035,7 @@ function githubRequest(method, urlPath, bodyObj) {
       path: urlPath,
       method,
       headers: {
-        'User-Agent':     'PakTiers-Bot',
+        'User-Agent':     'EclipseTiers-Bot',
         'Authorization':  `token ${CONFIG.GITHUB_TOKEN}`,
         'Accept':         'application/vnd.github+json',
         'Content-Type':   'application/json',
@@ -1133,7 +1133,7 @@ const LDB = {
   register(id, ign, platform, accountType, region, uuid, verified) {
     const db = rDB(PF); if (db[id]) return null;
     db[id] = { discordId:id, ign, platform:platform||'Java Edition',
-      accountType:accountType||'Premium (Paid)', region:region||'Pakistan 🇵🇰',
+      accountType:accountType||'Premium (Paid)', region:region||'Other 🌍',
       uuid: uuid || offlineUUID(ign), verified: verified===true,
       tiers:{}, retiredTiers:{}, registeredAt:Date.now() };
     wDB(PF, db); MEM.players[id]=db[id]; return db[id];
@@ -1268,7 +1268,7 @@ async function syncEmbed(client, player, weapon, tier, byId) {
     if (!ch) return;
     const uuid = await getMCUUID(player.ign);
     await ch.send({ embeds:[new EmbedBuilder().setColor(TIER_COLOR[tier]||BRAND_COLOR)
-      .setTitle('🔄 PakTiers Tier Sync')
+      .setTitle('🔄 EclipseTiers Tier Sync')
       .addFields(
         {name:'Player',   value:player.ign,                         inline:true},
         {name:'UUID',     value:uuid||'not-found',                  inline:true},
@@ -1323,7 +1323,7 @@ async function sendStaffLog(client, { type, targetUser, roleName, byUser, reason
 
     if (!isHire) embed.addFields({ name: '📝 Reason', value: reason || 'Not specified', inline: false });
 
-    embed.setFooter({ text: 'PakTiers Staff Team' }).setTimestamp();
+    embed.setFooter({ text: 'EclipseTiers Staff Team' }).setTimestamp();
 
     await ch.send({ embeds: [embed] });
   } catch(_) {}
@@ -1366,7 +1366,7 @@ async function resolveTicketCategory(guild) {
     category = await guild.channels.create({
       name: TICKET_CATEGORY_NAME,
       type: ChannelType.GuildCategory,
-      reason: 'PakTiers ticket category auto-created',
+      reason: 'EclipseTiers ticket category auto-created',
     }).catch(() => null);
   }
 
@@ -1401,7 +1401,7 @@ function buildTicketEmbed({ player, discordId, weapon = null, pullerId = null, o
 
   return embed
     .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
-    .setFooter({ text: 'PakTiers Queue Ticket \u00b7 Close when testing is done' })
+    .setFooter({ text: 'EclipseTiers Queue Ticket \u00b7 Close when testing is done' })
     .setTimestamp();
 }
 
@@ -1572,7 +1572,7 @@ async function createGroupTicket(client, guild, players, weapon, roleName, pulle
     }
 
     embed
-      .setFooter({ text: 'PakTiers Group Ticket \u00b7 Close when done' })
+      .setFooter({ text: 'EclipseTiers Group Ticket \u00b7 Close when done' })
       .setTimestamp();
 
     await ticketChannel.send({
@@ -1605,15 +1605,15 @@ async function closeTicket(client, guild, discordId, closedBy) {
 }
 
 // ════════════════════════════════════════════════════════════
-//  PAKTIERS APPLICATION PANEL + TICKETS
+//  ECLIPSETIERS APPLICATION PANEL + TICKETS
 //  (Helper / Tester / Screensharer / Media)
 // ════════════════════════════════════════════════════════════
-const APPLICATION_CATEGORY_NAME = 'Paktiers-Applications';
+const APPLICATION_CATEGORY_NAME = 'EclipseTiers-Applications';
 const APPLICATION_TYPE_LABELS = {
-  helper:       'Paktiers Helper Application',
-  tester:       'Paktiers Tester Application',
-  screensharer: 'Paktiers Screensharer Application',
-  media:        'Paktiers Media Application',
+  helper:       'EclipseTiers Helper Application',
+  tester:       'EclipseTiers Tester Application',
+  screensharer: 'EclipseTiers Screensharer Application',
+  media:        'EclipseTiers Media Application',
 };
 
 async function resolveApplicationCategory(guild) {
@@ -1632,7 +1632,7 @@ async function resolveApplicationCategory(guild) {
     category = await guild.channels.create({
       name: APPLICATION_CATEGORY_NAME,
       type: ChannelType.GuildCategory,
-      reason: 'Paktiers application ticket category auto-created',
+      reason: 'EclipseTiers application ticket category auto-created',
     }).catch(() => null);
   }
 
@@ -1642,7 +1642,7 @@ async function resolveApplicationCategory(guild) {
 
 async function createApplicationTicket(client, guild, member, appType) {
   if (!guild || !member) return null;
-  const label = APPLICATION_TYPE_LABELS[appType] || 'Paktiers Application';
+  const label = APPLICATION_TYPE_LABELS[appType] || 'EclipseTiers Application';
 
   try {
     const category = await resolveApplicationCategory(guild);
@@ -1711,7 +1711,7 @@ async function createApplicationTicket(client, guild, member, appType) {
           `<@${member.id}> applied for **${label}**.\n\n` +
           `Staff will visit your ticket soon ✨`
         )
-        .setFooter({ text: 'Paktiers Tierlist' })
+        .setFooter({ text: 'EclipseTiers Tierlist' })
         .setTimestamp()],
       components: [row],
     });
@@ -1727,9 +1727,9 @@ function buildApplicationPanelEmbed() {
   return new EmbedBuilder()
     .setColor(BRAND_COLOR)
     .setAuthor({ name: 'Application Panel' })
-    .setTitle('Paktiers Application')
+    .setTitle('EclipseTiers Application')
     .setDescription(
-      'Thank you for showing interest in **Paktiers** Tierlist. Open an application ticket to apply for tester or moderator !!\n\n' +
+      'Thank you for showing interest in **EclipseTiers** Tierlist. Open an application ticket to apply for tester or moderator !!\n\n' +
       '__**Helper Application**__\n' +
       '• Must be 15 years old or above\n' +
       '• Any moderation experience is not required, but it\'s a plus!\n' +
@@ -1755,7 +1755,7 @@ function buildApplicationPanelEmbed() {
       '❗ - Troll / Blank applications will get you an application ban.\n' +
       '❗ - **Application Cooldown: 5 Days**'
     )
-    .setFooter({ text: 'Paktiers Tierlist' });
+    .setFooter({ text: 'EclipseTiers Tierlist' });
 }
 
 function buildApplicationSelectRow() {
@@ -1764,18 +1764,18 @@ function buildApplicationSelectRow() {
       .setCustomId('app_apply_select')
       .setPlaceholder('Make a selection')
       .addOptions(
-        { label: 'Paktiers Helper Application',       value: 'helper' },
-        { label: 'Paktiers Tester Application',       value: 'tester' },
-        { label: 'Paktiers Screensharer Application', value: 'screensharer' },
-        { label: 'Paktiers Media Application',        value: 'media' },
+        { label: 'EclipseTiers Helper Application',       value: 'helper' },
+        { label: 'EclipseTiers Tester Application',       value: 'tester' },
+        { label: 'EclipseTiers Screensharer Application', value: 'screensharer' },
+        { label: 'EclipseTiers Media Application',        value: 'media' },
       ),
   );
 }
 
 // ════════════════════════════════════════════════════════════
-//  PAKTIERS SUPPORT PANEL (simple "Open a ticket!" button)
+//  ECLIPSETIERS SUPPORT PANEL (simple "Open a ticket!" button)
 // ════════════════════════════════════════════════════════════
-const SUPPORT_CATEGORY_NAME = 'Paktiers-Support-Tickets';
+const SUPPORT_CATEGORY_NAME = 'EclipseTiers-Support-Tickets';
 
 async function resolveSupportCategory(guild) {
   if (!guild) return null;
@@ -1793,7 +1793,7 @@ async function resolveSupportCategory(guild) {
     category = await guild.channels.create({
       name: SUPPORT_CATEGORY_NAME,
       type: ChannelType.GuildCategory,
-      reason: 'Paktiers support ticket category auto-created',
+      reason: 'EclipseTiers support ticket category auto-created',
     }).catch(() => null);
   }
 
@@ -1851,7 +1851,7 @@ async function createSupportTicket(client, guild, member) {
       type: ChannelType.GuildText,
       parent: category.id,
       permissionOverwrites: permOverwrites,
-      topic: `Paktiers Support Ticket — <@${member.id}>`,
+      topic: `EclipseTiers Support Ticket — <@${member.id}>`,
     });
 
     const staffPing = CONFIG.TICKET_STAFF_ROLE_ID ? `<@&${CONFIG.TICKET_STAFF_ROLE_ID}>` : '';
@@ -1868,7 +1868,7 @@ async function createSupportTicket(client, guild, member) {
         .setColor(0xF5C842)
         .setTitle('🎫 Support Ticket Opened')
         .setDescription(`<@${member.id}> opened a support ticket.\n\nStaff will visit your ticket soon ✨`)
-        .setFooter({ text: 'Paktiers Support' })
+        .setFooter({ text: 'EclipseTiers Support' })
         .setTimestamp()],
       components: [row],
     });
@@ -1883,7 +1883,7 @@ async function createSupportTicket(client, guild, member) {
 function buildSupportPanelEmbed() {
   return new EmbedBuilder()
     .setColor(0xF5C842)
-    .setTitle('🎫 Paktiers Support')
+    .setTitle('🎫 EclipseTiers Support')
     .setDescription(
       'Need help with something? Our support team is here for you!\n\n' +
       'Click the button below to open a new ticket, and our team will get back to you as soon as possible.\n\n' +
@@ -1895,9 +1895,9 @@ function buildSupportPanelEmbed() {
       '👇 Click the button below to open a ticket\n' +
       'If you want to apply for Media or Staff, please check the requirements category.\n\n' +
       'Thanks.\n' +
-      '- Paktiers Support Team'
+      '- EclipseTiers Support Team'
     )
-    .setFooter({ text: 'Paktiers Support' });
+    .setFooter({ text: 'EclipseTiers Support' });
 }
 
 function buildSupportButtonRow() {
@@ -1950,7 +1950,7 @@ const waitlistRoleCache = {};  // weapon -> roleId
 // ════════════════════════════════════════════════════════════
 //  LIVE PANEL — CTL-style persistent queue message
 // ════════════════════════════════════════════════════════════
-const LIVE_PANEL_FILE = path.join(__dirname, 'paktiers_data', 'live_panels.json');
+const LIVE_PANEL_FILE = path.join(__dirname, 'eclipsetiers_data', 'live_panels.json');
 
 function loadLivePanels() {
   try { if (fs.existsSync(LIVE_PANEL_FILE)) return JSON.parse(fs.readFileSync(LIVE_PANEL_FILE, 'utf8')); } catch(_) {}
@@ -2029,7 +2029,7 @@ async function ensureWaitlistRole(guild, weapon) {
       role = await guild.roles.create({
         name,
         color: 0x5865F2,
-        reason: 'PakTiers auto-created waitlist role',
+        reason: 'EclipseTiers auto-created waitlist role',
         mentionable: false,
       });
       console.log(`[WAITLIST ROLE] Created: ${name}`);
@@ -2052,11 +2052,11 @@ async function sendWaitlistPanel(channel) {
       'Click the **Register / Update Profile** button below to set your in-game details.\n\n' +
       '**Step 2: Get a Waitlist Role**\n' +
       'After registering, select any gamemode below to get the corresponding **Waitlist** role. Each role has a **2-day cooldown**.\n\n' +
-      '> • **Region:** Pakistan server\n' +
+      '> • **Region:** Global server\n' +
       '> • **Username:** Your registered Minecraft IGN\n\n' +
       '\u26A0\uFE0F **Providing false information will result in a denied test.**'
     )
-    .setFooter({ text: 'PakTiers · Pakistan Minecraft Community' })
+    .setFooter({ text: 'EclipseTiers · Global Minecraft Community' })
     .setTimestamp();
 
   const registerBtn = new ButtonBuilder()
@@ -2193,7 +2193,7 @@ CMDS.punish = {
 CMDS.backup = {
   data: new SlashCommandBuilder()
     .setName('backup')
-    .setDescription('Back up or restore PakTiers data on GitHub')
+    .setDescription('Back up or restore EclipseTiers data on GitHub')
     .addSubcommand(sub => sub.setName('create')
       .setDescription('Back up all current tierlist data to GitHub'))
     .addSubcommand(sub => sub.setName('load')
@@ -2220,8 +2220,8 @@ CMDS.backup = {
         const jsonStr = JSON.stringify(bundle, null, 2);
         const stamp   = new Date(bundle.createdAt).toISOString().replace(/[:.]/g, '-');
 
-        await githubPutFile(`${CONFIG.GITHUB_BACKUP_DIR}/latest.json`, jsonStr, `PakTiers backup (latest) — ${stamp}`);
-        await githubPutFile(`${CONFIG.GITHUB_BACKUP_DIR}/backup-${stamp}.json`, jsonStr, `PakTiers backup — ${stamp}`);
+        await githubPutFile(`${CONFIG.GITHUB_BACKUP_DIR}/latest.json`, jsonStr, `EclipseTiers backup (latest) — ${stamp}`);
+        await githubPutFile(`${CONFIG.GITHUB_BACKUP_DIR}/backup-${stamp}.json`, jsonStr, `EclipseTiers backup — ${stamp}`);
 
         return i.editReply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
           .setTitle('✅ Backup Complete')
@@ -2622,7 +2622,7 @@ CMDS.openticket = {
 CMDS.register = {
   data: new SlashCommandBuilder()
     .setName('register')
-    .setDescription('Register a player in PakTiers — works only in the designated channel'),
+    .setDescription('Register a player in EclipseTiers — works only in the designated channel'),
 
   async execute(i) {
     if (CONFIG.REGISTER_CHANNEL_ID && i.channelId !== CONFIG.REGISTER_CHANNEL_ID) {
@@ -2648,13 +2648,13 @@ CMDS.register = {
     await i.reply({
       ephemeral: true,
       embeds: [new EmbedBuilder().setColor(BRAND_COLOR)
-        .setTitle('📋 PakTiers Registration — Step 1/2')
+        .setTitle('📋 EclipseTiers Registration — Step 1/2')
         .setDescription('🖥️ **Platform: Java Edition**\n\nChoose your **account type**:')
         .addFields(
           { name:'💎 Premium (Paid)', value:'Official purchased Minecraft account', inline:false },
           { name:'🏴\u200d☠️ Cracked (Free)', value:'TLauncher or any other cracked launcher', inline:false },
         )
-        .setFooter({ text:'Only you can see this | PakTiers' })],
+        .setFooter({ text:'Only you can see this | EclipseTiers' })],
       components: [accRow],
     });
   },
@@ -2664,7 +2664,7 @@ CMDS.register = {
 CMDS.profile = {
   data: new SlashCommandBuilder()
     .setName('profile')
-    .setDescription("View a player's PakTiers profile")
+    .setDescription("View a player's EclipseTiers profile")
     .addUserOption(o=>o.setName('user').setDescription('Discord user').setRequired(false))
     .addStringOption(o=>o.setName('ign').setDescription('Search by IGN').setRequired(false)),
 
@@ -2889,7 +2889,7 @@ CMDS.tier = {
 
       return i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setTitle('🧹 Tier Wipe Complete')
-        .setDescription(`All PakTiers tiers, retirement flags, and tier cooldowns were removed from **${player.ign}**.`)
+        .setDescription(`All EclipseTiers tiers, retirement flags, and tier cooldowns were removed from **${player.ign}**.`)
         .addFields({ name:'🗑️ Removed', value: oldWeapons.length ? oldWeapons.join(', ') : 'No tiers', inline:false })
         .setFooter({ text: BOT_FOOTER }).setTimestamp()] });
     }
@@ -3164,7 +3164,7 @@ CMDS.submitresult = {
 CMDS.blacklist = {
   data: new SlashCommandBuilder()
     .setName('blacklist')
-    .setDescription('Blacklist a member from PakTiers queue/testing/profile actions (Admin only)')
+    .setDescription('Blacklist a member from EclipseTiers queue/testing/profile actions (Admin only)')
     .addUserOption(o=>o.setName('player').setDescription('Member to blacklist').setRequired(true))
     .addStringOption(o=>o.setName('duration').setDescription('How long the blacklist lasts').setRequired(true)
       .addChoices(
@@ -3189,7 +3189,7 @@ CMDS.blacklist = {
     const entry = getBlacklistEntry(target.id);
     return i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
       .setTitle('🚫 Player Blacklisted')
-      .setDescription(`**${target.tag}** is now blacklisted from PakTiers queue/testing/profile actions.\n\n**Duration:** ${duration}\n**Reason:** ${reason}${entry?.expiresAt ? `\n**Expires:** <t:${Math.floor(entry.expiresAt / 1000)}:F> (<t:${Math.floor(entry.expiresAt / 1000)}:R>)` : ''}${duration === 'Permanent' ? '\n\nUse \`/unblacklist\` to remove the blacklist.' : ''}`)
+      .setDescription(`**${target.tag}** is now blacklisted from EclipseTiers queue/testing/profile actions.\n\n**Duration:** ${duration}\n**Reason:** ${reason}${entry?.expiresAt ? `\n**Expires:** <t:${Math.floor(entry.expiresAt / 1000)}:F> (<t:${Math.floor(entry.expiresAt / 1000)}:R>)` : ''}${duration === 'Permanent' ? '\n\nUse \`/unblacklist\` to remove the blacklist.' : ''}`)
       .setFooter({ text: BOT_FOOTER }).setTimestamp()] });
   },
 };
@@ -3197,7 +3197,7 @@ CMDS.blacklist = {
 CMDS.unblacklist = {
   data: new SlashCommandBuilder()
     .setName('unblacklist')
-    .setDescription('Remove a PakTiers blacklist (Admin only)')
+    .setDescription('Remove a EclipseTiers blacklist (Admin only)')
     .addUserOption(o=>o.setName('player').setDescription('Member to unblacklist').setRequired(true)),
   async execute(i) {
     if (!i.member.permissions.has(PermissionFlagsBits.Administrator))
@@ -3212,7 +3212,7 @@ CMDS.unblacklist = {
     clearBlacklisted(target.id);
     return i.reply({ embeds:[new EmbedBuilder().setColor(0x00C864)
       .setTitle('✅ Player Unblacklisted')
-      .setDescription(`**${target.tag}** can use PakTiers queue/testing/profile actions again.`)
+      .setDescription(`**${target.tag}** can use EclipseTiers queue/testing/profile actions again.`)
       .setFooter({ text: BOT_FOOTER }).setTimestamp()] });
   },
 };
@@ -3232,7 +3232,7 @@ CMDS.ban = {
         .setDescription('❌ Only **Admin** can use this command.')] });
 
     const target = i.options.getUser('player');
-    const reason = i.options.getString('reason') || 'PakTiers moderation';
+    const reason = i.options.getString('reason') || 'EclipseTiers moderation';
     if (target.id === i.user.id)
       return i.reply({ ephemeral:true, content:'❌ You cannot ban yourself.' });
 
@@ -3300,7 +3300,7 @@ CMDS.retire = {
 
     return i.reply({ embeds:[new EmbedBuilder().setColor(TIER_COLOR[tier] || BRAND_COLOR)
       .setTitle('🏅 Gamemode Retired')
-      .setDescription(`**${player.ign}** is now shown as **${formatRetiredTier(tier)}** for **${weapon}** on PakTiers bot/API profiles.`)
+      .setDescription(`**${player.ign}** is now shown as **${formatRetiredTier(tier)}** for **${weapon}** on EclipseTiers bot/API profiles.`)
       .addFields(
         { name:'⚔️ Gamemode', value:weapon, inline:true },
         { name:'🏆 Previous Tier', value:tier, inline:true },
@@ -3365,7 +3365,7 @@ async function fetchJsonWithTimeout(url, timeoutMs = 10000) {
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, {
-      headers: { 'User-Agent':'PakTiers-Tier-Migration/1.0', 'Accept':'application/json' },
+      headers: { 'User-Agent':'EclipseTiers-Tier-Migration/1.0', 'Accept':'application/json' },
       signal: controller.signal
     });
     const text = await res.text();
@@ -3387,8 +3387,8 @@ async function fetchExternalPlayer(source, ign) {
 CMDS.migrate = {
   data: new SlashCommandBuilder()
     .setName('migrate')
-    .setDescription('Import tiers into PakTiers from MCTiers or PvPTiers using the registered IGN')
-    .addUserOption(o=>o.setName('player').setDescription('PakTiers player to update').setRequired(true))
+    .setDescription('Import tiers into EclipseTiers from MCTiers or PvPTiers using the registered IGN')
+    .addUserOption(o=>o.setName('player').setDescription('EclipseTiers player to update').setRequired(true))
     .addStringOption(o=>o.setName('source').setDescription('Source tierlist').setRequired(true)
       .addChoices(
         { name:'MCTiers', value:'mctiers' },
@@ -3509,7 +3509,7 @@ CMDS.queue = {
 CMDS.leaderboard = {
   data: new SlashCommandBuilder()
     .setName('leaderboard')
-    .setDescription('View the PakTiers leaderboard')
+    .setDescription('View the EclipseTiers leaderboard')
     .addStringOption(o=>o.setName('weapon').setDescription('Weapon filter').setRequired(false)
       .addChoices({name:'🏆 All Weapons',value:'all'},...WEAPONS.map(w=>({name:`${WEAPON_EMOJI[w]} ${w}`,value:w})))),
   async execute(i) {
@@ -3539,7 +3539,7 @@ CMDS.leaderboard = {
       return`${medal} **${p.ign}** · \`${p.tiers[weapon]}\` · ${TIER_PTS[p.tiers[weapon]]||0} pts`;
     });
     await i.editReply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
-      .setTitle(weapon==='all' ? '🏆 PakTiers — Overall Leaderboard' : `${WEAPON_EMOJI[weapon]} PakTiers — ${weapon} Leaderboard`)
+      .setTitle(weapon==='all' ? '🏆 EclipseTiers — Overall Leaderboard' : `${WEAPON_EMOJI[weapon]} EclipseTiers — ${weapon} Leaderboard`)
       .setDescription(rows.join('\n\n'))
       .addFields(
         { name:'Total Ranked', value:`**${ranked.length}** players`, inline:true },
@@ -3550,11 +3550,11 @@ CMDS.leaderboard = {
 
 // ── /help ─────────────────────────────────────────────────
 CMDS.help = {
-  data: new SlashCommandBuilder().setName('help').setDescription('View all PakTiers commands'),
+  data: new SlashCommandBuilder().setName('help').setDescription('View all EclipseTiers commands'),
   async execute(i) {
     await i.reply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
-      .setTitle('🏆 PakTiers Bot — Commands')
-      .setDescription("Pakistan's Minecraft Java PvP ranking system 🇵🇰")
+      .setTitle('🏆 EclipseTiers Bot — Commands')
+      .setDescription("A global Minecraft Java PvP ranking system 🌍")
       .addFields(
         { name:'👤 Player',   value:'`/register` · `/profile [user]` · `/leaderboard [weapon]` · `/skin set/clear/view` *(Cracked accounts)*' },
         { name:'⚔️ Queue',   value:'Queue panel · `/queue status`' },
@@ -4068,7 +4068,7 @@ CMDS.setuppanel = {
 CMDS.setupticketpnl = {
   data: new SlashCommandBuilder()
     .setName('setupticketpnl')
-    .setDescription('Send the PakTiers Application panel to a channel (Admin only)')
+    .setDescription('Send the EclipseTiers Application panel to a channel (Admin only)')
     .addChannelOption(o => o
       .setName('channel')
       .setDescription('Channel to send the panel to (default: configured application channel)')
@@ -4095,7 +4095,7 @@ CMDS.setupticketpnl = {
         components: [buildApplicationSelectRow()],
       });
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
-        .setDescription(`✅ PakTiers Application panel sent to <#${targetChannel.id}>!`)] });
+        .setDescription(`✅ EclipseTiers Application panel sent to <#${targetChannel.id}>!`)] });
     } catch(err) {
       console.error('[APP PANEL ERROR]', err);
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
@@ -4109,7 +4109,7 @@ CMDS.setupticketpnl = {
 CMDS.setupsupportpnl = {
   data: new SlashCommandBuilder()
     .setName('setupsupportpnl')
-    .setDescription('Send the PakTiers support ticket panel to a channel (Admin only)')
+    .setDescription('Send the EclipseTiers support ticket panel to a channel (Admin only)')
     .addChannelOption(o => o
       .setName('channel')
       .setDescription('Channel to send the panel to (default: configured support channel)')
@@ -4136,7 +4136,7 @@ CMDS.setupsupportpnl = {
         components: [buildSupportButtonRow()],
       });
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
-        .setDescription(`✅ PakTiers Support panel sent to <#${targetChannel.id}>!`)] });
+        .setDescription(`✅ EclipseTiers Support panel sent to <#${targetChannel.id}>!`)] });
     } catch(err) {
       console.error('[SUPPORT PANEL ERROR]', err);
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
@@ -4394,7 +4394,7 @@ CMDS.add = {
 // ════════════════════════════════════════════════════════════
 
 // Storage for active startqueue panels: weapon -> { channelId, messageId, testerId, region }
-const SQ_PANEL_FILE = path.join(__dirname, 'paktiers_data', 'sq_panels.json');
+const SQ_PANEL_FILE = path.join(__dirname, 'eclipsetiers_data', 'sq_panels.json');
 const SQ_QUEUE_LIMIT = 15;
 
 function loadSQPanels() {
@@ -4545,14 +4545,14 @@ CMDS.hire = {
     // DM the player
     await member.send({ embeds:[new EmbedBuilder().setColor(0x00C864)
       .setTitle('🎉 You\'ve Been Hired!')
-      .setDescription(`Congratulations! You've been hired as **${role.name}** at **PakTiers**. 🇵🇰`)
-      .setFooter({ text:'PakTiers Staff Team' })
+      .setDescription(`Congratulations! You've been hired as **${role.name}** at **EclipseTiers**. 🇵🇰`)
+      .setFooter({ text:'EclipseTiers Staff Team' })
       .setTimestamp()] }).catch(() => {});
 
     return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
       .setTitle('✅ Staff Hired')
       .setDescription(`**${targetUser.tag}** has been hired as **${role.name}**.`)
-      .setFooter({ text:'PakTiers Staff Team' })] });
+      .setFooter({ text:'EclipseTiers Staff Team' })] });
   },
 };
 
@@ -4622,14 +4622,14 @@ CMDS.fire = {
     // DM the player
     await member.send({ embeds:[new EmbedBuilder().setColor(0xFF4444)
       .setTitle('📋 Staff Update')
-      .setDescription(`You've been removed from **${roleNameStr}** at **PakTiers**.${reason ? `\n\n**Reason:** ${reason}` : ''}`)
-      .setFooter({ text:'PakTiers Staff Team' })
+      .setDescription(`You've been removed from **${roleNameStr}** at **EclipseTiers**.${reason ? `\n\n**Reason:** ${reason}` : ''}`)
+      .setFooter({ text:'EclipseTiers Staff Team' })
       .setTimestamp()] }).catch(() => {});
 
     return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
       .setTitle('🔴 Staff Fired')
       .setDescription(`**${targetUser.tag}** has been removed from **${roleNameStr}**.`)
-      .setFooter({ text:'PakTiers Staff Team' })] });
+      .setFooter({ text:'EclipseTiers Staff Team' })] });
   },
 };
 
@@ -4641,9 +4641,9 @@ function buildStaffListEmbed(guild) {
 
   if (!entries.length) {
     return new EmbedBuilder().setColor(BRAND_COLOR)
-      .setTitle('🛡️ PakTiers Staff List')
+      .setTitle('🛡️ EclipseTiers Staff List')
       .setDescription('No staff have been hired yet.')
-      .setFooter({ text:'PakTiers Staff Team' })
+      .setFooter({ text:'EclipseTiers Staff Team' })
       .setTimestamp();
   }
 
@@ -4680,9 +4680,9 @@ function buildStaffListEmbed(guild) {
   const totalStaff = new Set(entries.map(([id]) => id)).size;
 
   return new EmbedBuilder().setColor(BRAND_COLOR)
-    .setTitle('🛡️ PakTiers Staff List')
+    .setTitle('🛡️ EclipseTiers Staff List')
     .addFields(fields)
-    .setFooter({ text:`Total Staff: ${totalStaff} · PakTiers` })
+    .setFooter({ text:`Total Staff: ${totalStaff} · EclipseTiers` })
     .setTimestamp();
 }
 
@@ -4747,16 +4747,16 @@ function buildTesterPnlEmbed() {
 
   if (!fields.length) {
     return new EmbedBuilder().setColor(BRAND_COLOR)
-      .setTitle('🧪 PakTiers Tester List')
+      .setTitle('🧪 EclipseTiers Tester List')
       .setDescription('No testers have been assigned to any gamemode yet. Use `/tester` to assign one.')
-      .setFooter({ text: 'PakTiers Tester Team' })
+      .setFooter({ text: 'EclipseTiers Tester Team' })
       .setTimestamp();
   }
 
   return new EmbedBuilder().setColor(BRAND_COLOR)
-    .setTitle('🧪 PakTiers Tester List')
+    .setTitle('🧪 EclipseTiers Tester List')
     .addFields(fields)
-    .setFooter({ text: `Total Testers: ${totalTesters} · PakTiers` })
+    .setFooter({ text: `Total Testers: ${totalTesters} · EclipseTiers` })
     .setTimestamp();
 }
 
@@ -5367,7 +5367,7 @@ async function handleSelectMenu(i) {
   if (isBlacklisted(i.user.id)) {
     return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
       .setTitle('🚫 Blacklisted')
-      .setDescription(`Your PakTiers account is blacklisted. You cannot use registration/profile actions or queue/test features.${blacklistReason(i.user.id)}`)
+      .setDescription(`Your EclipseTiers account is blacklisted. You cannot use registration/profile actions or queue/test features.${blacklistReason(i.user.id)}`)
       .setFooter({ text: BOT_FOOTER })] });
   }
   const [prefix, step, uid] = i.customId.split('_');
@@ -5420,7 +5420,7 @@ async function handleSelectMenu(i) {
           { name:'💻 Platform', value:player.platform||'Java',        inline:true },
           { name:'🌍 Region',   value:formatRegion(player.region),           inline:true },
         )
-        .setFooter({ text:'PakTiers · Pakistan Minecraft Community' })
+        .setFooter({ text:'EclipseTiers · Global Minecraft Community' })
         .setTimestamp()] });
     } catch(err) {
       console.error('[PANEL WAITLIST ROLE]', err);
@@ -5432,7 +5432,7 @@ async function handleSelectMenu(i) {
   // ── Application Panel: type select ────────────────────────
   if (i.customId === 'app_apply_select') {
     const appType = i.values[0];
-    const label = APPLICATION_TYPE_LABELS[appType] || 'Paktiers Application';
+    const label = APPLICATION_TYPE_LABELS[appType] || 'EclipseTiers Application';
 
     await i.deferReply({ ephemeral: true });
 
@@ -5473,13 +5473,13 @@ async function handleSelectMenu(i) {
 
     return i.update({
       embeds: [new EmbedBuilder().setColor(BRAND_COLOR)
-        .setTitle('📋 PakTiers Registration — Step 1/2')
+        .setTitle('📋 EclipseTiers Registration — Step 1/2')
         .setDescription(`✅ Platform: **${selected}**\n\nNow choose your **account type**:`)
         .addFields(
           { name:'💎 Premium (Paid)', value:'Original bought Minecraft account', inline:false },
           { name:'🏴‍☠️ Cracked (Free)', value:'TLauncher or another cracked launcher', inline:false },
         )
-        .setFooter({ text:'Only you can see this | PakTiers' })],
+        .setFooter({ text:'Only you can see this | EclipseTiers' })],
       components: [accRow],
     });
   }
@@ -5498,9 +5498,9 @@ async function handleSelectMenu(i) {
 
     return i.update({
       embeds: [new EmbedBuilder().setColor(BRAND_COLOR)
-        .setTitle('📋 PakTiers Registration — Step 2/2')
+        .setTitle('📋 EclipseTiers Registration — Step 2/2')
         .setDescription(`✅ Platform: **${state.platform}**\n✅ Account: **${selected}**\n\nNow choose your **region**:`)
-        .setFooter({ text:'Only you can see this | PakTiers' })],
+        .setFooter({ text:'Only you can see this | EclipseTiers' })],
       components: [regionRow],
     });
   }
@@ -5520,9 +5520,9 @@ async function handleSelectMenu(i) {
 
     return i.update({
       embeds: [new EmbedBuilder().setColor(BRAND_COLOR)
-        .setTitle('📋 PakTiers Registration — IGN')
+        .setTitle('📋 EclipseTiers Registration — IGN')
         .setDescription(`✅ Platform: **${state.platform}**\n✅ Account: **${state.accountType}**\n✅ Region: **${selected}**\n\n⬇️ Now click the button below and enter your **Minecraft IGN**:`)
-        .setFooter({ text:'Only you can see this | PakTiers' })],
+        .setFooter({ text:'Only you can see this | EclipseTiers' })],
       components: [ignRow],
     });
   }
@@ -5580,7 +5580,7 @@ async function handleButtonClick(i) {
         .addOptions(ACCOUNT_TYPES.map(a => ({ label:a, value:a }))),
     );
 
-    const titleTxt = existing ? '📋 PakTiers — Update Profile (Step 1/2)' : '📋 PakTiers Registration — Step 1/2';
+    const titleTxt = existing ? '📋 EclipseTiers — Update Profile (Step 1/2)' : '📋 EclipseTiers Registration — Step 1/2';
     const descTxt  = existing
       ? `♻️ **Updating profile for ${existing.ign}**\n\nChoose your **account type**:`
       : '🖥️ **Platform: Java Edition**\n\nChoose your **account type**:';
@@ -5594,7 +5594,7 @@ async function handleButtonClick(i) {
           { name:'💎 Premium (Paid)', value:'Original bought Minecraft account', inline:false },
           { name:'🏴‍☠️ Cracked (Free)', value:'TLauncher or another cracked launcher', inline:false },
         )
-        .setFooter({ text:'Only you can see this | PakTiers' })],
+        .setFooter({ text:'Only you can see this | EclipseTiers' })],
       components:[accRow],
     });
   }
@@ -5740,7 +5740,7 @@ async function handleButtonClick(i) {
           { name:'Position',  value:`**#${pos}** in queue`,        inline:true },
           { name:'⏳ Status',  value:'Wait for a tester to pull you…', inline:false },
         )
-        .setFooter({ text:'Use the Leave Queue button to exit the queue · PakTiers' })
+        .setFooter({ text:'Use the Leave Queue button to exit the queue · EclipseTiers' })
         .setTimestamp()] });
     }
 
@@ -5827,7 +5827,7 @@ async function handleButtonClick(i) {
           { name:'7. ⏱️ Joined Queue', value:joinedAt,                                                   inline:true },
           { name:'8. 📅 Registered',   value:`<t:${Math.floor(target.registeredAt/1000)}:D>`,            inline:true },
         )
-        .setFooter({ text:`Pulled by ${i.user.username} · PakTiers` })
+        .setFooter({ text:`Pulled by ${i.user.username} · EclipseTiers` })
         .setTimestamp();
 
       // Notify inside ticket channel OR DM player as fallback
@@ -5930,7 +5930,7 @@ async function handleButtonClick(i) {
           { name:'📋 Position', value:`**#${pos}** in queue`,                             inline:true },
           { name:'⏳ Status',   value:'Wait for a tester to pull you…',               inline:false },
         )
-        .setFooter({ text:'Use the Leave button to exit the queue · PakTiers' })
+        .setFooter({ text:'Use the Leave button to exit the queue · EclipseTiers' })
         .setTimestamp()] });
     }
 
@@ -6021,7 +6021,7 @@ async function handleButtonClick(i) {
           { name:'7. ⏱️ Joined Queue', value:joinedAt,                                                    inline:true },
           { name:'8. 📅 Registered',   value:`<t:${Math.floor(target.registeredAt/1000)}:D>`,             inline:true },
         )
-        .setFooter({ text:`Pulled by ${i.user.username} · PakTiers` })
+        .setFooter({ text:`Pulled by ${i.user.username} · EclipseTiers` })
         .setTimestamp();
 
       // Notify in ticket OR DM
@@ -6222,7 +6222,7 @@ async function handleModal(i) {
 
   await i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
     .setTitle('✅ Registration Complete! 🎉')
-    .setDescription(`Welcome to **PakTiers**, **${ign}**! 🇵🇰`)
+    .setDescription(`Welcome to **EclipseTiers**, **${ign}**! 🇵🇰`)
     .setThumbnail(`https://mc-heads.net/avatar/${ign}/128`)
     .addFields(
       { name:'🎮 IGN',         value:`\`${ign}\``,           inline:true },
@@ -6258,7 +6258,7 @@ const client = new Client({ intents:[
 
 client.once('ready', async () => {
   console.log(`🤖 Bot online as ${client.user.tag}`);
-  client.user.setPresence({ activities:[{ name:'⚔️ •Paktiers · PakTiers', type:0 }], status:'online' });
+  client.user.setPresence({ activities:[{ name:'⚔️ •EclipseTiers · EclipseTiers', type:0 }], status:'online' });
   try { await deployCommands(); } catch(e) { console.error('Deploy error:', e); }
 
   // Backfill uuid/verified for players registered before UUID tracking existed
@@ -6325,7 +6325,7 @@ syncToMem();
 server.listen(CONFIG.PORT, () => {
   console.log(`🌐 Server running on port ${CONFIG.PORT}`);
   console.log(`📡 WebSocket ready`);
-  console.log(`🔑 Secret: ${CONFIG.API_SECRET==='paktiers-secret-change-me' ? '⚠️  DEFAULT' : 'Set ✓'}`);
+  console.log(`🔑 Secret: ${CONFIG.API_SECRET==='eclipsetiers-secret-change-me' ? '⚠️  DEFAULT' : 'Set ✓'}`);
 });
 
 if (CONFIG.BOT_TOKEN) {
