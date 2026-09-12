@@ -1,5 +1,5 @@
 {
-  "createdAt": 1788679063970,
+  "createdAt": 1789216550180,
   "data": {
     "players": {
       "1494740977879875656": {
@@ -9,15 +9,15 @@
         "accountType": "Cracked (Free)",
         "region": "Pakistan 🇵🇰",
         "tiers": {
-          "Axe": "LT5",
-          "Crystal": "LT4",
+          "Crystal": "HT4",
           "Netherite": "HT4",
           "Mace": "HT5",
-          "Sword": "HT5",
           "UHC": "HT5",
           "SpearMace": "LT5",
           "SMP": "LT4",
-          "DiaSMP": "LT4"
+          "DiaSMP": "LT4",
+          "Sword": "HT4",
+          "Axe": "HT4"
         },
         "registeredAt": 1784643535589,
         "updatedAt": 1788182805949,
@@ -88,7 +88,8 @@
           "Sword": "LT4",
           "Crystal": "LT4",
           "Netherite": "LT4",
-          "DiaSMP": "HT5"
+          "DiaSMP": "HT5",
+          "Mace": "LT4"
         },
         "registeredAt": 1784646009689,
         "uuid": "b4dad87d-2902-3d47-9e61-650e544cb85d",
@@ -170,7 +171,9 @@
         "region": "Saudi Arabia 🇸🇦",
         "tiers": {
           "Crystal": "HT3",
-          "Mace": "LT4"
+          "Mace": "HT4",
+          "Sword": "LT4",
+          "Axe": "LT3"
         },
         "registeredAt": 1784652385304,
         "uuid": "0c52caba-c6de-4c89-8896-9bcb4f6c1463",
@@ -240,7 +243,9 @@
         "platform": "Java Edition",
         "accountType": "Cracked (Free)",
         "region": "Pakistan 🇵🇰",
-        "tiers": {},
+        "tiers": {
+          "Mace": "LT5"
+        },
         "registeredAt": 1784723060068,
         "uuid": "bb599998-d56f-3a36-a80a-afa40ef9c5dc",
         "verified": false
@@ -270,35 +275,38 @@
       },
       "1436044392468316253": {
         "discordId": "1436044392468316253",
-        "ign": "FAKE_HUZAIFA",
+        "ign": "HUZ41F4",
         "platform": "Java Edition",
-        "accountType": "Cracked (Free)",
+        "accountType": "Premium (Paid)",
         "region": "Pakistan 🇵🇰",
         "tiers": {
           "DiaSMP": "LT4",
-          "Netherite": "HT4"
+          "Netherite": "HT4",
+          "Axe": "HT5",
+          "Crystal": "HT5"
         },
         "registeredAt": 1784738870212,
         "uuid": "78c9f866-e755-30bf-b9a7-4113c9bbe828",
-        "verified": false
+        "verified": false,
+        "updatedAt": 1789213307613
       },
       "1137320576776671272": {
         "discordId": "1137320576776671272",
-        "ign": "NINJA_90",
+        "ign": "ChadxZeroxYT",
         "platform": "Java Edition",
         "accountType": "Cracked (Free)",
         "region": "Pakistan 🇵🇰",
         "tiers": {
           "Netherite": "HT5",
-          "Crystal": "LT4",
-          "Mace": "LT3",
+          "Crystal": "HT5",
+          "Mace": "LT4",
           "SMP": "HT4",
           "DiaSMP": "HT5",
           "Sword": "LT4"
         },
         "registeredAt": 1784790877422,
-        "updatedAt": 1787056427183,
-        "uuid": "b881ba82-52d9-3d56-ac75-a4d22f815a4e",
+        "updatedAt": 1789061662958,
+        "uuid": "48fb2c0e-a266-321a-bf60-4c964e650efe",
         "verified": false
       },
       "1240625863167311885": {
@@ -356,7 +364,7 @@
         "region": "Pakistan 🇵🇰",
         "tiers": {
           "Crystal": "LT3",
-          "Mace": "LT3"
+          "Mace": "LT5"
         },
         "registeredAt": 1786988610849,
         "uuid": "ed1f14b8-7f99-4f82-b96b-d2d6b320f637",
@@ -382,8 +390,10 @@
         "tiers": {
           "Sword": "LT4",
           "Netherite": "LT4",
-          "Mace": "HT5",
-          "SMP": "HT5"
+          "Mace": "HT4",
+          "SMP": "HT5",
+          "Crystal": "HT5",
+          "Axe": "HT5"
         },
         "registeredAt": 1787039450691,
         "updatedAt": 1788171782456,
@@ -442,12 +452,12 @@
       },
       "1517176681977086183": {
         "discordId": "1517176681977086183",
-        "ign": "ShadowXWarriorYT",
+        "ign": "Shad4wX",
         "platform": "Java Edition",
         "accountType": "Premium (Paid)",
         "region": "Pakistan 🇵🇰",
         "tiers": {
-          "Sword": "LT3",
+          "Sword": "HT4",
           "Netherite": "LT3",
           "Mace": "LT5",
           "Crystal": "LT5",
@@ -456,7 +466,8 @@
         },
         "registeredAt": 1787398340376,
         "uuid": "a13879ab-db6b-4aea-9e7f-d6a54a52c848",
-        "verified": false
+        "verified": false,
+        "updatedAt": 1788768916835
       },
       "927944779629727794": {
         "discordId": "927944779629727794",
@@ -465,12 +476,13 @@
         "accountType": "Premium (Paid)",
         "region": "UAE 🇦🇪",
         "tiers": {
-          "Sword": "LT4",
+          "Sword": "LT3",
           "Crystal": "LT4",
           "UHC": "LT4",
           "Netherite": "HT4",
-          "SMP": "HT4",
-          "DiaSMP": "LT3"
+          "SMP": "LT3",
+          "DiaSMP": "LT3",
+          "Axe": "LT3"
         },
         "registeredAt": 1787398837933,
         "uuid": "92df51ab-2d61-488d-80dd-7e0d387c76e2",
@@ -551,7 +563,9 @@
         "tiers": {
           "Sword": "LT4",
           "Netherite": "LT4",
-          "Axe": "LT4"
+          "Axe": "HT4",
+          "SMP": "HT4",
+          "Crystal": "LT3"
         },
         "registeredAt": 1787403246602,
         "uuid": "1408f0f5-12c8-48f1-ba72-9109cc86db66",
@@ -578,7 +592,7 @@
       },
       "1507703003140849765": {
         "discordId": "1507703003140849765",
-        "ign": "VortexFoundYou",
+        "ign": "Cr1ttts",
         "platform": "Java Edition",
         "accountType": "Premium (Paid)",
         "region": "Pakistan 🇵🇰",
@@ -587,7 +601,8 @@
         },
         "registeredAt": 1787404023685,
         "uuid": "db0e435a-93f1-383b-9ac0-a9a6c245ac29",
-        "verified": false
+        "verified": false,
+        "updatedAt": 1788763172692
       },
       "1525180039132610791": {
         "discordId": "1525180039132610791",
@@ -595,7 +610,11 @@
         "platform": "Java Edition",
         "accountType": "Cracked (Free)",
         "region": "Pakistan 🇵🇰",
-        "tiers": {},
+        "tiers": {
+          "Crystal": "LT3",
+          "UHC": "HT5",
+          "Netherite": "LT3"
+        },
         "registeredAt": 1787404087855,
         "uuid": "4cffe7b0-7d60-3cd7-a554-065f77ae437a",
         "verified": false,
@@ -607,7 +626,9 @@
         "platform": "Java Edition",
         "accountType": "Premium (Paid)",
         "region": "Pakistan 🇵🇰",
-        "tiers": {},
+        "tiers": {
+          "Sword": "LT5"
+        },
         "registeredAt": 1787406439722,
         "uuid": "abbaf4a9-aa61-433d-9549-77b5d6fa9521",
         "verified": false
@@ -633,7 +654,11 @@
         "tiers": {
           "Crystal": "HT3",
           "SMP": "HT4",
-          "Mace": "HT5"
+          "Mace": "LT5",
+          "Sword": "HT4",
+          "Netherite": "HT4",
+          "Axe": "LT3",
+          "DiaSMP": "HT4"
         },
         "registeredAt": 1787407302904,
         "uuid": "85eeb148-50dd-3f14-9fbf-ee1a10600e97",
@@ -693,7 +718,8 @@
           "Crystal": "LT4",
           "Mace": "LT3",
           "SMP": "HT4",
-          "DiaSMP": "LT4"
+          "DiaSMP": "LT4",
+          "Sword": "LT4"
         },
         "registeredAt": 1787416878407,
         "uuid": "9055f2bd-d6d9-403c-968a-0a9cec556c4e",
@@ -737,7 +763,8 @@
         "region": "Pakistan 🇵🇰",
         "tiers": {
           "Netherite": "LT5",
-          "SMP": "LT4"
+          "SMP": "LT4",
+          "Sword": "HT4"
         },
         "registeredAt": 1787474521963,
         "uuid": "8290d883-e4ff-38a4-9efc-2fc1428a18dc",
@@ -879,9 +906,10 @@
         "accountType": "Premium (Paid)",
         "region": "Pakistan 🇵🇰",
         "tiers": {
-          "Mace": "LT3",
+          "Mace": "LT4",
           "Sword": "HT5",
-          "Netherite": "LT4"
+          "Netherite": "LT4",
+          "Crystal": "LT3"
         },
         "registeredAt": 1787649097274,
         "uuid": "89f4824f-a621-473a-a138-466389ae1f7b",
@@ -893,7 +921,9 @@
         "platform": "Java Edition",
         "accountType": "Cracked (Free)",
         "region": "Pakistan 🇵🇰",
-        "tiers": {},
+        "tiers": {
+          "Crystal": "LT5"
+        },
         "registeredAt": 1787651956749,
         "uuid": "da183f92-0594-3962-9895-8d044484b80e",
         "verified": false
@@ -918,9 +948,11 @@
         "accountType": "Premium (Paid)",
         "region": "Pakistan 🇵🇰",
         "tiers": {
-          "Sword": "HT4",
+          "Sword": "LT4",
           "Netherite": "HT5",
-          "Mace": "LT5"
+          "Mace": "LT4",
+          "Axe": "LT4",
+          "Crystal": "HT5"
         },
         "registeredAt": 1787664398953,
         "uuid": "223471eb-64da-4e39-bcb0-da41a73e30ea",
@@ -963,7 +995,8 @@
         "tiers": {
           "Crystal": "LT3",
           "Netherite": "HT4",
-          "Mace": "LT5"
+          "Mace": "LT5",
+          "Sword": "LT5"
         },
         "registeredAt": 1787733994463
       },
@@ -1020,7 +1053,8 @@
           "Mace": "LT4",
           "UHC": "LT4",
           "DiaSMP": "HT4",
-          "SMP": "LT4"
+          "SMP": "LT4",
+          "Axe": "LT4"
         },
         "registeredAt": 1787751524311
       },
@@ -1075,7 +1109,9 @@
         "uuid": "a026e6d7-92c7-3da2-8859-2cf114f37a23",
         "verified": false,
         "tiers": {
-          "DiaSMP": "LT5"
+          "DiaSMP": "LT5",
+          "Netherite": "HT5",
+          "SMP": "LT5"
         },
         "registeredAt": 1787843518838,
         "updatedAt": 1788167015016
@@ -1198,11 +1234,13 @@
         "uuid": "81bf7f4c-2f69-3b0d-a52f-a9643382c01f",
         "verified": false,
         "tiers": {
-          "Netherite": "HT4",
-          "Sword": "HT5",
+          "Netherite": "LT4",
+          "Sword": "LT4",
           "Crystal": "HT4",
           "DiaSMP": "LT4",
-          "Mace": "LT5"
+          "Mace": "LT5",
+          "Axe": "HT5",
+          "SMP": "LT4"
         },
         "registeredAt": 1788007940859,
         "updatedAt": 1788520006223
@@ -1215,7 +1253,10 @@
         "region": "Pakistan 🇵🇰",
         "uuid": "fd49dad7-74f8-30f4-84e6-dddc8aed5589",
         "verified": false,
-        "tiers": {},
+        "tiers": {
+          "Axe": "HT5",
+          "Crystal": "HT5"
+        },
         "registeredAt": 1788009049532,
         "updatedAt": 1788009100267
       },
@@ -1315,7 +1356,7 @@
         "verified": false,
         "tiers": {
           "Crystal": "LT4",
-          "Sword": "HT5",
+          "Sword": "LT4",
           "SMP": "LT4"
         },
         "registeredAt": 1788074063695,
@@ -1348,7 +1389,7 @@
           "Sword": "LT3",
           "Crystal": "LT3",
           "SpearMace": "LT3",
-          "Axe": "HT4",
+          "Axe": "LT3",
           "SMP": "LT3",
           "DiaSMP": "LT3"
         },
@@ -1363,12 +1404,14 @@
         "uuid": "45010081-844e-3594-a49c-6c98252780a2",
         "verified": false,
         "tiers": {
-          "Crystal": "HT4",
-          "Netherite": "HT5",
-          "Mace": "LT5",
+          "Crystal": "LT4",
+          "Netherite": "LT4",
+          "Mace": "LT4",
           "DiaSMP": "LT4",
           "UHC": "HT5",
-          "SMP": "HT5"
+          "SMP": "HT5",
+          "Axe": "HT5",
+          "Sword": "LT4"
         },
         "registeredAt": 1788082402019,
         "updatedAt": 1788434454548
@@ -1410,7 +1453,8 @@
           "Sword": "LT3",
           "Crystal": "HT4",
           "DiaSMP": "LT4",
-          "Netherite": "HT4"
+          "Netherite": "HT4",
+          "UHC": "HT5"
         },
         "registeredAt": 1788086014531,
         "updatedAt": 1788086109812
@@ -1478,12 +1522,12 @@
         "verified": false,
         "tiers": {
           "Sword": "LT4",
-          "Netherite": "LT4",
+          "Netherite": "LT3",
           "DiaSMP": "LT3",
           "SMP": "LT3"
         },
         "registeredAt": 1788090593027,
-        "updatedAt": 1788497568096
+        "updatedAt": 1788883174984
       },
       "1327267425514684458": {
         "discordId": "1327267425514684458",
@@ -1494,8 +1538,7 @@
         "uuid": "97da9f8a-83dd-3d8a-b092-08120a84b957",
         "verified": false,
         "tiers": {
-          "Pot": "LT3",
-          "Mace": "LT5"
+          "Pot": "LT3"
         },
         "registeredAt": 1788093753217
       },
@@ -1592,9 +1635,11 @@
         "region": "Pakistan 🇵🇰",
         "uuid": "d941ff9a-de71-3abe-a593-1f8b5d489749",
         "verified": false,
-        "tiers": {},
+        "tiers": {
+          "Sword": "LT3"
+        },
         "registeredAt": 1788108032928,
-        "updatedAt": 1788108288405
+        "updatedAt": 1789162308852
       },
       "1050007331234119700": {
         "discordId": "1050007331234119700",
@@ -1607,7 +1652,12 @@
         "tiers": {
           "Mace": "LT5",
           "UHC": "HT5",
-          "SMP": "LT4"
+          "SMP": "HT4",
+          "Crystal": "LT5",
+          "Axe": "HT4",
+          "Sword": "LT4",
+          "DiaSMP": "HT5",
+          "Netherite": "LT4"
         },
         "registeredAt": 1788110060098
       },
@@ -1616,18 +1666,20 @@
         "ign": "i3rvz",
         "platform": "Java Edition",
         "accountType": "Premium (Paid)",
-        "region": "Pakistan 🇵🇰",
+        "region": "Saudi Arabia 🇸🇦",
         "uuid": "6b5c8144-d9be-35b2-b4be-bf7dc0890ffc",
         "verified": false,
         "tiers": {
-          "Sword": "LT3",
+          "SMP": "LT3",
+          "UHC": "HT5",
+          "Axe": "LT3",
+          "Sword": "HT3",
           "Netherite": "LT3",
-          "Mace": "LT3",
-          "Crystal": "LT3",
-          "SMP": "LT5"
+          "Crystal": "LT3"
         },
         "registeredAt": 1788111157957,
-        "updatedAt": 1788111210537
+        "updatedAt": 1788703978996,
+        "retiredTiers": {}
       },
       "1342430034656497695": {
         "discordId": "1342430034656497695",
@@ -1675,12 +1727,14 @@
         "uuid": "14322775-b12e-3a2b-a57e-4e8c1738ec38",
         "verified": false,
         "tiers": {
-          "Crystal": "LT4",
+          "Crystal": "LT3",
           "Mace": "LT5",
           "Netherite": "HT4",
-          "Sword": "HT5",
+          "Sword": "LT4",
           "DiaSMP": "HT5",
-          "SMP": "HT5"
+          "SMP": "HT5",
+          "Axe": "HT4",
+          "UHC": "LT5"
         },
         "registeredAt": 1788137763327
       },
@@ -1707,7 +1761,9 @@
         "uuid": "a35f6c05-c3ab-3b59-be6e-c344a944239c",
         "verified": false,
         "tiers": {
-          "Mace": "LT5"
+          "Mace": "LT5",
+          "Sword": "HT5",
+          "Netherite": "LT4"
         },
         "registeredAt": 1788153914670,
         "updatedAt": 1788154628417
@@ -1768,11 +1824,12 @@
         "verified": false,
         "tiers": {
           "Sword": "LT3",
-          "Crystal": "HT4",
-          "Mace": "LT5",
-          "Axe": "LT4",
+          "Crystal": "LT5",
+          "Mace": "HT4",
+          "Axe": "LT3",
           "SMP": "LT4",
-          "Netherite": "HT4"
+          "Netherite": "HT5",
+          "DiaSMP": "LT4"
         },
         "registeredAt": 1788178625138
       },
@@ -1829,7 +1886,10 @@
         "region": "India 🇮🇳",
         "uuid": "fcae6f35-abab-378a-a6c1-556ee7a32f0e",
         "verified": false,
-        "tiers": {},
+        "tiers": {
+          "Crystal": "HT5",
+          "Sword": "LT3"
+        },
         "registeredAt": 1788195732567
       },
       "1194506578418741318": {
@@ -1840,7 +1900,14 @@
         "region": "Pakistan 🇵🇰",
         "uuid": "517e4035-f350-3895-af1f-8d3b5a8251c6",
         "verified": false,
-        "tiers": {},
+        "tiers": {
+          "Sword": "LT3",
+          "Mace": "HT5",
+          "Crystal": "LT4",
+          "Axe": "LT3",
+          "Netherite": "LT3",
+          "DiaSMP": "LT4"
+        },
         "registeredAt": 1788246825498,
         "retiredTiers": {}
       },
@@ -1868,7 +1935,8 @@
         "verified": false,
         "tiers": {
           "Netherite": "LT3",
-          "Crystal": "HT4"
+          "Crystal": "LT4",
+          "Sword": "HT4"
         },
         "registeredAt": 1788248730092
       },
@@ -1905,7 +1973,8 @@
         "tiers": {
           "Mace": "LT5",
           "DiaSMP": "LT4",
-          "Crystal": "LT4"
+          "Crystal": "LT4",
+          "Sword": "LT4"
         },
         "registeredAt": 1788255445345
       },
@@ -1932,7 +2001,8 @@
         "uuid": "925fbec0-168a-3da1-8872-cc2de7487def",
         "verified": false,
         "tiers": {},
-        "registeredAt": 1788257635979
+        "registeredAt": 1788257635979,
+        "updatedAt": 1789132755508
       },
       "1537028903510478961": {
         "discordId": "1537028903510478961",
@@ -1942,7 +2012,9 @@
         "region": "Pakistan 🇵🇰",
         "uuid": "57e3b8b2-11b8-3d7b-a2d8-e75cff724fc4",
         "verified": false,
-        "tiers": {},
+        "tiers": {
+          "Crystal": "LT4"
+        },
         "registeredAt": 1788261183936
       },
       "1204002944484118548": {
@@ -1955,11 +2027,14 @@
         "verified": false,
         "tiers": {
           "Netherite": "HT4",
-          "Sword": "HT4",
+          "Sword": "LT3",
           "Crystal": "LT3",
           "Mace": "LT3",
           "Axe": "LT3",
-          "DiaSMP": "LT3"
+          "DiaSMP": "LT3",
+          "SMP": "HT4",
+          "Pot": "LT3",
+          "SpearMace": "LT3"
         },
         "registeredAt": 1788264544314
       },
@@ -1994,7 +2069,7 @@
         "uuid": "657fa777-c569-30ed-89ca-2cedbbc78978",
         "verified": false,
         "tiers": {
-          "Crystal": "LT4",
+          "Crystal": "HT5",
           "SMP": "LT4",
           "DiaSMP": "LT4",
           "Mace": "HT5"
@@ -2037,8 +2112,12 @@
         "uuid": "886a27f3-ec85-3f46-8075-df04480414bd",
         "verified": false,
         "tiers": {
-          "Mace": "LT3",
-          "Sword": "LT4"
+          "Mace": "HT3",
+          "Sword": "LT4",
+          "Axe": "LT3",
+          "Netherite": "HT4",
+          "SMP": "LT4",
+          "DiaSMP": "LT4"
         },
         "registeredAt": 1788341168870
       },
@@ -2062,10 +2141,11 @@
         "uuid": "4c6358a5-6558-34ef-b54a-6c50210c0a5f",
         "verified": false,
         "tiers": {
-          "Crystal": "HT5"
+          "Crystal": "HT4"
         },
         "retiredTiers": {},
-        "registeredAt": 1788373299341
+        "registeredAt": 1788373299341,
+        "updatedAt": 1788702045054
       },
       "980858370703626281": {
         "discordId": "980858370703626281",
@@ -2129,7 +2209,9 @@
         "region": "Pakistan 🇵🇰",
         "uuid": "2059ac42-d82d-35a0-b477-3d4d481aa4bd",
         "verified": false,
-        "tiers": {},
+        "tiers": {
+          "Sword": "HT4"
+        },
         "retiredTiers": {},
         "registeredAt": 1788440410999
       },
@@ -2199,13 +2281,14 @@
         "uuid": "57417247-34f7-3b93-b413-76860565d922",
         "verified": false,
         "tiers": {
-          "SMP": "LT3",
-          "DiaSMP": "LT3",
-          "Netherite": "HT4",
+          "Mace": "LT4",
           "Crystal": "LT4",
-          "Mace": "LT3",
           "Sword": "LT3",
-          "UHC": "LT4"
+          "SMP": "LT3",
+          "Axe": "HT3",
+          "DiaSMP": "LT3",
+          "UHC": "LT4",
+          "Netherite": "HT3"
         },
         "retiredTiers": {},
         "registeredAt": 1788502430334,
@@ -2219,7 +2302,9 @@
         "region": "Pakistan 🇵🇰",
         "uuid": "b04855bb-d7e4-36a3-a612-77b440ed6a11",
         "verified": false,
-        "tiers": {},
+        "tiers": {
+          "Sword": "LT4"
+        },
         "retiredTiers": {},
         "registeredAt": 1788502633894
       },
@@ -2232,7 +2317,7 @@
         "uuid": "1b5bf18b-ef9f-347f-8a8d-cef90da60509",
         "verified": false,
         "tiers": {
-          "DiaSMP": "LT4",
+          "DiaSMP": "HT5",
           "SMP": "LT4"
         },
         "retiredTiers": {},
@@ -2247,7 +2332,9 @@
         "uuid": "a52e17a3-7f50-3a5a-b10c-54e3f4558e97",
         "verified": false,
         "tiers": {
-          "Netherite": "LT3"
+          "Netherite": "LT3",
+          "Axe": "LT3",
+          "Crystal": "LT4"
         },
         "retiredTiers": {},
         "registeredAt": 1788516178419
@@ -2325,7 +2412,7 @@
         "verified": false,
         "tiers": {
           "Crystal": "HT4",
-          "Axe": "HT4"
+          "Axe": "LT3"
         },
         "retiredTiers": {},
         "registeredAt": 1788535308315
@@ -2338,7 +2425,13 @@
         "region": "Pakistan 🇵🇰",
         "uuid": "111f22f8-ae47-3d0e-8faf-43daf6d13223",
         "verified": false,
-        "tiers": {},
+        "tiers": {
+          "Axe": "HT4",
+          "Crystal": "LT4",
+          "Sword": "LT5",
+          "Netherite": "HT5",
+          "Mace": "HT4"
+        },
         "retiredTiers": {},
         "registeredAt": 1788540506158
       },
@@ -2347,13 +2440,13 @@
         "ign": "rynokkusu001",
         "platform": "Java Edition",
         "accountType": "Premium (Paid)",
-        "region": "Other 🌍",
+        "region": "Saudi Arabia 🇸🇦",
         "uuid": "290a9d2e-c5bb-3c03-8de0-fb67d473f179",
         "verified": false,
         "tiers": {},
         "retiredTiers": {},
         "registeredAt": 1788549762226,
-        "updatedAt": 1788604334107
+        "updatedAt": 1788741525095
       },
       "1402926473454551060": {
         "discordId": "1402926473454551060",
@@ -2401,7 +2494,9 @@
         "region": "Pakistan 🇵🇰",
         "uuid": "5c1b11b0-52d0-396c-941e-b622de0b0ed7",
         "verified": false,
-        "tiers": {},
+        "tiers": {
+          "Crystal": "LT5"
+        },
         "retiredTiers": {},
         "registeredAt": 1788597973212,
         "updatedAt": 1788598546332
@@ -2429,7 +2524,10 @@
         "tiers": {
           "Mace": "LT3",
           "Netherite": "HT4",
-          "SMP": "LT3"
+          "SMP": "LT3",
+          "DiaSMP": "HT4",
+          "Crystal": "LT3",
+          "Axe": "LT3"
         },
         "retiredTiers": {},
         "registeredAt": 1788600457333
@@ -2444,8 +2542,9 @@
         "verified": false,
         "tiers": {
           "Mace": "LT5",
-          "Crystal": "LT5",
-          "Netherite": "HT4"
+          "Crystal": "LT4",
+          "Netherite": "HT4",
+          "SMP": "LT4"
         },
         "retiredTiers": {},
         "registeredAt": 1788600880664
@@ -2460,7 +2559,8 @@
         "verified": false,
         "tiers": {},
         "retiredTiers": {},
-        "registeredAt": 1788603039811
+        "registeredAt": 1788603039811,
+        "updatedAt": 1788863975305
       },
       "1391079584056737823": {
         "discordId": "1391079584056737823",
@@ -2472,7 +2572,11 @@
         "verified": false,
         "tiers": {
           "Crystal": "LT3",
-          "Mace": "LT3"
+          "Mace": "HT5",
+          "Axe": "LT3",
+          "Sword": "LT4",
+          "UHC": "HT5",
+          "Netherite": "HT4"
         },
         "retiredTiers": {},
         "registeredAt": 1788603307006
@@ -2488,7 +2592,7 @@
         "tiers": {},
         "retiredTiers": {},
         "registeredAt": 1788603664129,
-        "updatedAt": 1788604248259
+        "updatedAt": 1788721414692
       },
       "1472652284423835954": {
         "discordId": "1472652284423835954",
@@ -2500,7 +2604,8 @@
         "verified": false,
         "tiers": {},
         "retiredTiers": {},
-        "registeredAt": 1788604060160
+        "registeredAt": 1788604060160,
+        "updatedAt": 1788789999388
       },
       "1515021155595976743": {
         "discordId": "1515021155595976743",
@@ -2536,7 +2641,9 @@
         "region": "India 🇮🇳",
         "uuid": "bc37d6ca-3177-322e-8704-9fc136e77588",
         "verified": false,
-        "tiers": {},
+        "tiers": {
+          "Sword": "LT4"
+        },
         "retiredTiers": {},
         "registeredAt": 1788614906634
       },
@@ -2573,7 +2680,7 @@
         "uuid": "8bef0844-4d91-3c64-87ae-e568d5c305b5",
         "verified": false,
         "tiers": {
-          "Netherite": "LT4"
+          "Netherite": "HT4"
         },
         "retiredTiers": {},
         "registeredAt": 1788632964994
@@ -2587,22 +2694,26 @@
         "uuid": "a5415cc5-6088-39e7-af9e-fc9aeff7c6c7",
         "verified": false,
         "tiers": {
-          "DiaSMP": "LT3"
+          "DiaSMP": "LT3",
+          "Sword": "LT4",
+          "Netherite": "LT4",
+          "SMP": "HT4"
         },
         "retiredTiers": {},
         "registeredAt": 1788637316712
       },
       "1418571818570354688": {
         "discordId": "1418571818570354688",
-        "ign": "ZAINGAMER69",
+        "ign": "ZAINGAMERZ88",
         "platform": "Java Edition",
         "accountType": "Cracked (Free)",
         "region": "Pakistan 🇵🇰",
-        "uuid": "18e94c5a-4b96-3163-98f5-534d4b0efde9",
+        "uuid": "e0552b94-368a-3b10-ac61-20b52d4569ea",
         "verified": false,
         "tiers": {},
         "retiredTiers": {},
-        "registeredAt": 1788661186100
+        "registeredAt": 1788661186100,
+        "updatedAt": 1788873999413
       },
       "1162364671618195456": {
         "discordId": "1162364671618195456",
@@ -2615,46 +2726,556 @@
         "tiers": {},
         "retiredTiers": {},
         "registeredAt": 1788678144678
+      },
+      "1532692365641519165": {
+        "discordId": "1532692365641519165",
+        "ign": "ITZ_NUGTZ",
+        "platform": "Java Edition",
+        "accountType": "Cracked (Free)",
+        "region": "UAE 🇦🇪",
+        "uuid": "c004f82c-4db5-3e09-86ac-308db16a1e12",
+        "verified": false,
+        "tiers": {
+          "Crystal": "LT4",
+          "Sword": "LT4"
+        },
+        "retiredTiers": {},
+        "registeredAt": 1788690702880
+      },
+      "1324342023406358540": {
+        "discordId": "1324342023406358540",
+        "ign": "Honoured1Akaza",
+        "platform": "Java Edition",
+        "accountType": "Cracked (Free)",
+        "region": "Pakistan 🇵🇰",
+        "uuid": "03fbf67e-84b7-3479-9825-9534dc67c42c",
+        "verified": false,
+        "tiers": {
+          "SMP": "LT4",
+          "Netherite": "HT5"
+        },
+        "retiredTiers": {},
+        "registeredAt": 1788711872964
+      },
+      "1369612674018709577": {
+        "discordId": "1369612674018709577",
+        "ign": "FAWAZSHPRO",
+        "platform": "Java Edition",
+        "accountType": "Cracked (Free)",
+        "region": "Pakistan 🇵🇰",
+        "uuid": "4830442f-3fdc-375b-8d31-ed5ad2b4ff27",
+        "verified": false,
+        "tiers": {
+          "Netherite": "LT3"
+        },
+        "retiredTiers": {},
+        "registeredAt": 1788717361220
+      },
+      "1386644386825240616": {
+        "discordId": "1386644386825240616",
+        "ign": "_NOTALI_",
+        "platform": "Java Edition",
+        "accountType": "Cracked (Free)",
+        "region": "Pakistan 🇵🇰",
+        "uuid": "0a42c2d1-44a7-3e01-9e5d-8fedaef47016",
+        "verified": false,
+        "tiers": {
+          "SMP": "LT4",
+          "Sword": "LT4",
+          "Crystal": "HT4"
+        },
+        "retiredTiers": {},
+        "registeredAt": 1788718734754
+      },
+      "1483037628650618913": {
+        "discordId": "1483037628650618913",
+        "ign": "heheheDream",
+        "platform": "Java Edition",
+        "accountType": "Cracked (Free)",
+        "region": "India 🇮🇳",
+        "uuid": "c10d8869-ca02-314d-a427-6560e54c847c",
+        "verified": false,
+        "tiers": {},
+        "retiredTiers": {},
+        "registeredAt": 1788723177532
+      },
+      "1238527072704659591": {
+        "discordId": "1238527072704659591",
+        "ign": "LeviUchiha_",
+        "platform": "Java Edition",
+        "accountType": "Premium (Paid)",
+        "region": "UAE 🇦🇪",
+        "uuid": "950fd037-923d-341d-bb3a-df8c38969ec3",
+        "verified": false,
+        "tiers": {
+          "Sword": "LT4",
+          "Crystal": "LT3"
+        },
+        "retiredTiers": {},
+        "registeredAt": 1788762858823
+      },
+      "1500810223731085393": {
+        "discordId": "1500810223731085393",
+        "ign": "1nOnlyJester",
+        "platform": "Java Edition",
+        "accountType": "Cracked (Free)",
+        "region": "UAE 🇦🇪",
+        "uuid": "34b47123-3b51-37d2-99e5-2e65ee3ed694",
+        "verified": false,
+        "tiers": {},
+        "retiredTiers": {},
+        "registeredAt": 1788784356638
+      },
+      "1390672959840194627": {
+        "discordId": "1390672959840194627",
+        "ign": "ItzSensei",
+        "platform": "Java Edition",
+        "accountType": "Premium (Paid)",
+        "region": "Pakistan 🇵🇰",
+        "uuid": "6aadb8b8-4fbd-329b-af48-3b98caf51884",
+        "verified": false,
+        "tiers": {},
+        "retiredTiers": {},
+        "registeredAt": 1788796457048
+      },
+      "912355570256838686": {
+        "discordId": "912355570256838686",
+        "ign": "Crownixed",
+        "platform": "Java Edition",
+        "accountType": "Premium (Paid)",
+        "region": "Pakistan 🇵🇰",
+        "uuid": "234c8903-2f38-3887-a07e-7e15477af911",
+        "verified": false,
+        "tiers": {},
+        "retiredTiers": {},
+        "registeredAt": 1788796900270
+      },
+      "1096689126000037980": {
+        "discordId": "1096689126000037980",
+        "ign": "yyPleb",
+        "platform": "Java Edition",
+        "accountType": "Premium (Paid)",
+        "region": "Saudi Arabia 🇸🇦",
+        "uuid": "710a6bb2-03a8-3c42-ae36-78e6ccfd9b8a",
+        "verified": false,
+        "tiers": {},
+        "retiredTiers": {},
+        "registeredAt": 1788808849349
+      },
+      "1542260880882925703": {
+        "discordId": "1542260880882925703",
+        "ign": "JINX_edito",
+        "platform": "Java Edition",
+        "accountType": "Cracked (Free)",
+        "region": "USA 🇺🇸",
+        "uuid": "e9ed8d43-586e-3be8-9571-c30ffc482bea",
+        "verified": false,
+        "tiers": {},
+        "retiredTiers": {},
+        "registeredAt": 1788817381035,
+        "updatedAt": 1788818728704
+      },
+      "1378711253454819379": {
+        "discordId": "1378711253454819379",
+        "ign": "Toheed_Gaming",
+        "platform": "Java Edition",
+        "accountType": "Premium (Paid)",
+        "region": "Pakistan 🇵🇰",
+        "uuid": "fc0389ca-c0a3-3392-8378-6b5ea53fa98d",
+        "verified": false,
+        "tiers": {},
+        "retiredTiers": {},
+        "registeredAt": 1788863879915
+      },
+      "1114644363142778982": {
+        "discordId": "1114644363142778982",
+        "ign": "Critveil",
+        "platform": "Java Edition",
+        "accountType": "Premium (Paid)",
+        "region": "Other 🌍",
+        "uuid": "235539d1-f7ac-3a06-be3c-563fef5c6e93",
+        "verified": false,
+        "tiers": {
+          "Crystal": "LT3"
+        },
+        "retiredTiers": {},
+        "registeredAt": 1788865689444
+      },
+      "1380598261907460147": {
+        "discordId": "1380598261907460147",
+        "ign": "itsjoex",
+        "platform": "Java Edition",
+        "accountType": "Cracked (Free)",
+        "region": "Pakistan 🇵🇰",
+        "uuid": "0cd9132e-3105-31f6-a231-dcd2f2570aec",
+        "verified": false,
+        "tiers": {},
+        "retiredTiers": {},
+        "registeredAt": 1788870585191,
+        "updatedAt": 1788870651478
+      },
+      "1524841189164056677": {
+        "discordId": "1524841189164056677",
+        "ign": "mxr770",
+        "platform": "Java Edition",
+        "accountType": "Cracked (Free)",
+        "region": "UAE 🇦🇪",
+        "uuid": "64f6a248-a140-3582-b554-2269d6464a43",
+        "verified": false,
+        "tiers": {},
+        "retiredTiers": {},
+        "registeredAt": 1788872876142
+      },
+      "1402202711520448617": {
+        "discordId": "1402202711520448617",
+        "ign": "xoined",
+        "platform": "Java Edition",
+        "accountType": "Premium (Paid)",
+        "region": "Pakistan 🇵🇰",
+        "uuid": "92f90223-e048-34f0-9ab9-18a3271e661e",
+        "verified": false,
+        "tiers": {
+          "UHC": "HT4"
+        },
+        "retiredTiers": {},
+        "registeredAt": 1788890353406
+      },
+      "1547121907168706649": {
+        "discordId": "1547121907168706649",
+        "ign": "ZAINGAMERZ89",
+        "platform": "Java Edition",
+        "accountType": "Cracked (Free)",
+        "region": "Pakistan 🇵🇰",
+        "uuid": "115ddff3-8175-39f6-9c71-14e410dc774c",
+        "verified": false,
+        "tiers": {
+          "Crystal": "HT5",
+          "UHC": "LT5",
+          "Netherite": "LT5"
+        },
+        "retiredTiers": {},
+        "registeredAt": 1788935000895
+      },
+      "1468909012299808768": {
+        "discordId": "1468909012299808768",
+        "ign": "TAYYABGAGA123123",
+        "platform": "Java Edition",
+        "accountType": "Cracked (Free)",
+        "region": "Pakistan 🇵🇰",
+        "uuid": "33352e69-29bc-3dc0-836b-542541da47a2",
+        "verified": false,
+        "tiers": {
+          "Crystal": "HT4"
+        },
+        "retiredTiers": {},
+        "registeredAt": 1788946531278
+      },
+      "1030821353080770581": {
+        "discordId": "1030821353080770581",
+        "ign": "SourVampire",
+        "platform": "Java Edition",
+        "accountType": "Premium (Paid)",
+        "region": "Pakistan 🇵🇰",
+        "uuid": "c5ba6a32-3f2d-3379-aaf9-7be33be6e3db",
+        "verified": false,
+        "tiers": {
+          "Sword": "HT5",
+          "Crystal": "LT5"
+        },
+        "retiredTiers": {},
+        "registeredAt": 1788947691736
+      },
+      "1537774693812011032": {
+        "discordId": "1537774693812011032",
+        "ign": "Clevora",
+        "platform": "Java Edition",
+        "accountType": "Premium (Paid)",
+        "region": "Pakistan 🇵🇰",
+        "uuid": "3e80ad5e-1054-35a9-b09e-e84b1b877472",
+        "verified": false,
+        "tiers": {
+          "Netherite": "LT5"
+        },
+        "retiredTiers": {},
+        "registeredAt": 1788947723043,
+        "updatedAt": 1789037308295
+      },
+      "1533138476256464908": {
+        "discordId": "1533138476256464908",
+        "ign": "khan_samad_29",
+        "platform": "Java Edition",
+        "accountType": "Cracked (Free)",
+        "region": "Pakistan 🇵🇰",
+        "uuid": "d726256b-0966-3e48-a370-fe49e886472c",
+        "verified": false,
+        "tiers": {},
+        "retiredTiers": {},
+        "registeredAt": 1788972030636
+      },
+      "1281871621614862338": {
+        "discordId": "1281871621614862338",
+        "ign": "Mr_Spices_",
+        "platform": "Java Edition",
+        "accountType": "Cracked (Free)",
+        "region": "Pakistan 🇵🇰",
+        "uuid": "663a2621-cf86-3165-94f8-15f9699cb6dc",
+        "verified": false,
+        "tiers": {},
+        "retiredTiers": {},
+        "registeredAt": 1788973173987
+      },
+      "999396989924028447": {
+        "discordId": "999396989924028447",
+        "ign": "luke123used",
+        "platform": "Java Edition",
+        "accountType": "Premium (Paid)",
+        "region": "Other 🌍",
+        "uuid": "f9ec46f2-da15-38f9-adb0-c929d8b5aa46",
+        "verified": false,
+        "tiers": {},
+        "retiredTiers": {},
+        "registeredAt": 1788975096884
+      },
+      "1505945895290540122": {
+        "discordId": "1505945895290540122",
+        "ign": "catap_7",
+        "platform": "Java Edition",
+        "accountType": "Premium (Paid)",
+        "region": "Other 🌍",
+        "uuid": "314dc5af-0f68-3ed6-a161-108462ba5371",
+        "verified": false,
+        "tiers": {},
+        "retiredTiers": {},
+        "registeredAt": 1788978598660
+      },
+      "1520463658042392609": {
+        "discordId": "1520463658042392609",
+        "ign": "LowKeyT3",
+        "platform": "Java Edition",
+        "accountType": "Cracked (Free)",
+        "region": "Pakistan 🇵🇰",
+        "uuid": "d66f248a-c399-398c-acee-54e19bb5a212",
+        "verified": false,
+        "tiers": {
+          "Crystal": "LT3",
+          "Sword": "LT3",
+          "Axe": "LT4",
+          "Netherite": "HT5"
+        },
+        "retiredTiers": {},
+        "registeredAt": 1789035243188
+      },
+      "1506707136887918742": {
+        "discordId": "1506707136887918742",
+        "ign": "abdulnahiyan",
+        "platform": "Java Edition",
+        "accountType": "Premium (Paid)",
+        "region": "Pakistan 🇵🇰",
+        "uuid": "4abf5f79-ecf2-3314-9a90-d06a38901026",
+        "verified": false,
+        "tiers": {
+          "Crystal": "LT4"
+        },
+        "retiredTiers": {},
+        "registeredAt": 1789035397728,
+        "updatedAt": 1789127452804
+      },
+      "1540670836737048616": {
+        "discordId": "1540670836737048616",
+        "ign": "ItsNotMatrix",
+        "platform": "Java Edition",
+        "accountType": "Cracked (Free)",
+        "region": "Pakistan 🇵🇰",
+        "uuid": "32036320-d202-3d1e-9f52-5914315a1c5a",
+        "verified": false,
+        "tiers": {
+          "Crystal": "LT3"
+        },
+        "retiredTiers": {},
+        "registeredAt": 1789040781454
+      },
+      "1534967431477334108": {
+        "discordId": "1534967431477334108",
+        "ign": "Tier3Drainer",
+        "platform": "Java Edition",
+        "accountType": "Cracked (Free)",
+        "region": "Pakistan 🇵🇰",
+        "uuid": "1aa7081a-4da6-3c3c-9443-0580a5492aba",
+        "verified": false,
+        "tiers": {},
+        "retiredTiers": {},
+        "registeredAt": 1789048849353
+      },
+      "1378991972039135326": {
+        "discordId": "1378991972039135326",
+        "ign": "Azyric_",
+        "platform": "Java Edition",
+        "accountType": "Cracked (Free)",
+        "region": "Pakistan 🇵🇰",
+        "uuid": "f2174b68-0c65-3d75-a538-19e36c903c9f",
+        "verified": false,
+        "tiers": {
+          "UHC": "HT5"
+        },
+        "retiredTiers": {},
+        "registeredAt": 1789055294468
+      },
+      "1186967422083809324": {
+        "discordId": "1186967422083809324",
+        "ign": "trigonomatery",
+        "platform": "Java Edition",
+        "accountType": "Cracked (Free)",
+        "region": "India 🇮🇳",
+        "uuid": "29ff8586-113a-3ac5-87ae-133dd351785d",
+        "verified": false,
+        "tiers": {},
+        "retiredTiers": {},
+        "registeredAt": 1789125555347,
+        "updatedAt": 1789125684436
+      },
+      "1400632549218193589": {
+        "discordId": "1400632549218193589",
+        "ign": "KillzorrTR",
+        "platform": "Java Edition",
+        "accountType": "Premium (Paid)",
+        "region": "Other 🌍",
+        "uuid": "ad443dda-2e17-32dc-9f2c-c0f3f43f15a3",
+        "verified": false,
+        "tiers": {
+          "Netherite": "LT4",
+          "SMP": "LT5"
+        },
+        "retiredTiers": {},
+        "registeredAt": 1789129418646
+      },
+      "1489672511821185044": {
+        "discordId": "1489672511821185044",
+        "ign": "IlyNqnja",
+        "platform": "Java Edition",
+        "accountType": "Premium (Paid)",
+        "region": "UK 🇬🇧",
+        "uuid": "f732e15a-56a5-36be-bcb5-c4c81faa31b0",
+        "verified": false,
+        "tiers": {
+          "Netherite": "LT3",
+          "SMP": "HT4"
+        },
+        "retiredTiers": {},
+        "registeredAt": 1789129604526
+      },
+      "1011897696749113405": {
+        "discordId": "1011897696749113405",
+        "ign": "xrqvz",
+        "platform": "Java Edition",
+        "accountType": "Premium (Paid)",
+        "region": "UK 🇬🇧",
+        "uuid": "fd089d4d-b5fc-3894-a316-f4ecd841c841",
+        "verified": false,
+        "tiers": {
+          "Netherite": "LT3"
+        },
+        "retiredTiers": {},
+        "registeredAt": 1789129692979
+      },
+      "1112652945016766485": {
+        "discordId": "1112652945016766485",
+        "ign": "Qwensch",
+        "platform": "Java Edition",
+        "accountType": "Premium (Paid)",
+        "region": "UK 🇬🇧",
+        "uuid": "d3d1f76e-6e6a-389c-9fa4-3cf0f023307d",
+        "verified": false,
+        "tiers": {},
+        "retiredTiers": {},
+        "registeredAt": 1789135790041,
+        "updatedAt": 1789135859550
+      },
+      "1446825435307704463": {
+        "discordId": "1446825435307704463",
+        "ign": "V0RTEKK",
+        "platform": "Java Edition",
+        "accountType": "Premium (Paid)",
+        "region": "Pakistan 🇵🇰",
+        "uuid": "c90c7ff6-72ad-325c-a512-04e6b56aa52a",
+        "verified": false,
+        "tiers": {},
+        "retiredTiers": {},
+        "registeredAt": 1789161643352
+      },
+      "1233064452325249064": {
+        "discordId": "1233064452325249064",
+        "ign": "Silent_SPY_",
+        "platform": "Java Edition",
+        "accountType": "Cracked (Free)",
+        "region": "Pakistan 🇵🇰",
+        "uuid": "89a20a7f-c78e-3e4b-8b7e-d493fbc2e1d3",
+        "verified": false,
+        "tiers": {},
+        "retiredTiers": {},
+        "registeredAt": 1789183771335
       }
     },
     "queue": {
       "Mace": [],
       "Crystal": [],
-      "Sword": [],
-      "Axe": [],
-      "Netherite": [],
-      "UHC": [],
-      "Pot": [],
-      "SMP": [],
-      "DiaSMP": [
+      "Sword": [
         {
-          "discordId": "837957106774179871",
-          "ign": "NOTHuzaifa",
-          "joinedAt": 1788639979431
+          "discordId": "1547121907168706649",
+          "ign": "ZAINGAMERZ89",
+          "joinedAt": 1789162635772
         },
         {
-          "discordId": "1475456333603143800",
-          "ign": "__gh0Sted",
-          "joinedAt": 1788671300359
+          "discordId": "1462840434245243035",
+          "ign": "RemyyLegit",
+          "joinedAt": 1789182138802
         },
         {
-          "discordId": "1261981601399701554",
-          "ign": "BECTROBLADE",
-          "joinedAt": 1788671914404
+          "discordId": "1436044392468316253",
+          "ign": "FAKE_HUZAIFA",
+          "joinedAt": 1789198643220
+        },
+        {
+          "discordId": "1534314383667368201",
+          "ign": "CriticalBladeX",
+          "joinedAt": 1789205098298
         }
       ],
+      "Axe": [],
+      "Netherite": [],
+      "UHC": [
+        {
+          "discordId": "1406332555145379840",
+          "ign": "yorxie",
+          "joinedAt": 1789186294750
+        },
+        {
+          "discordId": "1521929762313081083",
+          "ign": "Realdiablo",
+          "joinedAt": 1789193946497
+        },
+        {
+          "discordId": "1436044392468316253",
+          "ign": "FAKE_HUZAIFA",
+          "joinedAt": 1789198651472
+        },
+        {
+          "discordId": "934492462423093290",
+          "ign": "Notapro7666",
+          "joinedAt": 1789200997575
+        },
+        {
+          "discordId": "1494740977879875656",
+          "ign": "NotG1yrex",
+          "joinedAt": 1789213267983
+        }
+      ],
+      "Pot": [],
+      "SMP": [],
+      "DiaSMP": [],
       "SpearMace": []
     },
     "matches": [],
     "tickets": {
-      "1387341591257288806": {
-        "channelId": "1541448339269095456",
-        "playerId": "1387341591257288806",
-        "playerIGN": "RizzInCrystal",
-        "weapon": "Crystal",
-        "testerId": "1494740977879875656",
-        "createdAt": 1787580323059
-      },
       "1433103574061158492": {
         "channelId": "1541448339269095456",
         "playerId": "1433103574061158492",
@@ -2670,14 +3291,6 @@
         "weapon": "General",
         "testerId": "1494740977879875656",
         "createdAt": 1788175872222
-      },
-      "1147404977950687352": {
-        "channelId": "1541369022514335796",
-        "playerId": "1147404977950687352",
-        "playerIGN": "Detrox_playz",
-        "weapon": "General",
-        "testerId": "1494740977879875656",
-        "createdAt": 1787561412579
       },
       "1507703003140849765": {
         "channelId": "1542592418841362584",
@@ -2703,14 +3316,6 @@
         "testerId": "1494740977879875656",
         "createdAt": 1788175872222
       },
-      "1358353676695240875": {
-        "channelId": "1543946253312851998",
-        "playerId": "1358353676695240875",
-        "playerIGN": "LowkeyPoG",
-        "weapon": "General",
-        "testerId": "1494740977879875656",
-        "createdAt": 1788175872223
-      },
       "1384534610037182618": {
         "channelId": "1543946253312851998",
         "playerId": "1384534610037182618",
@@ -2719,43 +3324,37 @@
         "testerId": "1494740977879875656",
         "createdAt": 1788175872223
       },
-      "934492462423093290": {
-        "channelId": "1545871327158738984",
-        "playerId": "934492462423093290",
-        "playerIGN": "Notapro7666",
-        "weapon": "UHC",
-        "testerId": "925788514963042334",
-        "createdAt": 1788634845728
-      },
-      "1525180039132610791": {
-        "channelId": "1545885144026448012",
-        "playerId": "1525180039132610791",
-        "playerIGN": "SecretLT4",
-        "weapon": "Netherite",
-        "testerId": "1293133734484381727",
-        "createdAt": 1788638139724
-      },
-      "1418571818570354688": {
-        "channelId": "1546047040709197916",
-        "playerId": "1418571818570354688",
-        "playerIGN": "ZAINGAMER69",
+      "1194506578418741318": {
+        "channelId": "1547962708509458544",
+        "playerId": "1194506578418741318",
+        "playerIGN": "mogalts_94fu3",
         "weapon": "Mace",
-        "testerId": "1462048449787592859",
-        "createdAt": 1788676738794
+        "testerId": "1165543531675406378",
+        "createdAt": 1789133469637
+      },
+      "1494740977879875656": {
+        "channelId": "1548288171819794432",
+        "playerId": "1494740977879875656",
+        "playerIGN": "NotG1yrex",
+        "weapon": "Mace",
+        "testerId": "1489510066850893865",
+        "createdAt": 1789211066156
       }
     },
     "settings": {
       "regLogsChannelId": "1517742340696047676",
       "appManagerRoles": [
+        "1543953766863339601",
         "1545032218890473622"
       ],
       "appManagerUsers": [],
       "supManagerRoles": [
         "1545032218890473622",
-        "1545036179865608353"
+        "1545036179865608353",
+        "1543953766863339601"
       ],
       "supManagerUsers": [],
-      "staffLogsChannelId": "1540087401110704309"
+      "staffLogsChannelId": "1538908287393595513"
     },
     "tierLogs": [
       {
@@ -7513,25 +8112,2595 @@
         "tier": "LT3",
         "oldTier": "HT4",
         "timestamp": 1788676722121
+      },
+      {
+        "tieredBy": "1469765973237170300",
+        "tieredByTag": "who.tf.a4ham_",
+        "playerId": "1462048449787592859",
+        "playerIGN": "Slaxez_",
+        "weapon": "DiaSMP",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1788688775194
+      },
+      {
+        "tieredBy": "1469765973237170300",
+        "tieredByTag": "who.tf.a4ham_",
+        "playerId": "1406332555145379840",
+        "playerIGN": "yorxie",
+        "weapon": "DiaSMP",
+        "tier": "HT5",
+        "oldTier": "LT4",
+        "timestamp": 1788690083420
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "1532692365641519165",
+        "playerIGN": "ITZ_NUGTZ",
+        "weapon": "Crystal",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788694683386
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "1532692365641519165",
+        "playerIGN": "ITZ_NUGTZ",
+        "weapon": "Crystal",
+        "tier": "LT4",
+        "oldTier": "LT3",
+        "timestamp": 1788694784715
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "1462048449787592859",
+        "playerIGN": "Slaxez_",
+        "weapon": "Crystal",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788695062926
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "1050007331234119700",
+        "playerIGN": "RealDarkSider",
+        "weapon": "Crystal",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1788701515208
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "997806923493675089",
+        "playerIGN": "M0mmyASMRlwkTuff",
+        "weapon": "Crystal",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1788701818181
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "1537028903510478961",
+        "playerIGN": "Ragnorakarc",
+        "weapon": "Crystal",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788702278081
+      },
+      {
+        "tieredBy": "1204002944484118548",
+        "tieredByTag": "proxyxd_.",
+        "playerId": "1295711168698253394",
+        "playerIGN": "Zedoxii",
+        "weapon": "Axe",
+        "tier": "LT5",
+        "oldTier": null,
+        "timestamp": 1788702647914
+      },
+      {
+        "tieredBy": "1204002944484118548",
+        "tieredByTag": "proxyxd_.",
+        "playerId": "1413930323682660363",
+        "playerIGN": "demonsgeneral",
+        "weapon": "Axe",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1788703135060
+      },
+      {
+        "tieredBy": "1204002944484118548",
+        "tieredByTag": "proxyxd_.",
+        "playerId": "927944779629727794",
+        "playerIGN": "azmeerpro",
+        "weapon": "Axe",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788703559192
+      },
+      {
+        "tieredBy": "1204002944484118548",
+        "tieredByTag": "proxyxd_.",
+        "playerId": "1391079584056737823",
+        "playerIGN": "_itzchamp",
+        "weapon": "Axe",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788703895252
+      },
+      {
+        "tieredBy": "1204002944484118548",
+        "tieredByTag": "proxyxd_.",
+        "playerId": "1462048449787592859",
+        "playerIGN": "Slaxez_",
+        "weapon": "Axe",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788704182347
+      },
+      {
+        "tieredBy": "1204002944484118548",
+        "tieredByTag": "proxyxd_.",
+        "playerId": "1251798975779045400",
+        "playerIGN": "MoonAshar",
+        "weapon": "Axe",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788704471026
+      },
+      {
+        "tieredBy": "1204002944484118548",
+        "tieredByTag": "proxyxd_.",
+        "playerId": "1447956241849520280",
+        "playerIGN": "goatedhabib",
+        "weapon": "Axe",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1788704771617
+      },
+      {
+        "tieredBy": "1204002944484118548",
+        "tieredByTag": "proxyxd_.",
+        "playerId": "1481919128678694942",
+        "playerIGN": "l052",
+        "weapon": "SMP",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1788705579195
+      },
+      {
+        "tieredBy": "1204002944484118548",
+        "tieredByTag": "proxyxd_.",
+        "playerId": "1204002944484118548",
+        "playerIGN": "lo52",
+        "weapon": "SMP",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1788705606677
+      },
+      {
+        "tieredBy": "1204002944484118548",
+        "tieredByTag": "proxyxd_.",
+        "playerId": "1510902902422503454",
+        "playerIGN": "SpideySensie",
+        "weapon": "Axe",
+        "tier": "LT3",
+        "oldTier": "HT4",
+        "timestamp": 1788705615946
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1544276529146499108",
+        "playerIGN": "ItzPrimeMe",
+        "weapon": "Sword",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788706576421
+      },
+      {
+        "tieredBy": "1525180039132610791",
+        "tieredByTag": "secretlt4",
+        "playerId": "1447956241849520280",
+        "playerIGN": "goatedhabib",
+        "weapon": "Crystal",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788706671675
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1391079584056737823",
+        "playerIGN": "_itzchamp",
+        "weapon": "Sword",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788707002062
+      },
+      {
+        "tieredBy": "1525180039132610791",
+        "tieredByTag": "secretlt4",
+        "playerId": "1475456333603143800",
+        "playerIGN": "__gh0Sted",
+        "weapon": "Crystal",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788707035221
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "804374129956487179",
+        "playerIGN": "Lord_Epickly",
+        "weapon": "Sword",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788707508085
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1292007626548449316",
+        "playerIGN": "RimuruSlime_",
+        "weapon": "Sword",
+        "tier": "LT5",
+        "oldTier": null,
+        "timestamp": 1788707600581
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1447956241849520280",
+        "playerIGN": "goatedhabib",
+        "weapon": "Sword",
+        "tier": "LT5",
+        "oldTier": null,
+        "timestamp": 1788707959340
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "1387814444465131732",
+        "playerIGN": "_OnlyHades",
+        "weapon": "Axe",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1788708235931
+      },
+      {
+        "tieredBy": "1462048449787592859",
+        "tieredByTag": "luckwioeh",
+        "playerId": "1515760900303487109",
+        "playerIGN": "The_Void_Sin",
+        "weapon": "Mace",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788708642514
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "934492462423093290",
+        "playerIGN": "Notapro7666",
+        "weapon": "Axe",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788708706581
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "1521929762313081083",
+        "playerIGN": "Realdiablo",
+        "weapon": "Axe",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788709165878
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "1436044392468316253",
+        "playerIGN": "FAKE_HUZAIFA",
+        "weapon": "Axe",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1788709350345
+      },
+      {
+        "tieredBy": "1462048449787592859",
+        "tieredByTag": "luckwioeh",
+        "playerId": "1475456333603143800",
+        "playerIGN": "__gh0Sted",
+        "weapon": "Mace",
+        "tier": "HT4",
+        "oldTier": "HT5",
+        "timestamp": 1788709548950
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "1050007331234119700",
+        "playerIGN": "RealDarkSider",
+        "weapon": "Axe",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1788709688176
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "927944779629727794",
+        "playerIGN": "azmeerpro",
+        "weapon": "Sword",
+        "tier": "LT3",
+        "oldTier": "LT4",
+        "timestamp": 1788709887451
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1295711168698253394",
+        "playerIGN": "Zedoxii",
+        "weapon": "Sword",
+        "tier": "LT4",
+        "oldTier": "HT5",
+        "timestamp": 1788710220506
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "1475456333603143800",
+        "playerIGN": "__gh0Sted",
+        "weapon": "Axe",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1788710291943
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "1225742791594737727",
+        "playerIGN": "SeriouslyHadi",
+        "weapon": "Axe",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788710704064
+      },
+      {
+        "tieredBy": "1494740977879875656",
+        "tieredByTag": "g1yrexmc",
+        "playerId": "1494740977879875656",
+        "playerIGN": "NotG1yrex",
+        "weapon": "Axe",
+        "tier": "HT1",
+        "oldTier": "LT5",
+        "timestamp": 1788710953102
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1520349177203261570",
+        "playerIGN": "360Xeybx",
+        "weapon": "Sword",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1788711225929
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1387814444465131732",
+        "playerIGN": "_OnlyHades",
+        "weapon": "Sword",
+        "tier": "LT4",
+        "oldTier": "HT5",
+        "timestamp": 1788711468988
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1050007331234119700",
+        "playerIGN": "RealDarkSider",
+        "weapon": "Sword",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788711735104
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1293133734484381727",
+        "playerIGN": "z1xxxx_",
+        "weapon": "Sword",
+        "tier": "LT4",
+        "oldTier": "HT5",
+        "timestamp": 1788712130895
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1502737316786213014",
+        "playerIGN": "MagicxlK1ss_",
+        "weapon": "Sword",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788712572519
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1413930323682660363",
+        "playerIGN": "demonsgeneral",
+        "weapon": "Sword",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788714083517
+      },
+      {
+        "tieredBy": "1293133734484381727",
+        "tieredByTag": "realsilentsorrow.ly",
+        "playerId": "1503192749875265746",
+        "playerIGN": "NEXO_MC8",
+        "weapon": "Netherite",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1788715129240
+      },
+      {
+        "tieredBy": "1293133734484381727",
+        "tieredByTag": "realsilentsorrow.ly",
+        "playerId": "1413930323682660363",
+        "playerIGN": "demonsgeneral",
+        "weapon": "Netherite",
+        "tier": "LT4",
+        "oldTier": "HT5",
+        "timestamp": 1788715565810
+      },
+      {
+        "tieredBy": "1293133734484381727",
+        "tieredByTag": "realsilentsorrow.ly",
+        "playerId": "1225742791594737727",
+        "playerIGN": "SeriouslyHadi",
+        "weapon": "Netherite",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1788716595884
+      },
+      {
+        "tieredBy": "1525180039132610791",
+        "tieredByTag": "secretlt4",
+        "playerId": "1497229655286222869",
+        "playerIGN": "T2Cheater",
+        "weapon": "Crystal",
+        "tier": "HT4",
+        "oldTier": "HT4",
+        "timestamp": 1788716893066
+      },
+      {
+        "tieredBy": "1469765973237170300",
+        "tieredByTag": "who.tf.a4ham_",
+        "playerId": "1050007331234119700",
+        "playerIGN": "RealDarkSider",
+        "weapon": "DiaSMP",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788718315848
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1033697703735066674",
+        "playerIGN": "DxrkExe_",
+        "weapon": "Sword",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788719440087
+      },
+      {
+        "tieredBy": "1469765973237170300",
+        "tieredByTag": "who.tf.a4ham_",
+        "playerId": "1324342023406358540",
+        "playerIGN": "Honoured1Akaza",
+        "weapon": "SMP",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788719737506
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1515760900303487109",
+        "playerIGN": "The_Void_Sin",
+        "weapon": "Sword",
+        "tier": "LT4",
+        "oldTier": "LT4",
+        "timestamp": 1788719761014
+      },
+      {
+        "tieredBy": "1469765973237170300",
+        "tieredByTag": "who.tf.a4ham_",
+        "playerId": "1386644386825240616",
+        "playerIGN": "_NOTALI_",
+        "weapon": "SMP",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788720146735
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1386644386825240616",
+        "playerIGN": "_NOTALI_",
+        "weapon": "Sword",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788720966679
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "997806923493675089",
+        "playerIGN": "M0mmyASMRlwkTuff",
+        "weapon": "Sword",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1788721857467
+      },
+      {
+        "tieredBy": "1469765973237170300",
+        "tieredByTag": "who.tf.a4ham_",
+        "playerId": "1503192749875265746",
+        "playerIGN": "NEXO_MC8",
+        "weapon": "SMP",
+        "tier": "LT5",
+        "oldTier": null,
+        "timestamp": 1788721961306
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "997806923493675089",
+        "playerIGN": "M0mmyASMRlwkTuff",
+        "weapon": "Sword",
+        "tier": "LT3",
+        "oldTier": "HT4",
+        "timestamp": 1788722963965
+      },
+      {
+        "tieredBy": "1469765973237170300",
+        "tieredByTag": "who.tf.a4ham_",
+        "playerId": "788053684310900768",
+        "playerIGN": "i3rvz",
+        "weapon": "SMP",
+        "tier": "LT5",
+        "oldTier": "LT5",
+        "timestamp": 1788723507168
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1121362942106017832",
+        "playerIGN": "zpxwz",
+        "weapon": "Sword",
+        "tier": "LT3",
+        "oldTier": "LT3",
+        "timestamp": 1788725084255
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1421750790548230197",
+        "playerIGN": "DrownedXD001",
+        "weapon": "Sword",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1788725540559
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1194506578418741318",
+        "playerIGN": "mogalts_94fu3",
+        "weapon": "Sword",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788748369840
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1489510066850893865",
+        "playerIGN": "ItzMuneebOP_",
+        "weapon": "Sword",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788763277911
+      },
+      {
+        "tieredBy": "1220898105671680004",
+        "tieredByTag": "empireisempire",
+        "playerId": "1194506578418741318",
+        "playerIGN": "mogalts_94fu3",
+        "weapon": "Mace",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1788763352902
+      },
+      {
+        "tieredBy": "1220898105671680004",
+        "tieredByTag": "empireisempire",
+        "playerId": "1194506578418741318",
+        "playerIGN": "mogalts_94fu3",
+        "weapon": "Crystal",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788763368038
+      },
+      {
+        "tieredBy": "1220898105671680004",
+        "tieredByTag": "empireisempire",
+        "playerId": "1194506578418741318",
+        "playerIGN": "mogalts_94fu3",
+        "weapon": "Axe",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788763415713
+      },
+      {
+        "tieredBy": "1220898105671680004",
+        "tieredByTag": "empireisempire",
+        "playerId": "1194506578418741318",
+        "playerIGN": "mogalts_94fu3",
+        "weapon": "Netherite",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788763436862
+      },
+      {
+        "tieredBy": "1220898105671680004",
+        "tieredByTag": "empireisempire",
+        "playerId": "1194506578418741318",
+        "playerIGN": "mogalts_94fu3",
+        "weapon": "DiaSMP",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788763464925
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1238527072704659591",
+        "playerIGN": "LeviUchiha_",
+        "weapon": "Sword",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788763553548
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1139841049330733107",
+        "playerIGN": "Konexen",
+        "weapon": "Sword",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1788764123577
+      },
+      {
+        "tieredBy": "1489510066850893865",
+        "tieredByTag": "itzmuneebop",
+        "playerId": "1502737316786213014",
+        "playerIGN": "MagicxlK1ss_",
+        "weapon": "Mace",
+        "tier": "HT4",
+        "oldTier": "LT4",
+        "timestamp": 1788764717353
+      },
+      {
+        "tieredBy": "1204002944484118548",
+        "tieredByTag": "proxyxd_.",
+        "playerId": "1204002944484118548",
+        "playerIGN": "lo52",
+        "weapon": "Sword",
+        "tier": "LT3",
+        "oldTier": "HT4",
+        "timestamp": 1788769991387
+      },
+      {
+        "tieredBy": "1204002944484118548",
+        "tieredByTag": "proxyxd_.",
+        "playerId": "1481919128678694942",
+        "playerIGN": "l052",
+        "weapon": "Axe",
+        "tier": "HT4",
+        "oldTier": "LT4",
+        "timestamp": 1788770026070
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1139841049330733107",
+        "playerIGN": "Konexen",
+        "weapon": "Sword",
+        "tier": "LT3",
+        "oldTier": "HT4",
+        "timestamp": 1788770272210
+      },
+      {
+        "tieredBy": "1469765973237170300",
+        "tieredByTag": "who.tf.a4ham_",
+        "playerId": "1497229655286222869",
+        "playerIGN": "T2Cheater",
+        "weapon": "DiaSMP",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788772954407
+      },
+      {
+        "tieredBy": "1469765973237170300",
+        "tieredByTag": "who.tf.a4ham_",
+        "playerId": "1139841049330733107",
+        "playerIGN": "Konexen",
+        "weapon": "DiaSMP",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788774668796
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1475456333603143800",
+        "playerIGN": "__gh0Sted",
+        "weapon": "Sword",
+        "tier": "LT4",
+        "oldTier": "LT4",
+        "timestamp": 1788777128684
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1201519443705073716",
+        "playerIGN": "gameryoyo",
+        "weapon": "Sword",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788784941439
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1532692365641519165",
+        "playerIGN": "ITZ_NUGTZ",
+        "weapon": "Sword",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788785203312
+      },
+      {
+        "tieredBy": "1121362942106017832",
+        "tieredByTag": "zpxwz",
+        "playerId": "1525180039132610791",
+        "playerIGN": "SecretLT4",
+        "weapon": "Crystal",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788785313062
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1461248814395424788",
+        "playerIGN": "Flagshouter",
+        "weapon": "Sword",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1788787374787
+      },
+      {
+        "tieredBy": "1165543531675406378",
+        "tieredByTag": "yesgreen1",
+        "playerId": "1096745012127092796",
+        "playerIGN": "ZaidReal",
+        "weapon": "Crystal",
+        "tier": "LT2",
+        "oldTier": "HT3",
+        "timestamp": 1788787762727
+      },
+      {
+        "tieredBy": "1469765973237170300",
+        "tieredByTag": "who.tf.a4ham_",
+        "playerId": "1413930323682660363",
+        "playerIGN": "demonsgeneral",
+        "weapon": "SMP",
+        "tier": "HT5",
+        "oldTier": "HT5",
+        "timestamp": 1788790219511
+      },
+      {
+        "tieredBy": "1462048449787592859",
+        "tieredByTag": "luckwioeh",
+        "playerId": "1413930323682660363",
+        "playerIGN": "demonsgeneral",
+        "weapon": "Mace",
+        "tier": "LT4",
+        "oldTier": "LT5",
+        "timestamp": 1788791481040
+      },
+      {
+        "tieredBy": "1165543531675406378",
+        "tieredByTag": "yesgreen1",
+        "playerId": "1521157193100169277",
+        "playerIGN": "RizzInSword",
+        "weapon": "Crystal",
+        "tier": "HT3",
+        "oldTier": null,
+        "timestamp": 1788792647880
+      },
+      {
+        "tieredBy": "1165543531675406378",
+        "tieredByTag": "yesgreen1",
+        "playerId": "1521157193100169277",
+        "playerIGN": "RizzInSword",
+        "weapon": "Mace",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788792662393
+      },
+      {
+        "tieredBy": "1165543531675406378",
+        "tieredByTag": "yesgreen1",
+        "playerId": "1521157193100169277",
+        "playerIGN": "RizzInSword",
+        "weapon": "Sword",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788792673566
+      },
+      {
+        "tieredBy": "1165543531675406378",
+        "tieredByTag": "yesgreen1",
+        "playerId": "1521157193100169277",
+        "playerIGN": "RizzInSword",
+        "weapon": "DiaSMP",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788792686117
+      },
+      {
+        "tieredBy": "1165543531675406378",
+        "tieredByTag": "yesgreen1",
+        "playerId": "1521157193100169277",
+        "playerIGN": "RizzInSword",
+        "weapon": "Netherite",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788792749772
+      },
+      {
+        "tieredBy": "1165543531675406378",
+        "tieredByTag": "yesgreen1",
+        "playerId": "1521157193100169277",
+        "playerIGN": "RizzInSword",
+        "weapon": "UHC",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788792758250
+      },
+      {
+        "tieredBy": "1165543531675406378",
+        "tieredByTag": "yesgreen1",
+        "playerId": "1521157193100169277",
+        "playerIGN": "RizzInSword",
+        "weapon": "Axe",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788792771162
+      },
+      {
+        "tieredBy": "1020914891848167474",
+        "tieredByTag": "vitalisy321",
+        "playerId": "927944779629727794",
+        "playerIGN": "azmeerpro",
+        "weapon": "SMP",
+        "tier": "LT3",
+        "oldTier": "HT4",
+        "timestamp": 1788794583561
+      },
+      {
+        "tieredBy": "1462048449787592859",
+        "tieredByTag": "luckwioeh",
+        "playerId": "1050007331234119700",
+        "playerIGN": "RealDarkSider",
+        "weapon": "Mace",
+        "tier": "LT5",
+        "oldTier": "LT5",
+        "timestamp": 1788795361644
+      },
+      {
+        "tieredBy": "1462048449787592859",
+        "tieredByTag": "luckwioeh",
+        "playerId": "1497229655286222869",
+        "playerIGN": "T2Cheater",
+        "weapon": "Mace",
+        "tier": "HT4",
+        "oldTier": "LT5",
+        "timestamp": 1788795960483
+      },
+      {
+        "tieredBy": "1462048449787592859",
+        "tieredByTag": "luckwioeh",
+        "playerId": "1405404944269443092",
+        "playerIGN": "Nero_House",
+        "weapon": "Mace",
+        "tier": "LT5",
+        "oldTier": "LT5",
+        "timestamp": 1788796548207
+      },
+      {
+        "tieredBy": "1020914891848167474",
+        "tieredByTag": "vitalisy321",
+        "playerId": "788053684310900768",
+        "playerIGN": "i3rvz",
+        "weapon": "SMP",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788796936424
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1020914891848167474",
+        "playerIGN": "Vitalisy321",
+        "weapon": "Netherite",
+        "tier": "LT3",
+        "oldTier": "HT4",
+        "timestamp": 1788796941360
+      },
+      {
+        "tieredBy": "1525180039132610791",
+        "tieredByTag": "_axtroo__",
+        "playerId": "925788514963042334",
+        "playerIGN": "10x10Baddie",
+        "weapon": "Crystal",
+        "tier": "HT4",
+        "oldTier": "HT4",
+        "timestamp": 1788797922223
+      },
+      {
+        "tieredBy": "925788514963042334",
+        "tieredByTag": "cowmc._.",
+        "playerId": "788053684310900768",
+        "playerIGN": "i3rvz",
+        "weapon": "UHC",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1788798267887
+      },
+      {
+        "tieredBy": "925788514963042334",
+        "tieredByTag": "cowmc._.",
+        "playerId": "1260525372492218391",
+        "playerIGN": "Killerwaslost",
+        "weapon": "UHC",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1788798972999
+      },
+      {
+        "tieredBy": "925788514963042334",
+        "tieredByTag": "cowmc._.",
+        "playerId": "1525180039132610791",
+        "playerIGN": "SecretLT4",
+        "weapon": "UHC",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1788799319442
+      },
+      {
+        "tieredBy": "1121362942106017832",
+        "tieredByTag": "zpxwz",
+        "playerId": "1525180039132610791",
+        "playerIGN": "SecretLT4",
+        "weapon": "Netherite",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788799415512
+      },
+      {
+        "tieredBy": "925788514963042334",
+        "tieredByTag": "cowmc._.",
+        "playerId": "1391079584056737823",
+        "playerIGN": "_itzchamp",
+        "weapon": "UHC",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1788800578418
+      },
+      {
+        "tieredBy": "1121362942106017832",
+        "tieredByTag": "zpxwz",
+        "playerId": "1020914891848167474",
+        "playerIGN": "Vitalisy321",
+        "weapon": "Netherite",
+        "tier": "HT3",
+        "oldTier": "LT3",
+        "timestamp": 1788803103042
+      },
+      {
+        "tieredBy": "1494740977879875656",
+        "tieredByTag": "g1yrexmc",
+        "playerId": "1020914891848167474",
+        "playerIGN": "Vitalisy321",
+        "weapon": "Netherite",
+        "tier": "HT3",
+        "oldTier": "HT3",
+        "timestamp": 1788834069432
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1474190062487994499",
+        "playerIGN": "RoboGamer956",
+        "weapon": "Sword",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1788862196695
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1517176681977086183",
+        "playerIGN": "Shad4wX",
+        "weapon": "Sword",
+        "tier": "HT4",
+        "oldTier": "LT3",
+        "timestamp": 1788862485105
+      },
+      {
+        "tieredBy": "1194506578418741318",
+        "tieredByTag": "just_tabahi",
+        "playerId": "1020914891848167474",
+        "playerIGN": "Vitalisy321",
+        "weapon": "Mace",
+        "tier": "LT4",
+        "oldTier": "LT3",
+        "timestamp": 1788864370319
+      },
+      {
+        "tieredBy": "1494740977879875656",
+        "tieredByTag": "g1yrexmc",
+        "playerId": "1096745012127092796",
+        "playerIGN": "ZaidReal",
+        "weapon": "Crystal",
+        "tier": "HT3",
+        "oldTier": "LT2",
+        "timestamp": 1788871573782
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1096745012127092796",
+        "playerIGN": "ZaidReal",
+        "weapon": "Sword",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1788874496626
+      },
+      {
+        "tieredBy": "1489510066850893865",
+        "tieredByTag": "itzmuneebop",
+        "playerId": "1020914891848167474",
+        "playerIGN": "Vitalisy321",
+        "weapon": "Mace",
+        "tier": "LT3",
+        "oldTier": "LT4",
+        "timestamp": 1788878543983
+      },
+      {
+        "tieredBy": "1489510066850893865",
+        "tieredByTag": "itzmuneebop",
+        "playerId": "1020914891848167474",
+        "playerIGN": "Vitalisy321",
+        "weapon": "Mace",
+        "tier": "LT4",
+        "oldTier": "LT3",
+        "timestamp": 1788878564694
+      },
+      {
+        "tieredBy": "925788514963042334",
+        "tieredByTag": "cowmc._.",
+        "playerId": "1402202711520448617",
+        "playerIGN": "xoined",
+        "weapon": "UHC",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1788891367840
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "1295711168698253394",
+        "playerIGN": "Zedoxii",
+        "weapon": "Crystal",
+        "tier": "LT3",
+        "oldTier": "LT4",
+        "timestamp": 1788895492981
+      },
+      {
+        "tieredBy": "1489510066850893865",
+        "tieredByTag": "itzmuneebop",
+        "playerId": "1196852434316841101",
+        "playerIGN": "_PunJabPOLICE_",
+        "weapon": "Mace",
+        "tier": "LT3",
+        "oldTier": "LT3",
+        "timestamp": 1788940057445
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1096689126000037980",
+        "playerIGN": "yyPleb",
+        "weapon": "Sword",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788953967275
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "976469873481904128",
+        "playerIGN": "SweetVampire",
+        "weapon": "Sword",
+        "tier": "LT4",
+        "oldTier": "HT4",
+        "timestamp": 1788956422451
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1494740977879875656",
+        "playerIGN": "NotG1yrex",
+        "weapon": "Sword",
+        "tier": "HT4",
+        "oldTier": "HT5",
+        "timestamp": 1788957439433
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1293133734484381727",
+        "playerIGN": "z1xxxx_",
+        "weapon": "Sword",
+        "tier": "HT5",
+        "oldTier": "LT4",
+        "timestamp": 1788957958644
+      },
+      {
+        "tieredBy": "1020914891848167474",
+        "tieredByTag": "vitalisy321",
+        "playerId": "1324342023406358540",
+        "playerIGN": "Honoured1Akaza",
+        "weapon": "Netherite",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1788958319426
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1293133734484381727",
+        "playerIGN": "z1xxxx_",
+        "weapon": "Sword",
+        "tier": "LT4",
+        "oldTier": "HT5",
+        "timestamp": 1788958391305
+      },
+      {
+        "tieredBy": "1020914891848167474",
+        "tieredByTag": "vitalisy321",
+        "playerId": "976469873481904128",
+        "playerIGN": "SweetVampire",
+        "weapon": "Netherite",
+        "tier": "HT5",
+        "oldTier": "HT5",
+        "timestamp": 1788958687704
+      },
+      {
+        "tieredBy": "1020914891848167474",
+        "tieredByTag": "vitalisy321",
+        "playerId": "1391079584056737823",
+        "playerIGN": "_itzchamp",
+        "weapon": "Netherite",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1788959456063
+      },
+      {
+        "tieredBy": "1020914891848167474",
+        "tieredByTag": "vitalisy321",
+        "playerId": "1447956241849520280",
+        "playerIGN": "goatedhabib",
+        "weapon": "Netherite",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1788959909330
+      },
+      {
+        "tieredBy": "1462048449787592859",
+        "tieredByTag": "luckwioeh",
+        "playerId": "976469873481904128",
+        "playerIGN": "SweetVampire",
+        "weapon": "Mace",
+        "tier": "LT4",
+        "oldTier": "LT5",
+        "timestamp": 1788960062676
+      },
+      {
+        "tieredBy": "1020914891848167474",
+        "tieredByTag": "vitalisy321",
+        "playerId": "1387814444465131732",
+        "playerIGN": "_OnlyHades",
+        "weapon": "Netherite",
+        "tier": "HT4",
+        "oldTier": "HT4",
+        "timestamp": 1788960482762
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "976469873481904128",
+        "playerIGN": "SweetVampire",
+        "weapon": "Axe",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788960573092
+      },
+      {
+        "tieredBy": "1020914891848167474",
+        "tieredByTag": "vitalisy321",
+        "playerId": "1096745012127092796",
+        "playerIGN": "ZaidReal",
+        "weapon": "Netherite",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1788961299177
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "1502737316786213014",
+        "playerIGN": "MagicxlK1ss_",
+        "weapon": "Axe",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788961404491
+      },
+      {
+        "tieredBy": "1462048449787592859",
+        "tieredByTag": "luckwioeh",
+        "playerId": "1447956241849520280",
+        "playerIGN": "goatedhabib",
+        "weapon": "Crystal",
+        "tier": "HT4",
+        "oldTier": "LT4",
+        "timestamp": 1788961549837
+      },
+      {
+        "tieredBy": "1462048449787592859",
+        "tieredByTag": "luckwioeh",
+        "playerId": "1447956241849520280",
+        "playerIGN": "goatedhabib",
+        "weapon": "Crystal",
+        "tier": "LT4",
+        "oldTier": "HT4",
+        "timestamp": 1788961653910
+      },
+      {
+        "tieredBy": "1462048449787592859",
+        "tieredByTag": "luckwioeh",
+        "playerId": "1447956241849520280",
+        "playerIGN": "goatedhabib",
+        "weapon": "Mace",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1788961668042
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "1020914891848167474",
+        "playerIGN": "Vitalisy321",
+        "weapon": "Axe",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788962075665
+      },
+      {
+        "tieredBy": "1462048449787592859",
+        "tieredByTag": "luckwioeh",
+        "playerId": "1295711168698253394",
+        "playerIGN": "Zedoxii",
+        "weapon": "Mace",
+        "tier": "LT5",
+        "oldTier": "LT5",
+        "timestamp": 1788962150452
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "1462048449787592859",
+        "playerIGN": "Slaxez_",
+        "weapon": "Axe",
+        "tier": "LT3",
+        "oldTier": "LT4",
+        "timestamp": 1788962656247
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "1521929762313081083",
+        "playerIGN": "Realdiablo",
+        "weapon": "Axe",
+        "tier": "HT5",
+        "oldTier": "LT4",
+        "timestamp": 1788963257532
+      },
+      {
+        "tieredBy": "1462048449787592859",
+        "tieredByTag": "luckwioeh",
+        "playerId": "1096745012127092796",
+        "playerIGN": "ZaidReal",
+        "weapon": "Mace",
+        "tier": "LT3",
+        "oldTier": "HT5",
+        "timestamp": 1788963368022
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "788053684310900768",
+        "playerIGN": "i3rvz",
+        "weapon": "Axe",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788964037182
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "1295711168698253394",
+        "playerIGN": "Zedoxii",
+        "weapon": "Axe",
+        "tier": "HT4",
+        "oldTier": "LT5",
+        "timestamp": 1788964704801
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1030821353080770581",
+        "playerIGN": "SourVampire",
+        "weapon": "Sword",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1788965508291
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "1121362942106017832",
+        "playerIGN": "zpxwz",
+        "weapon": "Axe",
+        "tier": "LT3",
+        "oldTier": "HT4",
+        "timestamp": 1788965550009
+      },
+      {
+        "tieredBy": "1391079584056737823",
+        "tieredByTag": "_itzchamp",
+        "playerId": "1096745012127092796",
+        "playerIGN": "ZaidReal",
+        "weapon": "Axe",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788965922193
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1462840434245243035",
+        "playerIGN": "RemyyLegit",
+        "weapon": "Sword",
+        "tier": "LT5",
+        "oldTier": null,
+        "timestamp": 1788966153633
+      },
+      {
+        "tieredBy": "1121362942106017832",
+        "tieredByTag": "zpxwz",
+        "playerId": "788053684310900768",
+        "playerIGN": "i3rvz",
+        "weapon": "Sword",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788966765244
+      },
+      {
+        "tieredBy": "1121362942106017832",
+        "tieredByTag": "zpxwz",
+        "playerId": "788053684310900768",
+        "playerIGN": "i3rvz",
+        "weapon": "Netherite",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788966771879
+      },
+      {
+        "tieredBy": "1121362942106017832",
+        "tieredByTag": "zpxwz",
+        "playerId": "788053684310900768",
+        "playerIGN": "i3rvz",
+        "weapon": "Crystal",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788966797053
+      },
+      {
+        "tieredBy": "1121362942106017832",
+        "tieredByTag": "zpxwz",
+        "playerId": "788053684310900768",
+        "playerIGN": "i3rvz",
+        "weapon": "Mace",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788966804659
+      },
+      {
+        "tieredBy": "1096745012127092796",
+        "tieredByTag": "zaid_op",
+        "playerId": "1137320576776671272",
+        "playerIGN": "NINJA_90",
+        "weapon": "Crystal",
+        "tier": "LT4",
+        "oldTier": "LT4",
+        "timestamp": 1788966927850
+      },
+      {
+        "tieredBy": "1327267425514684458",
+        "tieredByTag": "unseenrange",
+        "playerId": "1225742791594737727",
+        "playerIGN": "SeriouslyHadi",
+        "weapon": "Mace",
+        "tier": "HT3",
+        "oldTier": "LT3",
+        "timestamp": 1788967048089
+      },
+      {
+        "tieredBy": "1096745012127092796",
+        "tieredByTag": "zaid_op",
+        "playerId": "1030821353080770581",
+        "playerIGN": "SourVampire",
+        "weapon": "Crystal",
+        "tier": "LT5",
+        "oldTier": null,
+        "timestamp": 1788967085347
+      },
+      {
+        "tieredBy": "1327267425514684458",
+        "tieredByTag": "unseenrange",
+        "playerId": "1225742791594737727",
+        "playerIGN": "SeriouslyHadi",
+        "weapon": "Mace",
+        "tier": "HT3",
+        "oldTier": "HT3",
+        "timestamp": 1788967127160
+      },
+      {
+        "tieredBy": "1096745012127092796",
+        "tieredByTag": "zaid_op",
+        "playerId": "976469873481904128",
+        "playerIGN": "SweetVampire",
+        "weapon": "Crystal",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1788967658026
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1497229655286222869",
+        "playerIGN": "T2Cheater",
+        "weapon": "Axe",
+        "tier": "LT3",
+        "oldTier": "LT4",
+        "timestamp": 1788968919490
+      },
+      {
+        "tieredBy": "1165543531675406378",
+        "tieredByTag": "yesgreen1",
+        "playerId": "1295711168698253394",
+        "playerIGN": "Zedoxii",
+        "weapon": "Crystal",
+        "tier": "LT3",
+        "oldTier": "LT3",
+        "timestamp": 1788969633026
+      },
+      {
+        "tieredBy": "1096745012127092796",
+        "tieredByTag": "zaid_op",
+        "playerId": "1494740977879875656",
+        "playerIGN": "NotG1yrex",
+        "weapon": "Crystal",
+        "tier": "HT5",
+        "oldTier": "LT4",
+        "timestamp": 1788970118744
+      },
+      {
+        "tieredBy": "1489510066850893865",
+        "tieredByTag": "itzmuneebop",
+        "playerId": "1137320576776671272",
+        "playerIGN": "NINJA_90",
+        "weapon": "Mace",
+        "tier": "LT4",
+        "oldTier": "LT3",
+        "timestamp": 1788970339205
+      },
+      {
+        "tieredBy": "1096745012127092796",
+        "tieredByTag": "zaid_op",
+        "playerId": "1114644363142778982",
+        "playerIGN": "Critveil",
+        "weapon": "Crystal",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788970564573
+      },
+      {
+        "tieredBy": "1295711168698253394",
+        "tieredByTag": "zedoxii",
+        "playerId": "1468909012299808768",
+        "playerIGN": "TAYYABGAGA123123",
+        "weapon": "Crystal",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1788972654237
+      },
+      {
+        "tieredBy": "1469765973237170300",
+        "tieredByTag": "who.tf.a4ham_",
+        "playerId": "1050007331234119700",
+        "playerIGN": "RealDarkSider",
+        "weapon": "SMP",
+        "tier": "HT4",
+        "oldTier": "LT4",
+        "timestamp": 1788973118285
+      },
+      {
+        "tieredBy": "1295711168698253394",
+        "tieredByTag": "zedoxii",
+        "playerId": "1413930323682660363",
+        "playerIGN": "demonsgeneral",
+        "weapon": "Crystal",
+        "tier": "LT4",
+        "oldTier": "HT4",
+        "timestamp": 1788973822327
+      },
+      {
+        "tieredBy": "1295711168698253394",
+        "tieredByTag": "zedoxii",
+        "playerId": "1413930323682660363",
+        "playerIGN": "demonsgeneral",
+        "weapon": "Crystal",
+        "tier": "LT4",
+        "oldTier": "LT4",
+        "timestamp": 1788973870602
+      },
+      {
+        "tieredBy": "1327267425514684458",
+        "tieredByTag": "unseenrange",
+        "playerId": "788053684310900768",
+        "playerIGN": "i3rvz",
+        "weapon": "Sword",
+        "tier": "HT3",
+        "oldTier": "LT3",
+        "timestamp": 1788973921086
+      },
+      {
+        "tieredBy": "1327267425514684458",
+        "tieredByTag": "unseenrange",
+        "playerId": "788053684310900768",
+        "playerIGN": "i3rvz",
+        "weapon": "Sword",
+        "tier": "HT3",
+        "oldTier": "HT3",
+        "timestamp": 1788974055456
+      },
+      {
+        "tieredBy": "1295711168698253394",
+        "tieredByTag": "zedoxii",
+        "playerId": "1475456333603143800",
+        "playerIGN": "__gh0Sted",
+        "weapon": "Crystal",
+        "tier": "HT5",
+        "oldTier": "LT4",
+        "timestamp": 1788976335084
+      },
+      {
+        "tieredBy": "1020914891848167474",
+        "tieredByTag": "vitalisy321",
+        "playerId": "1050007331234119700",
+        "playerIGN": "RealDarkSider",
+        "weapon": "Netherite",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788976608375
+      },
+      {
+        "tieredBy": "1489510066850893865",
+        "tieredByTag": "itzmuneebop",
+        "playerId": "788053684310900768",
+        "playerIGN": "i3rvz",
+        "weapon": "Mace",
+        "tier": "HT4",
+        "oldTier": "LT3",
+        "timestamp": 1788976681249
+      },
+      {
+        "tieredBy": "1020914891848167474",
+        "tieredByTag": "vitalisy321",
+        "playerId": "1469765973237170300",
+        "playerIGN": "xFixa_",
+        "weapon": "Netherite",
+        "tier": "HT4",
+        "oldTier": "LT4",
+        "timestamp": 1788977913760
+      },
+      {
+        "tieredBy": "1469765973237170300",
+        "tieredByTag": "who.tf.a4ham_",
+        "playerId": "1225742791594737727",
+        "playerIGN": "SeriouslyHadi",
+        "weapon": "SMP",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1788978663795
+      },
+      {
+        "tieredBy": "1469765973237170300",
+        "tieredByTag": "who.tf.a4ham_",
+        "playerId": "1050007331234119700",
+        "playerIGN": "RealDarkSider",
+        "weapon": "DiaSMP",
+        "tier": "HT5",
+        "oldTier": "LT4",
+        "timestamp": 1788979005848
+      },
+      {
+        "tieredBy": "1489510066850893865",
+        "tieredByTag": "itzmuneebop",
+        "playerId": "1391079584056737823",
+        "playerIGN": "_itzchamp",
+        "weapon": "Mace",
+        "tier": "HT5",
+        "oldTier": "LT3",
+        "timestamp": 1789021625809
+      },
+      {
+        "tieredBy": "1489510066850893865",
+        "tieredByTag": "itzmuneebop",
+        "playerId": "1147404977950687352",
+        "playerIGN": "Detrox_playz",
+        "weapon": "Mace",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1789023559658
+      },
+      {
+        "tieredBy": "1489510066850893865",
+        "tieredByTag": "itzmuneebop",
+        "playerId": "1147404977950687352",
+        "playerIGN": "Detrox_playz",
+        "weapon": "Mace",
+        "tier": "LT5",
+        "oldTier": null,
+        "timestamp": 1789024493951
+      },
+      {
+        "tieredBy": "1293133734484381727",
+        "tieredByTag": "realsilentsorrow.ly",
+        "playerId": "1474190062487994499",
+        "playerIGN": "RoboGamer956",
+        "weapon": "Netherite",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1789024897143
+      },
+      {
+        "tieredBy": "1489510066850893865",
+        "tieredByTag": "itzmuneebop",
+        "playerId": "1147404977950687352",
+        "playerIGN": "Detrox_playz",
+        "weapon": "Mace",
+        "tier": "LT5",
+        "oldTier": null,
+        "timestamp": 1789025145141
+      },
+      {
+        "tieredBy": "1293133734484381727",
+        "tieredByTag": "realsilentsorrow.ly",
+        "playerId": "1497229655286222869",
+        "playerIGN": "T2Cheater",
+        "weapon": "Netherite",
+        "tier": "HT5",
+        "oldTier": "HT4",
+        "timestamp": 1789026261501
+      },
+      {
+        "tieredBy": "1293133734484381727",
+        "tieredByTag": "realsilentsorrow.ly",
+        "playerId": "1272550029411745804",
+        "playerIGN": "TheRealRanjha_",
+        "weapon": "Netherite",
+        "tier": "HT4",
+        "oldTier": "LT4",
+        "timestamp": 1789028945950
+      },
+      {
+        "tieredBy": "1469765973237170300",
+        "tieredByTag": "who.tf.a4ham_",
+        "playerId": "837957106774179871",
+        "playerIGN": "NOTHuzaifa",
+        "weapon": "SMP",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1789031275607
+      },
+      {
+        "tieredBy": "1469765973237170300",
+        "tieredByTag": "who.tf.a4ham_",
+        "playerId": "1387814444465131732",
+        "playerIGN": "_OnlyHades",
+        "weapon": "SMP",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1789031636067
+      },
+      {
+        "tieredBy": "1295711168698253394",
+        "tieredByTag": "zedoxii",
+        "playerId": "837957106774179871",
+        "playerIGN": "NOTHuzaifa",
+        "weapon": "Crystal",
+        "tier": "LT4",
+        "oldTier": "LT5",
+        "timestamp": 1789031647522
+      },
+      {
+        "tieredBy": "1293133734484381727",
+        "tieredByTag": "realsilentsorrow.ly",
+        "playerId": "1369612674018709577",
+        "playerIGN": "FAWAZSHPRO",
+        "weapon": "Netherite",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1789031749055
+      },
+      {
+        "tieredBy": "1295711168698253394",
+        "tieredByTag": "zedoxii",
+        "playerId": "1503402267229819012",
+        "playerIGN": "LegendTriggerBot",
+        "weapon": "Crystal",
+        "tier": "LT5",
+        "oldTier": null,
+        "timestamp": 1789032074184
+      },
+      {
+        "tieredBy": "1469765973237170300",
+        "tieredByTag": "who.tf.a4ham_",
+        "playerId": "1386644386825240616",
+        "playerIGN": "_NOTALI_",
+        "weapon": "SMP",
+        "tier": "LT4",
+        "oldTier": "LT4",
+        "timestamp": 1789032200286
+      },
+      {
+        "tieredBy": "1295711168698253394",
+        "tieredByTag": "zedoxii",
+        "playerId": "1497229655286222869",
+        "playerIGN": "T2Cheater",
+        "weapon": "Crystal",
+        "tier": "LT5",
+        "oldTier": "HT4",
+        "timestamp": 1789032303731
+      },
+      {
+        "tieredBy": "1293133734484381727",
+        "tieredByTag": "realsilentsorrow.ly",
+        "playerId": "1387814444465131732",
+        "playerIGN": "_OnlyHades",
+        "weapon": "Netherite",
+        "tier": "LT4",
+        "oldTier": "HT4",
+        "timestamp": 1789032727280
+      },
+      {
+        "tieredBy": "1295711168698253394",
+        "tieredByTag": "zedoxii",
+        "playerId": "1386644386825240616",
+        "playerIGN": "_NOTALI_",
+        "weapon": "Crystal",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1789032828290
+      },
+      {
+        "tieredBy": "1489510066850893865",
+        "tieredByTag": "itzmuneebop",
+        "playerId": "1153719745955250317",
+        "playerIGN": "Murtaza110",
+        "weapon": "Mace",
+        "tier": "LT4",
+        "oldTier": "LT3",
+        "timestamp": 1789033467432
+      },
+      {
+        "tieredBy": "1295711168698253394",
+        "tieredByTag": "zedoxii",
+        "playerId": "1521929762313081083",
+        "playerIGN": "Realdiablo",
+        "weapon": "Crystal",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1789033688614
+      },
+      {
+        "tieredBy": "1295711168698253394",
+        "tieredByTag": "zedoxii",
+        "playerId": "1153719745955250317",
+        "playerIGN": "Murtaza110",
+        "weapon": "Crystal",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1789035698580
+      },
+      {
+        "tieredBy": "1295711168698253394",
+        "tieredByTag": "zedoxii",
+        "playerId": "1361651632949035032",
+        "playerIGN": "PanmanLegit",
+        "weapon": "Crystal",
+        "tier": "LT5",
+        "oldTier": null,
+        "timestamp": 1789035955158
+      },
+      {
+        "tieredBy": "1295711168698253394",
+        "tieredByTag": "zedoxii",
+        "playerId": "1520463658042392609",
+        "playerIGN": "LowKeyT3",
+        "weapon": "Crystal",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1789036203963
+      },
+      {
+        "tieredBy": "1327267425514684458",
+        "tieredByTag": "unseenrange",
+        "playerId": "1520463658042392609",
+        "playerIGN": "LowKeyT3",
+        "weapon": "Mace",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1789036754295
+      },
+      {
+        "tieredBy": "1165543531675406378",
+        "tieredByTag": "yesgreen1",
+        "playerId": "1468909012299808768",
+        "playerIGN": "TAYYABGAGA123123",
+        "weapon": "Crystal",
+        "tier": "HT4",
+        "oldTier": "LT3",
+        "timestamp": 1789036762364
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1520463658042392609",
+        "playerIGN": "LowKeyT3",
+        "weapon": "Crystal",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1789037011228
+      },
+      {
+        "tieredBy": "1293133734484381727",
+        "tieredByTag": "realsilentsorrow.ly",
+        "playerId": "1398927251906498712",
+        "playerIGN": "SQuareREQ",
+        "weapon": "Netherite",
+        "tier": "LT4",
+        "oldTier": "LT4",
+        "timestamp": 1789038124860
+      },
+      {
+        "tieredBy": "1293133734484381727",
+        "tieredByTag": "realsilentsorrow.ly",
+        "playerId": "1537774693812011032",
+        "playerIGN": "Clevora",
+        "weapon": "Netherite",
+        "tier": "LT5",
+        "oldTier": null,
+        "timestamp": 1789038661925
+      },
+      {
+        "tieredBy": "1295711168698253394",
+        "tieredByTag": "zedoxii",
+        "playerId": "1165543531675406378",
+        "playerIGN": "Yes_Green",
+        "weapon": "Crystal",
+        "tier": "LT3",
+        "oldTier": "LT3",
+        "timestamp": 1789041567083
+      },
+      {
+        "tieredBy": "1295711168698253394",
+        "tieredByTag": "zedoxii",
+        "playerId": "1494740977879875656",
+        "playerIGN": "NotG1yrex",
+        "weapon": "Crystal",
+        "tier": "HT4",
+        "oldTier": "HT5",
+        "timestamp": 1789042304020
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1520463658042392609",
+        "playerIGN": "LowKeyT3",
+        "weapon": "Sword",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1789043164550
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "788053684310900768",
+        "playerIGN": "i3rvz",
+        "weapon": "Mace",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1789045133456
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1494740977879875656",
+        "playerIGN": "NotG1yrex",
+        "weapon": "Sword",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1789045458049
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1494740977879875656",
+        "playerIGN": "NotG1yrex",
+        "weapon": "Axe",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1789046087032
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1502737316786213014",
+        "playerIGN": "MagicxlK1ss_",
+        "weapon": "Sword",
+        "tier": "LT4",
+        "oldTier": "LT4",
+        "timestamp": 1789046534450
+      },
+      {
+        "tieredBy": "1295711168698253394",
+        "tieredByTag": "zedoxii",
+        "playerId": "1540670836737048616",
+        "playerIGN": "ItsNotMatrix",
+        "weapon": "Crystal",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1789047727097
+      },
+      {
+        "tieredBy": "1295711168698253394",
+        "tieredByTag": "zedoxii",
+        "playerId": "1547121907168706649",
+        "playerIGN": "ZAINGAMERZ89",
+        "weapon": "Crystal",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1789048224842
+      },
+      {
+        "tieredBy": "1121362942106017832",
+        "tieredByTag": "zpxwz",
+        "playerId": "1295711168698253394",
+        "playerIGN": "Zedoxii",
+        "weapon": "Crystal",
+        "tier": "LT4",
+        "oldTier": "LT3",
+        "timestamp": 1789050808652
+      },
+      {
+        "tieredBy": "1096745012127092796",
+        "tieredByTag": "zaid_op",
+        "playerId": "1050007331234119700",
+        "playerIGN": "RealDarkSider",
+        "weapon": "Crystal",
+        "tier": "LT5",
+        "oldTier": "HT5",
+        "timestamp": 1789054576259
+      },
+      {
+        "tieredBy": "1096745012127092796",
+        "tieredByTag": "zaid_op",
+        "playerId": "1238527072704659591",
+        "playerIGN": "LeviUchiha_",
+        "weapon": "Crystal",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1789055370518
+      },
+      {
+        "tieredBy": "1204002944484118548",
+        "tieredByTag": "proxyxd_.",
+        "playerId": "1204002944484118548",
+        "playerIGN": "lo52",
+        "weapon": "Pot",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1789058323944
+      },
+      {
+        "tieredBy": "1204002944484118548",
+        "tieredByTag": "proxyxd_.",
+        "playerId": "1481919128678694942",
+        "playerIGN": "l052",
+        "weapon": "Crystal",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1789058333099
+      },
+      {
+        "tieredBy": "1204002944484118548",
+        "tieredByTag": "proxyxd_.",
+        "playerId": "1510902902422503454",
+        "playerIGN": "SpideySensie",
+        "weapon": "Mace",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1789058381303
+      },
+      {
+        "tieredBy": "1020914891848167474",
+        "tieredByTag": "vitalisy321",
+        "playerId": "1137320576776671272",
+        "playerIGN": "ChadxZeroxYT",
+        "weapon": "Netherite",
+        "tier": "HT5",
+        "oldTier": "HT5",
+        "timestamp": 1789062007650
+      },
+      {
+        "tieredBy": "1020914891848167474",
+        "tieredByTag": "vitalisy321",
+        "playerId": "804374129956487179",
+        "playerIGN": "Lord_Epickly",
+        "weapon": "Netherite",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1789062927525
+      },
+      {
+        "tieredBy": "1020914891848167474",
+        "tieredByTag": "vitalisy321",
+        "playerId": "804374129956487179",
+        "playerIGN": "Lord_Epickly",
+        "weapon": "SMP",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1789063568945
+      },
+      {
+        "tieredBy": "1121362942106017832",
+        "tieredByTag": "zpxwz",
+        "playerId": "1020914891848167474",
+        "playerIGN": "Vitalisy321",
+        "weapon": "Mace",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1789064622526
+      },
+      {
+        "tieredBy": "1121362942106017832",
+        "tieredByTag": "zpxwz",
+        "playerId": "1020914891848167474",
+        "playerIGN": "Vitalisy321",
+        "weapon": "Crystal",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1789064629079
+      },
+      {
+        "tieredBy": "1121362942106017832",
+        "tieredByTag": "zpxwz",
+        "playerId": "1020914891848167474",
+        "playerIGN": "Vitalisy321",
+        "weapon": "Sword",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1789064635359
+      },
+      {
+        "tieredBy": "1121362942106017832",
+        "tieredByTag": "zpxwz",
+        "playerId": "1020914891848167474",
+        "playerIGN": "Vitalisy321",
+        "weapon": "SMP",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1789064641957
+      },
+      {
+        "tieredBy": "1121362942106017832",
+        "tieredByTag": "zpxwz",
+        "playerId": "1020914891848167474",
+        "playerIGN": "Vitalisy321",
+        "weapon": "Axe",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1789064651527
+      },
+      {
+        "tieredBy": "1121362942106017832",
+        "tieredByTag": "zpxwz",
+        "playerId": "1020914891848167474",
+        "playerIGN": "Vitalisy321",
+        "weapon": "DiaSMP",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1789064656151
+      },
+      {
+        "tieredBy": "1121362942106017832",
+        "tieredByTag": "zpxwz",
+        "playerId": "1020914891848167474",
+        "playerIGN": "Vitalisy321",
+        "weapon": "UHC",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1789064662723
+      },
+      {
+        "tieredBy": "1121362942106017832",
+        "tieredByTag": "zpxwz",
+        "playerId": "1020914891848167474",
+        "playerIGN": "Vitalisy321",
+        "weapon": "Netherite",
+        "tier": "HT3",
+        "oldTier": null,
+        "timestamp": 1789064684621
+      },
+      {
+        "tieredBy": "1469765973237170300",
+        "tieredByTag": "who.tf.a4ham_",
+        "playerId": "1096745012127092796",
+        "playerIGN": "ZaidReal",
+        "weapon": "DiaSMP",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1789064753807
+      },
+      {
+        "tieredBy": "1520463658042392609",
+        "tieredByTag": "cheat4r_",
+        "playerId": "1544363977570525204",
+        "playerIGN": "Tbottar_Zerox",
+        "weapon": "Crystal",
+        "tier": "HT5",
+        "oldTier": "LT4",
+        "timestamp": 1789114208567
+      },
+      {
+        "tieredBy": "1520463658042392609",
+        "tieredByTag": "cheat4r_",
+        "playerId": "1421750790548230197",
+        "playerIGN": "DrownedXD001",
+        "weapon": "Crystal",
+        "tier": "LT4",
+        "oldTier": "HT4",
+        "timestamp": 1789116989063
+      },
+      {
+        "tieredBy": "1520463658042392609",
+        "tieredByTag": "cheat4r_",
+        "playerId": "1421750790548230197",
+        "playerIGN": "DrownedXD001",
+        "weapon": "Crystal",
+        "tier": "LT4",
+        "oldTier": "LT4",
+        "timestamp": 1789117488493
+      },
+      {
+        "tieredBy": "1520463658042392609",
+        "tieredByTag": "cheat4r_",
+        "playerId": "1544363977570525204",
+        "playerIGN": "Tbottar_Zerox",
+        "weapon": "Crystal",
+        "tier": "HT5",
+        "oldTier": "HT5",
+        "timestamp": 1789117738695
+      },
+      {
+        "tieredBy": "1220898105671680004",
+        "tieredByTag": "empireisempire",
+        "playerId": "1020914891848167474",
+        "playerIGN": "Vitalisy321",
+        "weapon": "Axe",
+        "tier": "HT3",
+        "oldTier": "LT3",
+        "timestamp": 1789126444739
+      },
+      {
+        "tieredBy": "1020914891848167474",
+        "tieredByTag": "vitalisy321",
+        "playerId": "1469765973237170300",
+        "playerIGN": "xFixa_",
+        "weapon": "Netherite",
+        "tier": "LT3",
+        "oldTier": "HT4",
+        "timestamp": 1789129923827
+      },
+      {
+        "tieredBy": "1165543531675406378",
+        "tieredByTag": "yesgreen1",
+        "playerId": "1481919128678694942",
+        "playerIGN": "l052",
+        "weapon": "SpearMace",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1789130140943
+      },
+      {
+        "tieredBy": "1165543531675406378",
+        "tieredByTag": "yesgreen1",
+        "playerId": "1204002944484118548",
+        "playerIGN": "lo52",
+        "weapon": "SpearMace",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1789130183026
+      },
+      {
+        "tieredBy": "1020914891848167474",
+        "tieredByTag": "vitalisy321",
+        "playerId": "1400632549218193589",
+        "playerIGN": "KillzorrTR",
+        "weapon": "Netherite",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1789130679973
+      },
+      {
+        "tieredBy": "1020914891848167474",
+        "tieredByTag": "vitalisy321",
+        "playerId": "1489672511821185044",
+        "playerIGN": "IlyNqnja",
+        "weapon": "Netherite",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1789131767688
+      },
+      {
+        "tieredBy": "1020914891848167474",
+        "tieredByTag": "vitalisy321",
+        "playerId": "1011897696749113405",
+        "playerIGN": "xrqvz",
+        "weapon": "Netherite",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1789132753739
+      },
+      {
+        "tieredBy": "1020914891848167474",
+        "tieredByTag": "vitalisy321",
+        "playerId": "1400632549218193589",
+        "playerIGN": "KillzorrTR",
+        "weapon": "SMP",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1789133276950
+      },
+      {
+        "tieredBy": "1020914891848167474",
+        "tieredByTag": "vitalisy321",
+        "playerId": "1400632549218193589",
+        "playerIGN": "KillzorrTR",
+        "weapon": "SMP",
+        "tier": "LT5",
+        "oldTier": "LT4",
+        "timestamp": 1789133343144
+      },
+      {
+        "tieredBy": "1020914891848167474",
+        "tieredByTag": "vitalisy321",
+        "playerId": "1489672511821185044",
+        "playerIGN": "IlyNqnja",
+        "weapon": "SMP",
+        "tier": "HT4",
+        "oldTier": null,
+        "timestamp": 1789134196767
+      },
+      {
+        "tieredBy": "1469765973237170300",
+        "tieredByTag": "who.tf.a4ham_",
+        "playerId": "1225742791594737727",
+        "playerIGN": "SeriouslyHadi",
+        "weapon": "DiaSMP",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1789141557522
+      },
+      {
+        "tieredBy": "1295711168698253394",
+        "tieredByTag": "zedoxii",
+        "playerId": "1295711168698253394",
+        "playerIGN": "Zedoxii",
+        "weapon": "Crystal",
+        "tier": "LT3",
+        "oldTier": "LT4",
+        "timestamp": 1789142678587
+      },
+      {
+        "tieredBy": "1165543531675406378",
+        "tieredByTag": "yesgreen1",
+        "playerId": "1295711168698253394",
+        "playerIGN": "Zedoxii",
+        "weapon": "Crystal",
+        "tier": "LT3",
+        "oldTier": "LT3",
+        "timestamp": 1789142763546
+      },
+      {
+        "tieredBy": "1469765973237170300",
+        "tieredByTag": "who.tf.a4ham_",
+        "playerId": "1494740977879875656",
+        "playerIGN": "NotG1yrex",
+        "weapon": "DiaSMP",
+        "tier": "LT4",
+        "oldTier": "LT4",
+        "timestamp": 1789143181410
+      },
+      {
+        "tieredBy": "1520463658042392609",
+        "tieredByTag": "cheat4r_",
+        "playerId": "1190293186069938186",
+        "playerIGN": "LoloCass",
+        "weapon": "Crystal",
+        "tier": "HT4",
+        "oldTier": "HT5",
+        "timestamp": 1789146473340
+      },
+      {
+        "tieredBy": "925788514963042334",
+        "tieredByTag": "cowmc._.",
+        "playerId": "1378991972039135326",
+        "playerIGN": "Azyric_",
+        "weapon": "UHC",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1789150438142
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1520463658042392609",
+        "playerIGN": "LowKeyT3",
+        "weapon": "Axe",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1789151368843
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1520463658042392609",
+        "playerIGN": "LowKeyT3",
+        "weapon": "Axe",
+        "tier": "LT4",
+        "oldTier": "LT4",
+        "timestamp": 1789151388760
+      },
+      {
+        "tieredBy": "925788514963042334",
+        "tieredByTag": "cowmc._.",
+        "playerId": "1295711168698253394",
+        "playerIGN": "Zedoxii",
+        "weapon": "UHC",
+        "tier": "LT5",
+        "oldTier": null,
+        "timestamp": 1789151440018
+      },
+      {
+        "tieredBy": "925788514963042334",
+        "tieredByTag": "cowmc._.",
+        "playerId": "1547121907168706649",
+        "playerIGN": "ZAINGAMERZ89",
+        "weapon": "UHC",
+        "tier": "LT5",
+        "oldTier": null,
+        "timestamp": 1789152309574
+      },
+      {
+        "tieredBy": "1293133734484381727",
+        "tieredByTag": "realsilentsorrow.ly",
+        "playerId": "1547121907168706649",
+        "playerIGN": "ZAINGAMERZ89",
+        "weapon": "Netherite",
+        "tier": "LT5",
+        "oldTier": null,
+        "timestamp": 1789159982683
+      },
+      {
+        "tieredBy": "1293133734484381727",
+        "tieredByTag": "realsilentsorrow.ly",
+        "playerId": "1520463658042392609",
+        "playerIGN": "LowKeyT3",
+        "weapon": "Netherite",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1789160546500
+      },
+      {
+        "tieredBy": "788053684310900768",
+        "tieredByTag": "cryqto",
+        "playerId": "1358353676695240875",
+        "playerIGN": "LowkeyPoG",
+        "weapon": "Sword",
+        "tier": "LT3",
+        "oldTier": null,
+        "timestamp": 1789163260978
+      },
+      {
+        "tieredBy": "1489510066850893865",
+        "tieredByTag": "itzmuneebop",
+        "playerId": "1165543531675406378",
+        "playerIGN": "Yes_Green",
+        "weapon": "Mace",
+        "tier": "LT5",
+        "oldTier": "LT3",
+        "timestamp": 1789179007974
+      },
+      {
+        "tieredBy": "1489510066850893865",
+        "tieredByTag": "itzmuneebop",
+        "playerId": "1253791349279428663",
+        "playerIGN": "InfernoMC1",
+        "weapon": "Mace",
+        "tier": "LT5",
+        "oldTier": "LT3",
+        "timestamp": 1789183755569
+      },
+      {
+        "tieredBy": "1489510066850893865",
+        "tieredByTag": "itzmuneebop",
+        "playerId": "1096745012127092796",
+        "playerIGN": "ZaidReal",
+        "weapon": "Mace",
+        "tier": "LT5",
+        "oldTier": "LT3",
+        "timestamp": 1789184332958
+      },
+      {
+        "tieredBy": "1253791349279428663",
+        "tieredByTag": "arish_15",
+        "playerId": "1253791349279428663",
+        "playerIGN": "InfernoMC1",
+        "weapon": "Mace",
+        "tier": "LT3",
+        "oldTier": "LT5",
+        "timestamp": 1789201580139
+      },
+      {
+        "tieredBy": "1520463658042392609",
+        "tieredByTag": "cheat4r_",
+        "playerId": "1137320576776671272",
+        "playerIGN": "ChadxZeroxYT",
+        "weapon": "Crystal",
+        "tier": "HT5",
+        "oldTier": "LT4",
+        "timestamp": 1789206042708
+      },
+      {
+        "tieredBy": "1520463658042392609",
+        "tieredByTag": "cheat4r_",
+        "playerId": "1506707136887918742",
+        "playerIGN": "abdulnahiyan",
+        "weapon": "Crystal",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1789206640498
+      },
+      {
+        "tieredBy": "1520463658042392609",
+        "tieredByTag": "cheat4r_",
+        "playerId": "934492462423093290",
+        "playerIGN": "Notapro7666",
+        "weapon": "Crystal",
+        "tier": "LT4",
+        "oldTier": null,
+        "timestamp": 1789207387802
+      },
+      {
+        "tieredBy": "1520463658042392609",
+        "tieredByTag": "cheat4r_",
+        "playerId": "1436044392468316253",
+        "playerIGN": "FAKE_HUZAIFA",
+        "weapon": "Crystal",
+        "tier": "HT5",
+        "oldTier": null,
+        "timestamp": 1789211849229
+      },
+      {
+        "tieredBy": "1489510066850893865",
+        "tieredByTag": "itzmuneebop",
+        "playerId": "1165543531675406378",
+        "playerIGN": "Yes_Green",
+        "weapon": "Mace",
+        "tier": "LT5",
+        "oldTier": "LT5",
+        "timestamp": 1789212399503
+      },
+      {
+        "tieredBy": "1489510066850893865",
+        "tieredByTag": "itzmuneebop",
+        "playerId": "1494740977879875656",
+        "playerIGN": "NotG1yrex",
+        "weapon": "Mace",
+        "tier": "HT5",
+        "oldTier": "HT5",
+        "timestamp": 1789213023870
       }
     ],
     "cooldowns": {
       "1494740977879875656": {
         "Sword": {
-          "ts": 1788349142937,
-          "tier": "HT5"
+          "ts": 1789045458048,
+          "tier": "HT4"
         },
         "Mace": {
-          "ts": 1788617716492,
+          "ts": 1789213023869,
           "tier": "HT5"
         },
         "Axe": {
-          "ts": 1787049326774,
-          "tier": "LT5"
+          "ts": 1789046087031,
+          "tier": "HT4"
         },
         "Crystal": {
-          "ts": 1788365248850,
-          "tier": "LT4"
+          "ts": 1789042304020,
+          "tier": "HT4"
         },
         "Netherite": {
           "ts": 1788261123836,
@@ -7550,7 +10719,7 @@
           "tier": "LT4"
         },
         "DiaSMP": {
-          "ts": 1788534000969,
+          "ts": 1789143181409,
           "tier": "LT4"
         }
       },
@@ -7580,13 +10749,21 @@
           "tier": "HT3"
         },
         "Mace": {
-          "ts": 1788433377777,
+          "ts": 1788764717352,
+          "tier": "HT4"
+        },
+        "Sword": {
+          "ts": 1789046534449,
           "tier": "LT4"
+        },
+        "Axe": {
+          "ts": 1788961404490,
+          "tier": "LT3"
         }
       },
       "1515760900303487109": {
         "Sword": {
-          "ts": 1787157841547,
+          "ts": 1788719761014,
           "tier": "LT4"
         },
         "Crystal": {
@@ -7600,20 +10777,24 @@
         "DiaSMP": {
           "ts": 1788499806932,
           "tier": "HT5"
+        },
+        "Mace": {
+          "ts": 1788708642513,
+          "tier": "LT4"
         }
       },
       "1137320576776671272": {
         "Netherite": {
-          "ts": 1784804183575,
+          "ts": 1789062007650,
           "tier": "HT5"
         },
         "Crystal": {
-          "ts": 1788451059287,
-          "tier": "LT4"
+          "ts": 1789206042708,
+          "tier": "HT5"
         },
         "Mace": {
-          "ts": 1788604532990,
-          "tier": "LT3"
+          "ts": 1788970339204,
+          "tier": "LT4"
         },
         "SMP": {
           "ts": 1788449817302,
@@ -7640,7 +10821,7 @@
       },
       "1253791349279428663": {
         "Mace": {
-          "ts": 1784804391649,
+          "ts": 1789201580139,
           "tier": "LT3"
         },
         "Sword": {
@@ -7672,12 +10853,12 @@
       },
       "1165543531675406378": {
         "Crystal": {
-          "ts": 1786988654317,
+          "ts": 1789041567083,
           "tier": "LT3"
         },
         "Mace": {
-          "ts": 1788069708508,
-          "tier": "LT3"
+          "ts": 1789212399502,
+          "tier": "LT5"
         }
       },
       "1399487190626603187": {
@@ -7722,7 +10903,7 @@
       },
       "1481919128678694942": {
         "Crystal": {
-          "ts": 1788192243288,
+          "ts": 1789058333099,
           "tier": "LT3"
         },
         "Sword": {
@@ -7738,8 +10919,16 @@
           "tier": "LT4"
         },
         "Axe": {
-          "ts": 1788520297228,
-          "tier": "LT4"
+          "ts": 1788770026070,
+          "tier": "HT4"
+        },
+        "SMP": {
+          "ts": 1788705579195,
+          "tier": "HT4"
+        },
+        "SpearMace": {
+          "ts": 1789130140943,
+          "tier": "LT3"
         }
       },
       "1387341591257288806": {
@@ -7754,8 +10943,8 @@
       },
       "927944779629727794": {
         "Sword": {
-          "ts": 1788608434131,
-          "tier": "LT4"
+          "ts": 1788709887451,
+          "tier": "LT3"
         },
         "Crystal": {
           "ts": 1787668075081,
@@ -7770,11 +10959,15 @@
           "tier": "HT4"
         },
         "SMP": {
-          "ts": 1788527794486,
-          "tier": "HT4"
+          "ts": 1788794583561,
+          "tier": "LT3"
         },
         "DiaSMP": {
           "ts": 1788606847900,
+          "tier": "LT3"
+        },
+        "Axe": {
+          "ts": 1788703559192,
           "tier": "LT3"
         }
       },
@@ -7786,7 +10979,7 @@
       },
       "1096745012127092796": {
         "Crystal": {
-          "ts": 1788451986093,
+          "ts": 1788871573782,
           "tier": "HT3"
         },
         "SMP": {
@@ -7794,8 +10987,24 @@
           "tier": "HT4"
         },
         "Mace": {
-          "ts": 1788522345128,
-          "tier": "HT5"
+          "ts": 1789184332958,
+          "tier": "LT5"
+        },
+        "Sword": {
+          "ts": 1788874496625,
+          "tier": "HT4"
+        },
+        "Netherite": {
+          "ts": 1788961299177,
+          "tier": "HT4"
+        },
+        "Axe": {
+          "ts": 1788965922192,
+          "tier": "LT3"
+        },
+        "DiaSMP": {
+          "ts": 1789064753807,
+          "tier": "HT4"
         }
       },
       "1261981601399701554": {
@@ -7822,8 +11031,8 @@
       },
       "1517176681977086183": {
         "Sword": {
-          "ts": 1788181387192,
-          "tier": "LT3"
+          "ts": 1788862485105,
+          "tier": "HT4"
         },
         "Netherite": {
           "ts": 1787658044337,
@@ -7914,7 +11123,7 @@
           "tier": "HT5"
         },
         "Mace": {
-          "ts": 1788082424898,
+          "ts": 1788796548206,
           "tier": "LT5"
         },
         "Sword": {
@@ -7928,16 +11137,24 @@
       },
       "976469873481904128": {
         "Sword": {
-          "ts": 1788180595273,
-          "tier": "HT4"
+          "ts": 1788956422451,
+          "tier": "LT4"
         },
         "Netherite": {
-          "ts": 1787994755443,
+          "ts": 1788958687704,
           "tier": "HT5"
         },
         "Mace": {
-          "ts": 1788082748168,
-          "tier": "LT5"
+          "ts": 1788960062676,
+          "tier": "LT4"
+        },
+        "Axe": {
+          "ts": 1788960573091,
+          "tier": "LT4"
+        },
+        "Crystal": {
+          "ts": 1788967658026,
+          "tier": "HT5"
         }
       },
       "1465054337989611590": {
@@ -7978,6 +11195,10 @@
         "DiaSMP": {
           "ts": 1788501178031,
           "tier": "LT4"
+        },
+        "Sword": {
+          "ts": 1788763277910,
+          "tier": "LT4"
         }
       },
       "1251798975779045400": {
@@ -8008,6 +11229,10 @@
         "SMP": {
           "ts": 1788624877525,
           "tier": "LT4"
+        },
+        "Axe": {
+          "ts": 1788704471026,
+          "tier": "LT4"
         }
       },
       "1534229619664748625": {
@@ -8024,7 +11249,7 @@
       },
       "1475456333603143800": {
         "Sword": {
-          "ts": 1788171341240,
+          "ts": 1788777128683,
           "tier": "LT4"
         },
         "Netherite": {
@@ -8032,11 +11257,19 @@
           "tier": "LT4"
         },
         "Mace": {
-          "ts": 1788431216213,
-          "tier": "HT5"
+          "ts": 1788709548950,
+          "tier": "HT4"
         },
         "SMP": {
           "ts": 1788430661291,
+          "tier": "HT5"
+        },
+        "Crystal": {
+          "ts": 1788976335084,
+          "tier": "HT5"
+        },
+        "Axe": {
+          "ts": 1788710291943,
           "tier": "HT5"
         }
       },
@@ -8060,7 +11293,7 @@
           "tier": "HT5"
         },
         "Crystal": {
-          "ts": 1788364331158,
+          "ts": 1788797922222,
           "tier": "HT4"
         },
         "DiaSMP": {
@@ -8080,6 +11313,10 @@
         "SMP": {
           "ts": 1788611203432,
           "tier": "LT4"
+        },
+        "Sword": {
+          "ts": 1788711225929,
+          "tier": "HT4"
         }
       },
       "1253958225565585429": {
@@ -8150,8 +11387,8 @@
       },
       "1153719745955250317": {
         "Mace": {
-          "ts": 1788075685825,
-          "tier": "LT3"
+          "ts": 1789033467432,
+          "tier": "LT4"
         },
         "Sword": {
           "ts": 1788076518801,
@@ -8160,6 +11397,10 @@
         "Netherite": {
           "ts": 1788082604563,
           "tier": "LT4"
+        },
+        "Crystal": {
+          "ts": 1789035698579,
+          "tier": "LT3"
         }
       },
       "1519022217873199277": {
@@ -8188,7 +11429,7 @@
       },
       "1196852434316841101": {
         "Mace": {
-          "ts": 1788078177734,
+          "ts": 1788940057444,
           "tier": "LT3"
         },
         "Netherite": {
@@ -8216,7 +11457,7 @@
           "tier": "LT3"
         },
         "Sword": {
-          "ts": 1788114501223,
+          "ts": 1788725084255,
           "tier": "LT3"
         },
         "Mace": {
@@ -8232,8 +11473,8 @@
           "tier": "LT3"
         },
         "Axe": {
-          "ts": 1788622132857,
-          "tier": "HT4"
+          "ts": 1788965550009,
+          "tier": "LT3"
         },
         "SMP": {
           "ts": 1788606838217,
@@ -8246,12 +11487,12 @@
       },
       "1387814444465131732": {
         "Netherite": {
-          "ts": 1788263007229,
-          "tier": "HT4"
+          "ts": 1789032727279,
+          "tier": "LT4"
         },
         "Sword": {
-          "ts": 1788088489995,
-          "tier": "HT5"
+          "ts": 1788711468988,
+          "tier": "LT4"
         },
         "Crystal": {
           "ts": 1788187778365,
@@ -8264,6 +11505,14 @@
         "Mace": {
           "ts": 1788628092127,
           "tier": "LT5"
+        },
+        "Axe": {
+          "ts": 1788708235931,
+          "tier": "HT5"
+        },
+        "SMP": {
+          "ts": 1789031636067,
+          "tier": "LT4"
         }
       },
       "1260525372492218391": {
@@ -8282,11 +11531,15 @@
         "DiaSMP": {
           "ts": 1788617221454,
           "tier": "LT4"
+        },
+        "UHC": {
+          "ts": 1788798972998,
+          "tier": "HT5"
         }
       },
       "1398927251906498712": {
         "Netherite": {
-          "ts": 1788271075193,
+          "ts": 1789038124860,
           "tier": "LT4"
         }
       },
@@ -8346,7 +11599,7 @@
       },
       "1050007331234119700": {
         "Mace": {
-          "ts": 1788110839215,
+          "ts": 1788795361643,
           "tier": "LT5"
         },
         "UHC": {
@@ -8354,34 +11607,28 @@
           "tier": "HT5"
         },
         "SMP": {
-          "ts": 1788634186904,
-          "tier": "LT4"
-        }
-      },
-      "788053684310900768": {
-        "Sword": {
-          "ts": 1788114525849,
-          "tier": "LT3"
-        },
-        "Netherite": {
-          "ts": 1788128995239,
-          "tier": "LT3"
-        },
-        "Mace": {
-          "ts": 1788238769669,
-          "tier": "LT3"
-        },
-        "Axe": {
-          "ts": 1788255014562,
-          "tier": "LT4"
-        },
-        "SMP": {
-          "ts": 1788459008501,
-          "tier": "LT5"
+          "ts": 1788973118284,
+          "tier": "HT4"
         },
         "Crystal": {
-          "ts": 1788260707908,
-          "tier": "LT3"
+          "ts": 1789054576259,
+          "tier": "LT5"
+        },
+        "Axe": {
+          "ts": 1788709688176,
+          "tier": "HT4"
+        },
+        "Sword": {
+          "ts": 1788711735103,
+          "tier": "LT4"
+        },
+        "DiaSMP": {
+          "ts": 1788979005847,
+          "tier": "HT5"
+        },
+        "Netherite": {
+          "ts": 1788976608375,
+          "tier": "LT4"
         }
       },
       "1469765973237170300": {
@@ -8390,8 +11637,8 @@
           "tier": "LT4"
         },
         "Netherite": {
-          "ts": 1788425281108,
-          "tier": "LT4"
+          "ts": 1789129923826,
+          "tier": "LT3"
         },
         "DiaSMP": {
           "ts": 1788343811446,
@@ -8422,6 +11669,14 @@
         "Mace": {
           "ts": 1788155701298,
           "tier": "LT5"
+        },
+        "Sword": {
+          "ts": 1788862196694,
+          "tier": "HT5"
+        },
+        "Netherite": {
+          "ts": 1789024897143,
+          "tier": "LT4"
         }
       },
       "1220898105671680004": {
@@ -8456,7 +11711,7 @@
           "tier": "LT3"
         },
         "Sword": {
-          "ts": 1788175850337,
+          "ts": 1789163260978,
           "tier": "LT3"
         },
         "UHC": {
@@ -8506,24 +11761,28 @@
           "tier": "LT3"
         },
         "Crystal": {
-          "ts": 1788192835467,
-          "tier": "HT4"
-        },
-        "Mace": {
-          "ts": 1788193826161,
+          "ts": 1789032303731,
           "tier": "LT5"
         },
+        "Mace": {
+          "ts": 1788795960482,
+          "tier": "HT4"
+        },
         "Axe": {
-          "ts": 1788257862300,
-          "tier": "LT4"
+          "ts": 1788968919490,
+          "tier": "LT3"
         },
         "SMP": {
           "ts": 1788636726760,
           "tier": "LT4"
         },
         "Netherite": {
-          "ts": 1788252016866,
-          "tier": "HT4"
+          "ts": 1789026261500,
+          "tier": "HT5"
+        },
+        "DiaSMP": {
+          "ts": 1788772954407,
+          "tier": "LT4"
         }
       },
       "1427389644558958682": {
@@ -8552,16 +11811,16 @@
       },
       "1413930323682660363": {
         "Crystal": {
-          "ts": 1788512642466,
-          "tier": "HT4"
+          "ts": 1788973870601,
+          "tier": "LT4"
         },
         "Netherite": {
-          "ts": 1788271892091,
-          "tier": "HT5"
+          "ts": 1788715565810,
+          "tier": "LT4"
         },
         "Mace": {
-          "ts": 1788349190108,
-          "tier": "LT5"
+          "ts": 1788791481039,
+          "tier": "LT4"
         },
         "DiaSMP": {
           "ts": 1788431888506,
@@ -8572,17 +11831,25 @@
           "tier": "HT5"
         },
         "SMP": {
-          "ts": 1788458216712,
+          "ts": 1788790219508,
           "tier": "HT5"
+        },
+        "Axe": {
+          "ts": 1788703135059,
+          "tier": "HT5"
+        },
+        "Sword": {
+          "ts": 1788714083517,
+          "tier": "LT4"
         }
       },
       "1295711168698253394": {
         "Crystal": {
-          "ts": 1788614076652,
-          "tier": "LT4"
+          "ts": 1789142763545,
+          "tier": "LT3"
         },
         "Mace": {
-          "ts": 1788195996498,
+          "ts": 1788962150452,
           "tier": "LT5"
         },
         "Netherite": {
@@ -8590,8 +11857,8 @@
           "tier": "HT4"
         },
         "Sword": {
-          "ts": 1788266428332,
-          "tier": "HT5"
+          "ts": 1788710220505,
+          "tier": "LT4"
         },
         "DiaSMP": {
           "ts": 1788431115730,
@@ -8600,6 +11867,14 @@
         "SMP": {
           "ts": 1788458783601,
           "tier": "HT5"
+        },
+        "Axe": {
+          "ts": 1788964704801,
+          "tier": "HT4"
+        },
+        "UHC": {
+          "ts": 1789151440017,
+          "tier": "LT5"
         }
       },
       "1539639179737309257": {
@@ -8630,6 +11905,10 @@
         "Crystal": {
           "ts": 1788521675733,
           "tier": "LT4"
+        },
+        "Sword": {
+          "ts": 1788706576421,
+          "tier": "LT4"
         }
       },
       "1518217034410754069": {
@@ -8654,6 +11933,10 @@
         "Mace": {
           "ts": 1788523002382,
           "tier": "LT5"
+        },
+        "Sword": {
+          "ts": 1788707600581,
+          "tier": "LT5"
         }
       },
       "1421750790548230197": {
@@ -8662,7 +11945,11 @@
           "tier": "LT3"
         },
         "Crystal": {
-          "ts": 1788276672228,
+          "ts": 1789117488493,
+          "tier": "LT4"
+        },
+        "Sword": {
+          "ts": 1788725540558,
           "tier": "HT4"
         }
       },
@@ -8672,8 +11959,8 @@
           "tier": "HT4"
         },
         "Sword": {
-          "ts": 1788266906962,
-          "tier": "HT4"
+          "ts": 1788769991387,
+          "tier": "LT3"
         },
         "Crystal": {
           "ts": 1788275718937,
@@ -8690,12 +11977,24 @@
         "DiaSMP": {
           "ts": 1788611948020,
           "tier": "LT3"
+        },
+        "SMP": {
+          "ts": 1788705606676,
+          "tier": "HT4"
+        },
+        "Pot": {
+          "ts": 1789058323943,
+          "tier": "LT3"
+        },
+        "SpearMace": {
+          "ts": 1789130183025,
+          "tier": "LT3"
         }
       },
       "1544363977570525204": {
         "Crystal": {
-          "ts": 1788508610082,
-          "tier": "LT4"
+          "ts": 1789117738695,
+          "tier": "HT5"
         },
         "SMP": {
           "ts": 1788514062951,
@@ -8718,17 +12017,41 @@
       },
       "1225742791594737727": {
         "Mace": {
-          "ts": 1788347835109,
-          "tier": "LT3"
+          "ts": 1788967127159,
+          "tier": "HT3"
         },
         "Sword": {
           "ts": 1788348572755,
+          "tier": "LT4"
+        },
+        "Axe": {
+          "ts": 1788710704064,
+          "tier": "LT3"
+        },
+        "Netherite": {
+          "ts": 1788716595884,
+          "tier": "HT4"
+        },
+        "SMP": {
+          "ts": 1788978663794,
+          "tier": "LT4"
+        },
+        "DiaSMP": {
+          "ts": 1789141557522,
           "tier": "LT4"
         }
       },
       "1503192749875265746": {
         "DiaSMP": {
           "ts": 1788360613790,
+          "tier": "LT5"
+        },
+        "Netherite": {
+          "ts": 1788715129240,
+          "tier": "HT5"
+        },
+        "SMP": {
+          "ts": 1788721961305,
           "tier": "LT5"
         }
       },
@@ -8738,8 +12061,8 @@
           "tier": "LT4"
         },
         "Sword": {
-          "ts": 1788434032577,
-          "tier": "HT5"
+          "ts": 1788958391304,
+          "tier": "LT4"
         },
         "SMP": {
           "ts": 1788635098425,
@@ -8780,8 +12103,8 @@
       },
       "1190293186069938186": {
         "Crystal": {
-          "ts": 1788450445399,
-          "tier": "HT5"
+          "ts": 1789146473340,
+          "tier": "HT4"
         }
       },
       "1513467418612334686": {
@@ -8806,36 +12129,6 @@
           "tier": "LT3"
         }
       },
-      "1020914891848167474": {
-        "SMP": {
-          "ts": 1788503835854,
-          "tier": "LT3"
-        },
-        "DiaSMP": {
-          "ts": 1788505131012,
-          "tier": "LT3"
-        },
-        "Netherite": {
-          "ts": 1788519296868,
-          "tier": "HT4"
-        },
-        "Crystal": {
-          "ts": 1788522306668,
-          "tier": "LT4"
-        },
-        "Mace": {
-          "ts": 1788603842774,
-          "tier": "LT3"
-        },
-        "Sword": {
-          "ts": 1788607463002,
-          "tier": "LT3"
-        },
-        "UHC": {
-          "ts": 1788634341406,
-          "tier": "LT4"
-        }
-      },
       "1511240207729557627": {
         "Crystal": {
           "ts": 1788508361377,
@@ -8848,8 +12141,8 @@
       },
       "1406332555145379840": {
         "DiaSMP": {
-          "ts": 1788513094259,
-          "tier": "LT4"
+          "ts": 1788690083419,
+          "tier": "HT5"
         },
         "SMP": {
           "ts": 1788611526440,
@@ -8914,6 +12207,14 @@
         "Netherite": {
           "ts": 1788522573158,
           "tier": "LT3"
+        },
+        "Axe": {
+          "ts": 1788708706580,
+          "tier": "LT3"
+        },
+        "Crystal": {
+          "ts": 1789207387802,
+          "tier": "LT4"
         }
       },
       "986162905361834024": {
@@ -8928,8 +12229,12 @@
           "tier": "HT4"
         },
         "Axe": {
-          "ts": 1788621782468,
-          "tier": "HT4"
+          "ts": 1788705615944,
+          "tier": "LT3"
+        },
+        "Mace": {
+          "ts": 1789058381302,
+          "tier": "HT5"
         }
       },
       "1517537392645509312": {
@@ -8954,12 +12259,16 @@
           "tier": "LT5"
         },
         "Crystal": {
-          "ts": 1788612248221,
-          "tier": "LT5"
+          "ts": 1789031647521,
+          "tier": "LT4"
         },
         "Netherite": {
           "ts": 1788614149930,
           "tier": "HT4"
+        },
+        "SMP": {
+          "ts": 1789031275607,
+          "tier": "LT4"
         }
       },
       "1462048449787592859": {
@@ -8974,6 +12283,18 @@
         "SMP": {
           "ts": 1788676722121,
           "tier": "LT3"
+        },
+        "DiaSMP": {
+          "ts": 1788688775194,
+          "tier": "HT4"
+        },
+        "Crystal": {
+          "ts": 1788695062925,
+          "tier": "LT3"
+        },
+        "Axe": {
+          "ts": 1788962656246,
+          "tier": "LT3"
         }
       },
       "1436044392468316253": {
@@ -8984,6 +12305,14 @@
         "Netherite": {
           "ts": 1788615213618,
           "tier": "HT4"
+        },
+        "Axe": {
+          "ts": 1788709350345,
+          "tier": "HT5"
+        },
+        "Crystal": {
+          "ts": 1789211849228,
+          "tier": "HT5"
         }
       },
       "831396976221618176": {
@@ -8998,20 +12327,422 @@
           "tier": "LT3"
         },
         "Mace": {
-          "ts": 1788618915412,
+          "ts": 1789021625809,
+          "tier": "HT5"
+        },
+        "Axe": {
+          "ts": 1788703895252,
           "tier": "LT3"
+        },
+        "Sword": {
+          "ts": 1788707002062,
+          "tier": "LT4"
+        },
+        "UHC": {
+          "ts": 1788800578418,
+          "tier": "HT5"
+        },
+        "Netherite": {
+          "ts": 1788959456062,
+          "tier": "HT4"
         }
       },
       "1272550029411745804": {
         "Netherite": {
-          "ts": 1788638091235,
-          "tier": "LT4"
+          "ts": 1789028945949,
+          "tier": "HT4"
         }
       },
       "804374129956487179": {
         "DiaSMP": {
           "ts": 1788639090540,
           "tier": "LT3"
+        },
+        "Sword": {
+          "ts": 1788707508085,
+          "tier": "LT4"
+        },
+        "Netherite": {
+          "ts": 1789062927525,
+          "tier": "LT4"
+        },
+        "SMP": {
+          "ts": 1789063568945,
+          "tier": "HT4"
+        }
+      },
+      "1532692365641519165": {
+        "Crystal": {
+          "ts": 1788694784715,
+          "tier": "LT4"
+        },
+        "Sword": {
+          "ts": 1788785203311,
+          "tier": "LT4"
+        }
+      },
+      "997806923493675089": {
+        "Crystal": {
+          "ts": 1788701818181,
+          "tier": "HT5"
+        },
+        "Sword": {
+          "ts": 1788722963965,
+          "tier": "LT3"
+        }
+      },
+      "1537028903510478961": {
+        "Crystal": {
+          "ts": 1788702278081,
+          "tier": "LT4"
+        }
+      },
+      "1447956241849520280": {
+        "Axe": {
+          "ts": 1788704771617,
+          "tier": "HT4"
+        },
+        "Crystal": {
+          "ts": 1788961653909,
+          "tier": "LT4"
+        },
+        "Sword": {
+          "ts": 1788707959340,
+          "tier": "LT5"
+        },
+        "Netherite": {
+          "ts": 1788959909330,
+          "tier": "HT5"
+        },
+        "Mace": {
+          "ts": 1788961668042,
+          "tier": "HT4"
+        }
+      },
+      "1521929762313081083": {
+        "Axe": {
+          "ts": 1788963257532,
+          "tier": "HT5"
+        },
+        "Crystal": {
+          "ts": 1789033688614,
+          "tier": "HT5"
+        }
+      },
+      "1033697703735066674": {
+        "Sword": {
+          "ts": 1788719440087,
+          "tier": "LT4"
+        }
+      },
+      "1324342023406358540": {
+        "SMP": {
+          "ts": 1788719737505,
+          "tier": "LT4"
+        },
+        "Netherite": {
+          "ts": 1788958319425,
+          "tier": "HT5"
+        }
+      },
+      "1386644386825240616": {
+        "SMP": {
+          "ts": 1789032200285,
+          "tier": "LT4"
+        },
+        "Sword": {
+          "ts": 1788720966678,
+          "tier": "LT4"
+        },
+        "Crystal": {
+          "ts": 1789032828289,
+          "tier": "HT4"
+        }
+      },
+      "1194506578418741318": {
+        "Sword": {
+          "ts": 1788748369839,
+          "tier": "LT3"
+        },
+        "Mace": {
+          "ts": 1788763352902,
+          "tier": "HT5"
+        },
+        "Crystal": {
+          "ts": 1788763368038,
+          "tier": "LT4"
+        },
+        "Axe": {
+          "ts": 1788763415712,
+          "tier": "LT3"
+        },
+        "Netherite": {
+          "ts": 1788763436861,
+          "tier": "LT3"
+        },
+        "DiaSMP": {
+          "ts": 1788763464924,
+          "tier": "LT4"
+        }
+      },
+      "1238527072704659591": {
+        "Sword": {
+          "ts": 1788763553547,
+          "tier": "LT4"
+        },
+        "Crystal": {
+          "ts": 1789055370517,
+          "tier": "LT3"
+        }
+      },
+      "1139841049330733107": {
+        "Sword": {
+          "ts": 1788770272210,
+          "tier": "LT3"
+        },
+        "DiaSMP": {
+          "ts": 1788774668794,
+          "tier": "LT3"
+        }
+      },
+      "1201519443705073716": {
+        "Sword": {
+          "ts": 1788784941439,
+          "tier": "LT4"
+        }
+      },
+      "1525180039132610791": {
+        "Crystal": {
+          "ts": 1788785313062,
+          "tier": "LT3"
+        },
+        "UHC": {
+          "ts": 1788799319441,
+          "tier": "HT5"
+        },
+        "Netherite": {
+          "ts": 1788799415512,
+          "tier": "LT3"
+        }
+      },
+      "1461248814395424788": {
+        "Sword": {
+          "ts": 1788787374786,
+          "tier": "HT4"
+        }
+      },
+      "788053684310900768": {
+        "SMP": {
+          "ts": 1788796936423,
+          "tier": "LT3"
+        },
+        "UHC": {
+          "ts": 1788798267886,
+          "tier": "HT5"
+        },
+        "Axe": {
+          "ts": 1788964037182,
+          "tier": "LT3"
+        },
+        "Sword": {
+          "ts": 1788974055455,
+          "tier": "HT3"
+        },
+        "Netherite": {
+          "ts": 1788966771879,
+          "tier": "LT3"
+        },
+        "Crystal": {
+          "ts": 1788966797053,
+          "tier": "LT3"
+        },
+        "Mace": {
+          "ts": 1789045133455,
+          "tier": "LT3"
+        }
+      },
+      "1402202711520448617": {
+        "UHC": {
+          "ts": 1788891367839,
+          "tier": "HT4"
+        }
+      },
+      "1096689126000037980": {
+        "Sword": {
+          "ts": 1788953967274,
+          "tier": "LT3"
+        }
+      },
+      "1030821353080770581": {
+        "Sword": {
+          "ts": 1788965508291,
+          "tier": "HT5"
+        },
+        "Crystal": {
+          "ts": 1788967085347,
+          "tier": "LT5"
+        }
+      },
+      "1462840434245243035": {
+        "Sword": {
+          "ts": 1788966153633,
+          "tier": "LT5"
+        }
+      },
+      "1114644363142778982": {
+        "Crystal": {
+          "ts": 1788970564572,
+          "tier": "LT3"
+        }
+      },
+      "1468909012299808768": {
+        "Crystal": {
+          "ts": 1789036762362,
+          "tier": "HT4"
+        }
+      },
+      "1147404977950687352": {
+        "Mace": {
+          "ts": 1789025145140,
+          "tier": "LT5"
+        }
+      },
+      "1369612674018709577": {
+        "Netherite": {
+          "ts": 1789031749054,
+          "tier": "LT3"
+        }
+      },
+      "1503402267229819012": {
+        "Crystal": {
+          "ts": 1789032074184,
+          "tier": "LT5"
+        }
+      },
+      "1361651632949035032": {
+        "Crystal": {
+          "ts": 1789035955158,
+          "tier": "LT5"
+        }
+      },
+      "1520463658042392609": {
+        "Crystal": {
+          "ts": 1789037011227,
+          "tier": "LT3"
+        },
+        "Mace": {
+          "ts": 1789036754295,
+          "tier": "LT3"
+        },
+        "Sword": {
+          "ts": 1789043164550,
+          "tier": "LT3"
+        },
+        "Axe": {
+          "ts": 1789151388760,
+          "tier": "LT4"
+        },
+        "Netherite": {
+          "ts": 1789160546500,
+          "tier": "HT5"
+        }
+      },
+      "1537774693812011032": {
+        "Netherite": {
+          "ts": 1789038661925,
+          "tier": "LT5"
+        }
+      },
+      "1540670836737048616": {
+        "Crystal": {
+          "ts": 1789047727096,
+          "tier": "LT3"
+        }
+      },
+      "1547121907168706649": {
+        "Crystal": {
+          "ts": 1789048224841,
+          "tier": "HT5"
+        },
+        "UHC": {
+          "ts": 1789152309573,
+          "tier": "LT5"
+        },
+        "Netherite": {
+          "ts": 1789159982683,
+          "tier": "LT5"
+        }
+      },
+      "1020914891848167474": {
+        "Mace": {
+          "ts": 1789064622526,
+          "tier": "LT4"
+        },
+        "Crystal": {
+          "ts": 1789064629078,
+          "tier": "LT4"
+        },
+        "Sword": {
+          "ts": 1789064635359,
+          "tier": "LT3"
+        },
+        "SMP": {
+          "ts": 1789064641956,
+          "tier": "LT3"
+        },
+        "Axe": {
+          "ts": 1789126444738,
+          "tier": "HT3"
+        },
+        "DiaSMP": {
+          "ts": 1789064656151,
+          "tier": "LT3"
+        },
+        "UHC": {
+          "ts": 1789064662723,
+          "tier": "LT4"
+        },
+        "Netherite": {
+          "ts": 1789064684620,
+          "tier": "HT3"
+        }
+      },
+      "1400632549218193589": {
+        "Netherite": {
+          "ts": 1789130679972,
+          "tier": "LT4"
+        },
+        "SMP": {
+          "ts": 1789133343143,
+          "tier": "LT5"
+        }
+      },
+      "1489672511821185044": {
+        "Netherite": {
+          "ts": 1789131767688,
+          "tier": "LT3"
+        },
+        "SMP": {
+          "ts": 1789134196767,
+          "tier": "HT4"
+        }
+      },
+      "1011897696749113405": {
+        "Netherite": {
+          "ts": 1789132753738,
+          "tier": "LT3"
+        }
+      },
+      "1378991972039135326": {
+        "UHC": {
+          "ts": 1789150438142,
+          "tier": "HT5"
+        }
+      },
+      "1506707136887918742": {
+        "Crystal": {
+          "ts": 1789206640497,
+          "tier": "LT4"
         }
       }
     },
@@ -9030,19 +12761,19 @@
         "duration": "14d",
         "expiresAt": 1789724909522
       },
-      "1521157193100169277": {
-        "by": "1194506578418741318",
-        "at": 1788676450669,
-        "reason": "U wont be unblacklisted",
-        "duration": "30d",
-        "expiresAt": 1791268450669
+      "1096689126000037980": {
+        "by": "1121362942106017832",
+        "at": 1788956854894,
+        "reason": "SS dodge",
+        "duration": "7d",
+        "expiresAt": 1789561654894
       },
-      "1525180039132610791": {
-        "by": "1194506578418741318",
-        "at": 1788678327233,
-        "reason": "DoomsDay",
-        "duration": "30d",
-        "expiresAt": 1791270327233
+      "1471048137584939212": {
+        "by": "1220898105671680004",
+        "at": 1789120975633,
+        "reason": "hacks",
+        "duration": "1d",
+        "expiresAt": 1789207375633
       }
     },
     "queuePerms": {
