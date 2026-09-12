@@ -139,6 +139,40 @@ function hasHighTiererPerm(member) {
   return perms.roles.some(rid => member.roles.cache.has(rid));
 }
 
+// ── HIRE PERM ROLES + MEMBERS — runtime settings via /hire perm ──────
+// STANDALONE gate for /hire and /fire. The server owner always has access.
+// Administrator permission does NOT grant this on its own — it must be
+// granted explicitly by the server owner via "/hire perm set".
+const HIRE_PERM_FILE = path.join(__dirname, 'eclipsetiers_data', 'hire_perms.json');
+function loadHirePerms() {
+  try {
+    if (fs.existsSync(HIRE_PERM_FILE)) return JSON.parse(fs.readFileSync(HIRE_PERM_FILE, 'utf8'));
+  } catch(_) {}
+  return { roles: [], members: [] };
+}
+function saveHirePerms(data) {
+  try {
+    if (!fs.existsSync(path.join(__dirname, 'eclipsetiers_data')))
+      fs.mkdirSync(path.join(__dirname, 'eclipsetiers_data'), { recursive: true });
+    fs.writeFileSync(HIRE_PERM_FILE, JSON.stringify(data, null, 2));
+  } catch(_) {}
+}
+function hasHirePerm(member) {
+  if (member.id === member.guild.ownerId) return true; // server creator always allowed
+  const perms = loadHirePerms();
+  if (perms.members.includes(member.id)) return true;
+  return perms.roles.some(rid => member.roles.cache.has(rid));
+}
+
+// ── Role-hierarchy guard for /hire and /fire ─────────────────────────
+// Nobody — not even someone granted hire perm, and not even a Discord
+// "Administrator" — can hire/fire into/out of a role that sits at or
+// above their own highest role. Only the server owner bypasses this.
+function canActOnRole(actorMember, role) {
+  if (actorMember.id === actorMember.guild.ownerId) return true;
+  return actorMember.roles.highest.position > role.position;
+}
+
 // ── TESTER-OF-GAMEMODE ASSIGNMENTS — set via /tester ─────────────────
 // Tracks which gamemodes each Discord user is an assigned tester of.
 // { [discordId]: ['Mace','Pot', ...] } — separate from earned tier ranks.
@@ -4502,21 +4536,146 @@ async function refreshSQPanel(client, weapon) {
 // ════════════════════════════════════════════════════════════
 
 // ── /hire ─────────────────────────────────────────────────
+// "/hire user"        — actually hire someone (requires hire perm + hierarchy check)
+// "/hire perm set"    — grant hire perm to a role/member (owner only)
+// "/hire perm remove" — revoke hire perm from a role/member (owner only)
+// "/hire perm list"   — view current hire perm roles/members (owner only)
 CMDS.hire = {
   data: new SlashCommandBuilder()
     .setName('hire')
-    .setDescription('Hire a member into a staff role')
-    .addUserOption(o => o.setName('player').setDescription('Member to hire').setRequired(true))
-    .addRoleOption(o => o.setName('role').setDescription('Staff role to assign').setRequired(true)),
+    .setDescription('Hire a member into a staff role, or manage hire permissions')
+    .addSubcommand(s => s
+      .setName('user')
+      .setDescription('Hire a member into a staff role')
+      .addUserOption(o => o.setName('player').setDescription('Member to hire').setRequired(true))
+      .addRoleOption(o => o.setName('role').setDescription('Staff role to assign').setRequired(true)))
+    .addSubcommandGroup(g => g
+      .setName('perm')
+      .setDescription('Manage who is allowed to use /hire and /fire (server owner only)')
+      .addSubcommand(s => s
+        .setName('set')
+        .setDescription('Grant hire permission to a role or member')
+        .addRoleOption(o => o.setName('role').setDescription('Role to grant hire permission to').setRequired(false))
+        .addUserOption(o => o.setName('member').setDescription('Member to grant hire permission to').setRequired(false)))
+      .addSubcommand(s => s
+        .setName('remove')
+        .setDescription('Revoke hire permission from a role or member')
+        .addRoleOption(o => o.setName('role').setDescription('Role to remove hire permission from').setRequired(false))
+        .addUserOption(o => o.setName('member').setDescription('Member to remove hire permission from').setRequired(false)))
+      .addSubcommand(s => s
+        .setName('list')
+        .setDescription('View all roles/members with hire permission'))),
 
   async execute(i) {
-    if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
+    const group = i.options.getSubcommandGroup(false);
+    const sub   = i.options.getSubcommand();
+
+    // ══════════════════════════════════════════════════════
+    // /hire perm set|remove|list — server owner ONLY
+    // ══════════════════════════════════════════════════════
+    if (group === 'perm') {
+      if (i.user.id !== i.guild.ownerId) {
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription('❌ Only the **server owner** can manage hire permissions.')] });
+      }
+
+      const perms = loadHirePerms();
+
+      // ── LIST ─────────────────────────────────────────────
+      if (sub === 'list') {
+        const roleLines   = perms.roles.length   ? perms.roles.map(rid => `• <@&${rid}>`).join('\n')   : '*No roles granted*';
+        const memberLines = perms.members.length ? perms.members.map(uid => `• <@${uid}>`).join('\n') : '*No members granted*';
+
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+          .setTitle('🛡️ Hire Permission List')
+          .addFields(
+            { name:'Server Owner', value:`• <@${i.guild.ownerId}> *(always allowed, bypasses role hierarchy)*`, inline:false },
+            { name:'Roles (/hire perm set role)', value: roleLines, inline:false },
+            { name:'Members (/hire perm set member)', value: memberLines, inline:false },
+          )
+          .setDescription('Granted roles/members can use `/hire user` and `/fire`, but **never** on a target role that is equal to or higher than their own highest role.')
+          .setFooter({ text: BOT_FOOTER })] });
+      }
+
+      const role   = i.options.getRole('role');
+      const member = i.options.getUser('member');
+
+      if (!role && !member)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+          .setDescription('⚠️ You must provide at least one **role** or **member**.')] });
+
+      // ── SET (add) ────────────────────────────────────────
+      if (sub === 'set') {
+        const added = [], already = [];
+
+        if (role) {
+          if (perms.roles.includes(role.id)) already.push(`<@&${role.id}> (${role.name})`);
+          else { perms.roles.push(role.id); added.push(`<@&${role.id}> (${role.name})`); }
+        }
+        if (member) {
+          if (perms.members.includes(member.id)) already.push(`<@${member.id}> (${member.username})`);
+          else { perms.members.push(member.id); added.push(`<@${member.id}> (${member.username})`); }
+        }
+
+        if (added.length) saveHirePerms(perms);
+
+        const lines = [];
+        if (added.length)   lines.push(`✅ **Permission granted:**\n${added.join('\n')}`);
+        if (already.length) lines.push(`⚠️ **Already had permission:**\n${already.join('\n')}`);
+
+        return i.reply({ embeds:[new EmbedBuilder()
+          .setColor(added.length ? 0x00C864 : 0xFF9933)
+          .setTitle('🛡️ Hire Permission — Set')
+          .setDescription(lines.join('\n\n') + '\n\nThey can now use `/hire user` and `/fire` — but only on roles **below** their own highest role.')
+          .setFooter({ text: BOT_FOOTER })
+          .setTimestamp()] });
+      }
+
+      // ── REMOVE ───────────────────────────────────────────
+      if (sub === 'remove') {
+        const removed = [], notFound = [];
+
+        if (role) {
+          if (!perms.roles.includes(role.id)) notFound.push(`<@&${role.id}> (${role.name})`);
+          else { perms.roles = perms.roles.filter(rid => rid !== role.id); removed.push(`<@&${role.id}> (${role.name})`); }
+        }
+        if (member) {
+          if (!perms.members.includes(member.id)) notFound.push(`<@${member.id}> (${member.username})`);
+          else { perms.members = perms.members.filter(uid => uid !== member.id); removed.push(`<@${member.id}> (${member.username})`); }
+        }
+
+        if (removed.length) saveHirePerms(perms);
+
+        const lines = [];
+        if (removed.length)  lines.push(`🗑️ **Permission removed:**\n${removed.join('\n')}`);
+        if (notFound.length) lines.push(`⚠️ **Did not have permission:**\n${notFound.join('\n')}`);
+
+        return i.reply({ embeds:[new EmbedBuilder()
+          .setColor(removed.length ? 0xFF4444 : 0xFF9933)
+          .setTitle('🛡️ Hire Permission — Remove')
+          .setDescription(lines.join('\n\n'))
+          .setFooter({ text: BOT_FOOTER })
+          .setTimestamp()] });
+      }
+
+      return;
+    }
+
+    // ══════════════════════════════════════════════════════
+    // /hire user — the actual hire action
+    // ══════════════════════════════════════════════════════
+    if (!hasHirePerm(i.member)) {
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription('❌ Administrator permission required.')] });
+        .setDescription('❌ You don\'t have permission to hire. Ask the server owner to grant it via `/hire perm set`.')] });
     }
 
     const targetUser = i.options.getUser('player');
     const role       = i.options.getRole('role');
+
+    if (!canActOnRole(i.member, role)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ You can't hire someone into **${role.name}** — that role is equal to or higher than your own highest role.`)] });
+    }
 
     await i.deferReply({ ephemeral:true });
 
@@ -4566,14 +4725,20 @@ CMDS.fire = {
     .addStringOption(o => o.setName('reason').setDescription('Reason for firing').setRequired(false)),
 
   async execute(i) {
-    if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
+    if (!hasHirePerm(i.member)) {
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription('❌ Administrator permission required.')] });
+        .setDescription('❌ You don\'t have permission to fire. Ask the server owner to grant it via `/hire perm set`.')] });
     }
 
     const targetUser = i.options.getUser('player');
     const roleOpt     = i.options.getRole('role');
     const reason      = i.options.getString('reason');
+
+    // If a specific role was given, block it upfront if it's at/above the actor's own highest role.
+    if (roleOpt && !canActOnRole(i.member, roleOpt)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ You can't remove **${roleOpt.name}** — that role is equal to or higher than your own highest role.`)] });
+    }
 
     await i.deferReply({ ephemeral:true });
 
@@ -4586,11 +4751,26 @@ CMDS.fire = {
     const trackedRoleIds = record?.roles || [];
 
     // Determine which roles to remove
-    const roleIdsToRemove = roleOpt ? [roleOpt.id] : trackedRoleIds;
+    const requestedRoleIds = roleOpt ? [roleOpt.id] : trackedRoleIds;
 
-    if (!roleIdsToRemove.length) {
+    if (!requestedRoleIds.length) {
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF9933)
         .setDescription(`⚠️ **${targetUser.tag}** has no tracked staff roles to remove. Specify a role manually if needed.`)] });
+    }
+
+    // Filter out any roles the actor isn't allowed to touch (hierarchy guard).
+    // Only matters for the "remove all tracked roles" case — a single explicit
+    // role was already checked above.
+    const skippedNames = [];
+    const roleIdsToRemove = requestedRoleIds.filter(rid => {
+      const r = i.guild.roles.cache.get(rid);
+      if (r && !canActOnRole(i.member, r)) { skippedNames.push(r.name); return false; }
+      return true;
+    });
+
+    if (!roleIdsToRemove.length) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ You can't remove any of **${targetUser.tag}**'s tracked roles — they're all equal to or higher than your own highest role.`)] });
     }
 
     const removedNames = [];
@@ -4604,7 +4784,7 @@ CMDS.fire = {
 
     if (!removedNames.length) {
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF9933)
-        .setDescription(`⚠️ **${targetUser.tag}** did not have the specified staff role(s).`)] });
+        .setDescription(`⚠️ **${targetUser.tag}** did not have the specified staff role(s).${skippedNames.length ? `\n\n⚠️ Skipped (above your role): ${skippedNames.join(', ')}` : ''}`)] });
     }
 
     // Update staff.json
@@ -4628,7 +4808,7 @@ CMDS.fire = {
 
     return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
       .setTitle('🔴 Staff Fired')
-      .setDescription(`**${targetUser.tag}** has been removed from **${roleNameStr}**.`)
+      .setDescription(`**${targetUser.tag}** has been removed from **${roleNameStr}**.${skippedNames.length ? `\n\n⚠️ Left untouched (equal to/above your role): ${skippedNames.join(', ')}` : ''}`)
       .setFooter({ text:'EclipseTiers Staff Team' })] });
   },
 };
