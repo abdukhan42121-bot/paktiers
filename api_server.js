@@ -114,6 +114,30 @@ function hasTiererPerm(member) {
   return perms.roles.some(rid => member.roles.cache.has(rid));
 }
 
+// ── TICKETHANDLER PERM ROLES + MEMBERS — runtime settings via /tickethandler ──
+// Gate for /add, /remove, /close (in addition to Admin/TICKET_STAFF_ROLE_ID/Tierer/queue perm,
+// which stay allowed too so nothing that already worked breaks).
+const TICKETHANDLER_PERM_FILE = path.join(__dirname, 'eclipsetiers_data', 'tickethandler_perms.json');
+function loadTicketHandlerPerms() {
+  try {
+    if (fs.existsSync(TICKETHANDLER_PERM_FILE)) return JSON.parse(fs.readFileSync(TICKETHANDLER_PERM_FILE, 'utf8'));
+  } catch(_) {}
+  return { roles: [], members: [] };
+}
+function saveTicketHandlerPerms(data) {
+  try {
+    if (!fs.existsSync(path.join(__dirname, 'eclipsetiers_data')))
+      fs.mkdirSync(path.join(__dirname, 'eclipsetiers_data'), { recursive: true });
+    fs.writeFileSync(TICKETHANDLER_PERM_FILE, JSON.stringify(data, null, 2));
+  } catch(_) {}
+}
+function hasTicketHandlerPerm(member) {
+  if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
+  const perms = loadTicketHandlerPerms();
+  if (perms.members.includes(member.id)) return true;
+  return perms.roles.some(rid => member.roles.cache.has(rid));
+}
+
 // ── HIGHTIERER PERM ROLES + MEMBERS — runtime settings via /hightierer ──
 // This is a STANDALONE gate for /submitresult only. Having Tierer perm
 // (or even Administrator role in Discord's sense, minus real Admin perm)
@@ -3077,20 +3101,20 @@ CMDS.submitresult = {
         { name: '5', value: 5 },
       ))
     .addUserOption(o => o.setName('opponent1').setDescription('Opponent for round 1').setRequired(true))
-    .addIntegerOption(o => o.setName('score1').setDescription('Your score in round 1 (1-10)').setRequired(true).setMinValue(1).setMaxValue(10))
-    .addIntegerOption(o => o.setName('oppscore1').setDescription("Opponent's score in round 1 (1-10)").setRequired(true).setMinValue(1).setMaxValue(10))
+    .addIntegerOption(o => o.setName('score1').setDescription('Your score in round 1 (0-10)').setRequired(true).setMinValue(0).setMaxValue(10))
+    .addIntegerOption(o => o.setName('oppscore1').setDescription("Opponent's score in round 1 (0-10)").setRequired(true).setMinValue(0).setMaxValue(10))
     .addUserOption(o => o.setName('opponent2').setDescription('Opponent for round 2 (if rounds ≥ 2)').setRequired(false))
-    .addIntegerOption(o => o.setName('score2').setDescription('Your score in round 2 (1-10)').setRequired(false).setMinValue(1).setMaxValue(10))
-    .addIntegerOption(o => o.setName('oppscore2').setDescription("Opponent's score in round 2 (1-10)").setRequired(false).setMinValue(1).setMaxValue(10))
+    .addIntegerOption(o => o.setName('score2').setDescription('Your score in round 2 (0-10)').setRequired(false).setMinValue(0).setMaxValue(10))
+    .addIntegerOption(o => o.setName('oppscore2').setDescription("Opponent's score in round 2 (0-10)").setRequired(false).setMinValue(0).setMaxValue(10))
     .addUserOption(o => o.setName('opponent3').setDescription('Opponent for round 3 (if rounds ≥ 3)').setRequired(false))
-    .addIntegerOption(o => o.setName('score3').setDescription('Your score in round 3 (1-10)').setRequired(false).setMinValue(1).setMaxValue(10))
-    .addIntegerOption(o => o.setName('oppscore3').setDescription("Opponent's score in round 3 (1-10)").setRequired(false).setMinValue(1).setMaxValue(10))
+    .addIntegerOption(o => o.setName('score3').setDescription('Your score in round 3 (0-10)').setRequired(false).setMinValue(0).setMaxValue(10))
+    .addIntegerOption(o => o.setName('oppscore3').setDescription("Opponent's score in round 3 (0-10)").setRequired(false).setMinValue(0).setMaxValue(10))
     .addUserOption(o => o.setName('opponent4').setDescription('Opponent for round 4 (if rounds ≥ 4)').setRequired(false))
-    .addIntegerOption(o => o.setName('score4').setDescription('Your score in round 4 (1-10)').setRequired(false).setMinValue(1).setMaxValue(10))
-    .addIntegerOption(o => o.setName('oppscore4').setDescription("Opponent's score in round 4 (1-10)").setRequired(false).setMinValue(1).setMaxValue(10))
+    .addIntegerOption(o => o.setName('score4').setDescription('Your score in round 4 (0-10)').setRequired(false).setMinValue(0).setMaxValue(10))
+    .addIntegerOption(o => o.setName('oppscore4').setDescription("Opponent's score in round 4 (0-10)").setRequired(false).setMinValue(0).setMaxValue(10))
     .addUserOption(o => o.setName('opponent5').setDescription('Opponent for round 5 (if rounds ≥ 5)').setRequired(false))
-    .addIntegerOption(o => o.setName('score5').setDescription('Your score in round 5 (1-10)').setRequired(false).setMinValue(1).setMaxValue(10))
-    .addIntegerOption(o => o.setName('oppscore5').setDescription("Opponent's score in round 5 (1-10)").setRequired(false).setMinValue(1).setMaxValue(10)),
+    .addIntegerOption(o => o.setName('score5').setDescription('Your score in round 5 (0-10)').setRequired(false).setMinValue(0).setMaxValue(10))
+    .addIntegerOption(o => o.setName('oppscore5').setDescription("Opponent's score in round 5 (0-10)").setRequired(false).setMinValue(0).setMaxValue(10)),
 
   async execute(i) {
     const isAdmin       = i.member.permissions.has(PermissionFlagsBits.Administrator);
@@ -3172,23 +3196,17 @@ CMDS.submitresult = {
       .join('\n');
 
     // ── Ephemeral ack to the tierer ────────────────────────
-    await i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(passed ? 0x57F287 : 0xFF4444)
-      .setDescription(`✅ Result submitted for **${player.ign}** — **${result}** their **${tier}** test.`)] });
+    await i.reply({ ephemeral:true, content:`✅ Result submitted for **${player.ign}** — **${result}** their **${tier}** test.` });
 
-    // ── Public announcement ─────────────────────────────────
-    const resultColor = passed ? 0x57F287 : 0xFF4444;
-    const announceEmbed = new EmbedBuilder()
-      .setColor(resultColor)
-      .setDescription(
-        `<@${target.id}> - **${player.ign}** - Has **${result.toUpperCase()}** Their **${tier}** Test - ${emoji} - **${region}**\n\n` +
-        `**${tier} FIGHTS (${rounds} Round${rounds > 1 ? 's' : ''})**\n${fightLines}`
-      )
-      .setFooter({ text: `Tested by ${i.user.username} · ${BOT_FOOTER}` })
-      .setTimestamp();
+    // ── Public announcement — plain message, not an embed ──
+    const resultLine =
+      `<@${target.id}> - **${player.ign}** - Has **${result.toUpperCase()}** Their **${tier}** Test - ${emoji} - **${region}**\n\n` +
+      `**${tier} FIGHTS (${rounds} Round${rounds > 1 ? 's' : ''})**\n${fightLines}\n\n` +
+      `*Tested by ${i.user.username} · ${BOT_FOOTER}*`;
 
     let publicMsg = null;
     try {
-      publicMsg = await i.channel.send({ content: `<@${target.id}>`, embeds: [announceEmbed] });
+      publicMsg = await i.channel.send({ content: resultLine });
     } catch(_) {}
     if (publicMsg) await autoReact(publicMsg);
   },
@@ -3933,6 +3951,121 @@ CMDS.tiererperm = {
   },
 };
 
+// ── /tickethandler ────────────────────────────────────────
+// Grants/revokes permission to use /add, /remove, and /close inside
+// ticket channels. Admin/TICKET_STAFF_ROLE_ID/Tierer/queue-perm can
+// already use those commands — this just lets an Admin extend that
+// access to extra roles/players without touching Discord role setup.
+CMDS.tickethandler = {
+  data: new SlashCommandBuilder()
+    .setName('tickethandler')
+    .setDescription('Grant or revoke permission to use /add, /remove, /close in tickets (Admin only)')
+    .addSubcommand(s => s
+      .setName('set')
+      .setDescription('Grant ticket-handling permission to a role or player')
+      .addRoleOption(o => o.setName('role').setDescription('Role to grant ticket-handling permission to').setRequired(false))
+      .addUserOption(o => o.setName('player').setDescription('Player to grant ticket-handling permission to').setRequired(false)))
+    .addSubcommand(s => s
+      .setName('remove')
+      .setDescription('Revoke ticket-handling permission from a role or player')
+      .addRoleOption(o => o.setName('role').setDescription('Role to remove ticket-handling permission from').setRequired(false))
+      .addUserOption(o => o.setName('player').setDescription('Player to remove ticket-handling permission from').setRequired(false)))
+    .addSubcommand(s => s
+      .setName('list')
+      .setDescription('View all roles/players with ticket-handling permission')),
+
+  async execute(i) {
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isAdmin)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Only **Admin** can use this command.')] });
+
+    const sub   = i.options.getSubcommand();
+    const perms = loadTicketHandlerPerms();
+
+    // ── LIST ─────────────────────────────────────────────────
+    if (sub === 'list') {
+      const roleLines = perms.roles.length
+        ? perms.roles.map(rid => `• <@&${rid}>`).join('\n')
+        : '*No custom role*';
+
+      const memberLines = perms.members.length
+        ? perms.members.map(uid => `• <@${uid}>`).join('\n')
+        : '*No custom player*';
+
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+        .setTitle('🎫 Ticket-Handler Permission List')
+        .addFields(
+          { name:'Roles (/tickethandler set role)',   value: roleLines,   inline:false },
+          { name:'Players (/tickethandler set player)', value: memberLines, inline:false },
+        )
+        .setDescription('These can use `/add`, `/remove`, and `/close` inside ticket channels — on top of Admin, the ticket staff role, Tierers, and queue-perm roles, which can already use them.')
+        .setFooter({ text: BOT_FOOTER })] });
+    }
+
+    const role   = i.options.getRole('role');
+    const player = i.options.getUser('player');
+
+    if (!role && !player)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription('⚠️ You must provide at least one **role** or **player**.')] });
+
+    // ── SET (add) ────────────────────────────────────────────
+    if (sub === 'set') {
+      const added = [], already = [];
+
+      if (role) {
+        if (perms.roles.includes(role.id)) already.push(`<@&${role.id}> (${role.name})`);
+        else { perms.roles.push(role.id); added.push(`<@&${role.id}> (${role.name})`); }
+      }
+      if (player) {
+        if (perms.members.includes(player.id)) already.push(`<@${player.id}> (${player.username})`);
+        else { perms.members.push(player.id); added.push(`<@${player.id}> (${player.username})`); }
+      }
+
+      if (added.length) saveTicketHandlerPerms(perms);
+
+      const lines = [];
+      if (added.length)   lines.push(`✅ **Permission granted:**\n${added.join('\n')}`);
+      if (already.length) lines.push(`⚠️ **Already had permission:**\n${already.join('\n')}`);
+
+      return i.reply({ embeds:[new EmbedBuilder()
+        .setColor(added.length ? 0x00C864 : 0xFF9933)
+        .setTitle('🎫 Ticket-Handler Permission — Set')
+        .setDescription(lines.join('\n\n') + '\n\nThey can now use `/add`, `/remove`, and `/close` inside ticket channels.')
+        .setFooter({ text: BOT_FOOTER })
+        .setTimestamp()] });
+    }
+
+    // ── REMOVE ───────────────────────────────────────────────
+    if (sub === 'remove') {
+      const removed = [], notFound = [];
+
+      if (role) {
+        if (!perms.roles.includes(role.id)) notFound.push(`<@&${role.id}> (${role.name})`);
+        else { perms.roles = perms.roles.filter(rid => rid !== role.id); removed.push(`<@&${role.id}> (${role.name})`); }
+      }
+      if (player) {
+        if (!perms.members.includes(player.id)) notFound.push(`<@${player.id}> (${player.username})`);
+        else { perms.members = perms.members.filter(uid => uid !== player.id); removed.push(`<@${player.id}> (${player.username})`); }
+      }
+
+      if (removed.length) saveTicketHandlerPerms(perms);
+
+      const lines = [];
+      if (removed.length)  lines.push(`🗑️ **Permission removed:**\n${removed.join('\n')}`);
+      if (notFound.length) lines.push(`⚠️ **Did not have permission:**\n${notFound.join('\n')}`);
+
+      return i.reply({ embeds:[new EmbedBuilder()
+        .setColor(removed.length ? 0xFF4444 : 0xFF9933)
+        .setTitle('🎫 Ticket-Handler Permission — Remove')
+        .setDescription(lines.join('\n\n'))
+        .setFooter({ text: BOT_FOOTER })
+        .setTimestamp()] });
+    }
+  },
+};
+
 // ── /hightierer ──────────────────────────────────────────────
 // STANDALONE gate for /submitresult. Nobody — not even someone with
 // regular Tierer permission — can use /submitresult unless an Admin
@@ -4376,10 +4509,10 @@ CMDS.add = {
     const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
     const hasStaff  = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
     const hasTierer = hasTiererPerm(i.member);
-    const canUse    = isAdmin || hasStaff || hasTierer || hasQueuePerm(i.member);
+    const canUse    = isAdmin || hasStaff || hasTierer || hasQueuePerm(i.member) || hasTicketHandlerPerm(i.member);
     if (!canUse)
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription('❌ You do not have permission to add members to tickets.')] });
+        .setDescription('❌ You do not have permission to add members to tickets. Ask an admin to grant it via `/tickethandler set`.')] });
 
     const role   = i.options.getRole('role');
     const member = i.options.getUser('player');
@@ -4419,6 +4552,126 @@ CMDS.add = {
       .setDescription(`${mention} has been added to this ticket and can now view and send messages here.`)
       .setFooter({ text: BOT_FOOTER })
       .setTimestamp()] });
+  },
+};
+
+// ── /remove ───────────────────────────────────────────────
+// Opposite of /add — run INSIDE a ticket channel to revoke a role or
+// player's access to that one ticket. Only touches the current channel.
+CMDS.remove = {
+  data: new SlashCommandBuilder()
+    .setName('remove')
+    .setDescription('Remove a role or player from this ticket (Staff/Tierer only)')
+    .addRoleOption(o => o.setName('role').setDescription('Role to remove from this ticket').setRequired(false))
+    .addUserOption(o => o.setName('player').setDescription('Player/member to remove from this ticket').setRequired(false)),
+
+  async execute(i) {
+    const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasStaff  = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
+    const hasTierer = hasTiererPerm(i.member);
+    const canUse    = isAdmin || hasStaff || hasTierer || hasQueuePerm(i.member) || hasTicketHandlerPerm(i.member);
+    if (!canUse)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ You do not have permission to remove members from tickets. Ask an admin to grant it via `/tickethandler set`.')] });
+
+    const role   = i.options.getRole('role');
+    const member = i.options.getUser('player');
+    if (!role && !member)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Provide at least one **role** or **player**.')] });
+
+    const channel = i.channel;
+
+    // Make sure this is actually a ticket channel — queue/group ticket,
+    // application ticket, or support ticket category.
+    const [ticketCat, appCat, supCat] = await Promise.all([
+      resolveTicketCategory(i.guild).catch(() => null),
+      resolveApplicationCategory(i.guild).catch(() => null),
+      resolveSupportCategory(i.guild).catch(() => null),
+    ]);
+    const validParentIds = [ticketCat?.id, appCat?.id, supCat?.id].filter(Boolean);
+
+    if (!channel?.parentId || !validParentIds.includes(channel.parentId)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ This command can only be used inside a ticket channel.')] });
+    }
+
+    const targetId = role ? role.id : member.id;
+
+    // Don't let someone accidentally strip everyone's access via @everyone.
+    if (targetId === i.guild.roles.everyone.id) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ You can\'t remove the @everyone role from a ticket.')] });
+    }
+
+    try {
+      await channel.permissionOverwrites.delete(targetId);
+    } catch(err) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Could not update channel permissions: ${err.message}`)] });
+    }
+
+    const mention = role ? `<@&${role.id}>` : `<@${member.id}>`;
+    return i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setTitle('🚪 Removed From Ticket')
+      .setDescription(`${mention} has been removed from this ticket and can no longer view or send messages here.`)
+      .setFooter({ text: BOT_FOOTER })
+      .setTimestamp()] });
+  },
+};
+
+// ── /close ────────────────────────────────────────────────
+// Run INSIDE any ticket channel (queue ticket, group ticket, application
+// ticket, or support ticket) to close/delete that ticket — same idea as
+// the "🔒 Close Ticket" buttons, but as a slash command usable by anyone
+// with ticket-handling permission.
+CMDS.close = {
+  data: new SlashCommandBuilder()
+    .setName('close')
+    .setDescription('Close this ticket (Staff/Tierer only)')
+    .addStringOption(o => o.setName('reason').setDescription('Reason for closing').setRequired(false)),
+
+  async execute(i) {
+    const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasStaff  = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
+    const hasTierer = hasTiererPerm(i.member);
+    const canUse    = isAdmin || hasStaff || hasTierer || hasQueuePerm(i.member) || hasTicketHandlerPerm(i.member);
+    if (!canUse)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ You do not have permission to close tickets. Ask an admin to grant it via `/tickethandler set`.')] });
+
+    const channel = i.channel;
+    const reason  = i.options.getString('reason');
+
+    // Make sure this is actually a ticket channel — queue/group ticket,
+    // application ticket, or support ticket category.
+    const [ticketCat, appCat, supCat] = await Promise.all([
+      resolveTicketCategory(i.guild).catch(() => null),
+      resolveApplicationCategory(i.guild).catch(() => null),
+      resolveSupportCategory(i.guild).catch(() => null),
+    ]);
+    const validParentIds = [ticketCat?.id, appCat?.id, supCat?.id].filter(Boolean);
+
+    if (!channel?.parentId || !validParentIds.includes(channel.parentId)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ This command can only be used inside a ticket channel.')] });
+    }
+
+    await i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setDescription(`🔒 Ticket closed by <@${i.user.id}>.${reason ? `\n**Reason:** ${reason}` : ''}\nThis channel will be deleted in 5 seconds.`)] });
+
+    // Clean up any per-member ticket records (queue/group tickets) pointing at this channel
+    try {
+      const db = rDB(TF);
+      for (const [discordId, ticket] of Object.entries(db)) {
+        const cid = ticket?.channelId || ticket;
+        if (cid === channel.id) LDB.delTicket(discordId);
+      }
+    } catch(err) {
+      console.error('[CLOSE TICKET] cleanup error:', err.message);
+    }
+
+    setTimeout(() => channel.delete().catch(() => {}), 5000);
   },
 };
 
@@ -4816,55 +5069,109 @@ CMDS.fire = {
 
 // ── /staff ────────────────────────────────────────────────
 // ── Shared builder: staff list embed (used by /staff list + 🔄 refresh button) ──
-function buildStaffListEmbed(guild) {
-  const staff = loadStaff();
-  const entries = Object.entries(staff);
+// Discord hard limits we must respect or the API rejects the whole embed:
+//  - field.value  <= 1024 chars
+//  - field.name   <= 256 chars
+//  - embed.fields.length <= 25
+// A staff list that grows over time can easily blow past any of these,
+// which is what was causing "Something went wrong" on /staff list and
+// on the 🔄 refresh button (both call this same builder).
+function chunkLines(lines, maxLen = 1024) {
+  const chunks = [];
+  let current = '';
+  for (const line of lines) {
+    const candidate = current ? `${current}\n${line}` : line;
+    if (candidate.length > maxLen) {
+      if (current) chunks.push(current);
+      current = line.length > maxLen ? line.slice(0, maxLen - 1) + '…' : line;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks.length ? chunks : ['*None*'];
+}
 
-  if (!entries.length) {
+function buildStaffListEmbed(guild) {
+  try {
+    const staff = loadStaff();
+    const entries = Object.entries(staff || {}).filter(([, rec]) => rec && typeof rec === 'object');
+
+    if (!entries.length) {
+      return new EmbedBuilder().setColor(BRAND_COLOR)
+        .setTitle('🛡️ EclipseTiers Staff List')
+        .setDescription('No staff have been hired yet.')
+        .setFooter({ text:'EclipseTiers Staff Team' })
+        .setTimestamp();
+    }
+
+    // Group members by role (defensively — corrupted/legacy records shouldn't crash this)
+    const roleGroups = {}; // roleId -> [discordId,...]
+    for (const [discordId, rec] of entries) {
+      const roleIds = Array.isArray(rec.roles) ? rec.roles : [];
+      for (const rid of roleIds) {
+        if (!rid) continue;
+        if (!roleGroups[rid]) roleGroups[rid] = [];
+        roleGroups[rid].push(discordId);
+      }
+    }
+
+    // Sort roles by the server's actual role hierarchy (highest position first —
+    // same order Discord shows roles in, e.g. Owner > Admin > Tierer > Tester)
+    const sortedRoleIds = Object.keys(roleGroups).sort((a, b) => {
+      const roleA = guild.roles.cache.get(a);
+      const roleB = guild.roles.cache.get(b);
+      return (roleB?.position ?? 0) - (roleA?.position ?? 0);
+    });
+
+    const bullet = '<a:Purple_dot:1540434035594109148>';
+    let fields = [];
+    for (const rid of sortedRoleIds) {
+      const role = guild.roles.cache.get(rid);
+      const roleName = (role ? role.name : `Unknown Role (${rid})`).slice(0, 200);
+      const ids = roleGroups[rid];
+      const lines = ids.map(id => `${bullet} <@${id}>`);
+      const chunks = chunkLines(lines, 1024);
+
+      chunks.forEach((chunk, cIdx) => {
+        fields.push({
+          name: chunks.length > 1 ? `${roleName} (${ids.length}) [${cIdx + 1}/${chunks.length}]` : `${roleName} (${ids.length})`,
+          value: chunk,
+          inline: false,
+        });
+      });
+    }
+
+    // Only the first 2 fields get the compact inline box, and only if we
+    // didn't have to split anything (keeps the original look for the common case).
+    if (fields.length === sortedRoleIds.length) {
+      fields = fields.map((f, idx) => ({ ...f, inline: idx < 2 }));
+    }
+
+    // Discord allows a max of 25 fields per embed — collapse any overflow
+    // into a single "and more" note instead of letting the API reject it.
+    if (fields.length > 25) {
+      const shown = fields.slice(0, 24);
+      const overflowCount = fields.length - 24;
+      shown.push({ name: '…and more', value: `⚠️ ${overflowCount} more role group(s) not shown — staff list is too large to display fully.`, inline: false });
+      fields = shown;
+    }
+
+    const totalStaff = new Set(entries.map(([id]) => id)).size;
+
     return new EmbedBuilder().setColor(BRAND_COLOR)
       .setTitle('🛡️ EclipseTiers Staff List')
-      .setDescription('No staff have been hired yet.')
+      .addFields(fields)
+      .setFooter({ text:`Total Staff: ${totalStaff} · EclipseTiers` })
+      .setTimestamp();
+  } catch(err) {
+    console.error('[STAFF LIST] build error:', err);
+    return new EmbedBuilder().setColor(0xFF4444)
+      .setTitle('🛡️ EclipseTiers Staff List')
+      .setDescription('⚠️ Could not build the staff list — the staff data may be corrupted. Check the bot logs.')
       .setFooter({ text:'EclipseTiers Staff Team' })
       .setTimestamp();
   }
-
-  // Group members by role
-  const roleGroups = {}; // roleId -> [discordId,...]
-  for (const [discordId, rec] of entries) {
-    for (const rid of rec.roles || []) {
-      if (!roleGroups[rid]) roleGroups[rid] = [];
-      roleGroups[rid].push(discordId);
-    }
-  }
-
-  // Sort roles by the server's actual role hierarchy (highest position first —
-  // same order Discord shows roles in, e.g. Owner > Admin > Tierer > Tester)
-  const sortedRoleIds = Object.keys(roleGroups).sort((a, b) => {
-    const roleA = guild.roles.cache.get(a);
-    const roleB = guild.roles.cache.get(b);
-    return (roleB?.position ?? 0) - (roleA?.position ?? 0);
-  });
-
-  const fields = sortedRoleIds.map((rid, idx) => {
-    const role = guild.roles.cache.get(rid);
-    const roleName = role ? role.name : `Unknown Role (${rid})`;
-    const ids = roleGroups[rid];
-    const bullet = '<a:Purple_dot:1540434035594109148>';
-    const memberLines = ids.map(id => `${bullet} <@${id}>`).join('\n');
-    return {
-      name: `${roleName} (${ids.length})`,
-      value: memberLines || '*None*',
-      inline: idx < 2,   // only the top 2 highest-ranked roles get the compact inline box
-    };
-  });
-
-  const totalStaff = new Set(entries.map(([id]) => id)).size;
-
-  return new EmbedBuilder().setColor(BRAND_COLOR)
-    .setTitle('🛡️ EclipseTiers Staff List')
-    .addFields(fields)
-    .setFooter({ text:`Total Staff: ${totalStaff} · EclipseTiers` })
-    .setTimestamp();
 }
 
 function buildStaffListButtons() {
@@ -4890,10 +5197,18 @@ CMDS.staff = {
 
     await i.deferReply();
 
-    return i.editReply({
-      embeds: [buildStaffListEmbed(i.guild)],
-      components: [buildStaffListButtons()],
-    });
+    try {
+      return await i.editReply({
+        embeds: [buildStaffListEmbed(i.guild)],
+        components: [buildStaffListButtons()],
+      });
+    } catch(err) {
+      console.error('[STAFF LIST] send error:', err);
+      return i.editReply({
+        embeds: [new EmbedBuilder().setColor(0xFF4444).setDescription(`⚠️ Could not display the staff list: ${err.message}`)],
+        components: [],
+      });
+    }
   },
 };
 
@@ -5715,10 +6030,18 @@ async function handleButtonClick(i) {
   // ── Staff List: 🔄 Refresh button ─────────────────────────
   if (i.customId === 'staff_list_refresh') {
     await i.deferUpdate();
-    return i.editReply({
-      embeds: [buildStaffListEmbed(i.guild)],
-      components: [buildStaffListButtons()],
-    });
+    try {
+      return await i.editReply({
+        embeds: [buildStaffListEmbed(i.guild)],
+        components: [buildStaffListButtons()],
+      });
+    } catch(err) {
+      console.error('[STAFF LIST] refresh error:', err);
+      return i.editReply({
+        embeds: [new EmbedBuilder().setColor(0xFF4444).setDescription(`⚠️ Could not refresh the staff list: ${err.message}`)],
+        components: [buildStaffListButtons()],
+      });
+    }
   }
 
   // ── Tester Panel: 🔄 Refresh button ───────────────────────
