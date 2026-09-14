@@ -24,6 +24,16 @@ const {
   StringSelectMenuBuilder, ChannelType, PermissionsBitField,
 } = require('discord.js');
 
+// ── VOICE (for /play — owner-only naat/song command) ────────
+// npm i @discordjs/voice play-dl @discordjs/opus libsodium-wrappers ffmpeg-static
+const {
+  joinVoiceChannel, createAudioPlayer, createAudioResource,
+  AudioPlayerStatus, VoiceConnectionStatus, entersState,
+  getVoiceConnection,
+} = require('@discordjs/voice');
+let playdl = null;
+try { playdl = require('play-dl'); } catch(_) { console.warn('[VOICE] play-dl not installed — custom YouTube links in /play will not work until you run: npm i play-dl'); }
+
 // ════════════════════════════════════════════════════════════
 //  CONFIG — Set these env vars on Railway
 // ════════════════════════════════════════════════════════════
@@ -68,6 +78,20 @@ const CONFIG = {
   GITHUB_BRANCH:     process.env.GITHUB_BRANCH     || 'main',
   GITHUB_BACKUP_DIR: process.env.GITHUB_BACKUP_DIR || 'eclipsetiers-backups', // folder inside repo
 };
+
+// ════════════════════════════════════════════════════════════
+//  /play — NAAT / SONG PRESETS  (owner-only voice command)
+// ════════════════════════════════════════════════════════════
+// Drop your .mp3 files inside the "naats" folder (next to this file) and
+// list them below. "name" shows up in the Discord dropdown/choices,
+// "value" must exactly match the filename inside NAAT_FOLDER.
+const NAAT_FOLDER = path.join(__dirname, 'naats');
+const NAAT_LIST = [
+  { name: '🎵 Naat 1', value: 'naat1.mp3' },
+  { name: '🎵 Naat 2', value: 'naat2.mp3' },
+  { name: '🎵 Naat 3', value: 'naat3.mp3' },
+  // { name: '🎵 Your Naat Name', value: 'yourfile.mp3' },  ← add more like this (max 25 total)
+];
 
 // ── QUEUE PERM ROLES — runtime settings via /queueperm ──────────────
 const QUEUE_PERM_FILE = path.join(__dirname, 'eclipsetiers_data', 'queue_perms.json');
@@ -5852,6 +5876,173 @@ CMDS.logs = {
   },
 };
 
+// ── /play — OWNER ONLY (not even Administrators) ────────────
+// Joins the caller's voice channel and LOOPS a preset naat OR a
+// custom YouTube link on repeat until /stopplay is used. Only the
+// real Discord server owner (i.guild.ownerId) can run this —
+// Administrator permission is deliberately NOT enough.
+const guildAudio = new Map(); // guildId -> { player, connection, source:{type,value,title}, looping }
+
+// Builds a fresh AudioResource from a stored source. YouTube streams
+// can't be replayed, so for 'url' sources we re-fetch the stream each loop.
+async function buildResourceFromSource(source) {
+  if (source.type === 'file') {
+    return createAudioResource(source.value);
+  }
+  // type === 'url'
+  const stream = await playdl.stream(source.value);
+  return createAudioResource(stream.stream, { inputType: stream.type });
+}
+
+// Plays (or re-plays, for looping) whatever source is stored for this guild.
+async function playForGuild(guildId) {
+  const entry = guildAudio.get(guildId);
+  if (!entry) return;
+  try {
+    const resource = await buildResourceFromSource(entry.source);
+    entry.player.play(resource);
+  } catch (err) {
+    console.error('[PLAY LOOP]', err);
+    try { entry.connection.destroy(); } catch(_) {}
+    guildAudio.delete(guildId);
+  }
+}
+
+CMDS.play = {
+  data: new SlashCommandBuilder()
+    .setName('play')
+    .setDescription('🎵 [Owner Only] VC mein naat/song loop pe play karo')
+    .addStringOption(o => o
+      .setName('naat')
+      .setDescription('Preset naat choose karo')
+      .setRequired(false)
+      .addChoices(...NAAT_LIST.slice(0, 25).map(n => ({ name: n.name, value: n.value }))))
+    .addStringOption(o => o
+      .setName('url')
+      .setDescription('Custom YouTube link (agar preset list mein nahi hai)')
+      .setRequired(false)),
+
+  async execute(i) {
+    // ── Hard owner-only gate — Administrator perm does NOT count ──
+    if (i.guild.ownerId !== i.user.id) {
+      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Yeh command sirf **server ke owner/creator** hi use kar sakte hain — Admin role kaafi nahi.')] });
+    }
+
+    const naatChoice = i.options.getString('naat');
+    const customUrl   = i.options.getString('url');
+
+    if (!naatChoice && !customUrl) {
+      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF9933)
+        .setDescription('⚠️ Ek preset `naat` choose karo ya `url` option mein YouTube link do.')] });
+    }
+
+    const vc = i.member.voice?.channel;
+    if (!vc) {
+      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Pehle kisi voice channel mein join ho jao, phir command use karo.')] });
+    }
+
+    await i.deferReply();
+
+    try {
+      let source, title;
+
+      if (customUrl) {
+        if (!playdl) {
+          return i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF4444)
+            .setDescription('❌ YouTube link ke liye `play-dl` package missing hai. Server pe run karo: `npm i play-dl`')] });
+        }
+        const valid = await playdl.validate(customUrl).catch(() => false);
+        if (!valid || !String(valid).startsWith('yt_video')) {
+          return i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF4444)
+            .setDescription('❌ Yeh valid YouTube video link nahi hai.')] });
+        }
+        const info = await playdl.video_basic_info(customUrl);
+        title = info?.video_details?.title || customUrl;
+        source = { type: 'url', value: customUrl, title };
+      } else {
+        const filePath = path.join(NAAT_FOLDER, naatChoice);
+        if (!fs.existsSync(filePath)) {
+          return i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF4444)
+            .setDescription(`❌ File nahi mili: \`${naatChoice}\`\nIsे \`naats/\` folder mein daalo.`)] });
+        }
+        title = NAAT_LIST.find(n => n.value === naatChoice)?.name || naatChoice;
+        source = { type: 'file', value: filePath, title };
+      }
+
+      // Replace any existing connection in this guild
+      const existing = getVoiceConnection(i.guild.id);
+      if (existing) existing.destroy();
+      guildAudio.delete(i.guild.id);
+
+      const connection = joinVoiceChannel({
+        channelId: vc.id,
+        guildId: i.guild.id,
+        adapterCreator: i.guild.voiceAdapterCreator,
+        selfDeaf: false,
+      });
+      await entersState(connection, VoiceConnectionStatus.Ready, 15_000);
+
+      const player = createAudioPlayer();
+      connection.subscribe(player);
+      guildAudio.set(i.guild.id, { player, connection, source, looping: true });
+
+      // ── Loop: whenever playback finishes, replay it — unless
+      // /stopplay already removed this guild's entry from the map.
+      player.on(AudioPlayerStatus.Idle, () => {
+        const entry = guildAudio.get(i.guild.id);
+        if (entry && entry.looping) playForGuild(i.guild.id);
+      });
+      player.on('error', err => {
+        console.error('[PLAY]', err);
+        const entry = guildAudio.get(i.guild.id);
+        if (entry && entry.looping) {
+          // try to recover and keep the loop going instead of dying
+          playForGuild(i.guild.id);
+        }
+      });
+
+      await playForGuild(i.guild.id);
+
+      await i.editReply({ embeds: [new EmbedBuilder().setColor(BRAND_COLOR)
+        .setTitle('🎵 Now Playing (Loop 🔁)')
+        .setDescription(`**${title}**\n🔊 Voice Channel: **${vc.name}**\n🔁 Yeh loop pe chalti rahegi jab tak \`/stopplay\` na use karo.`)
+        .setFooter({ text: BOT_FOOTER }).setTimestamp()] });
+
+    } catch (err) {
+      console.error('[PLAY ERROR]', err);
+      guildAudio.delete(i.guild.id);
+      await i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Audio play karte waqt error aa gaya. Railway logs check karo.')] });
+    }
+  },
+};
+
+// ── /stopplay — OWNER ONLY ───────────────────────────────────
+CMDS.stopplay = {
+  data: new SlashCommandBuilder()
+    .setName('stopplay')
+    .setDescription('🛑 [Owner Only] VC mein loop/playback stop karo'),
+  async execute(i) {
+    if (i.guild.ownerId !== i.user.id) {
+      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Yeh command sirf **server ke owner/creator** hi use kar sakte hain.')] });
+    }
+    const entry = guildAudio.get(i.guild.id);
+    if (!entry) {
+      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF9933)
+        .setDescription('⚠️ Abhi kuch bhi play nahi ho raha.')] });
+    }
+    // Remove from the map FIRST so the Idle/error handlers stop looping,
+    // then actually stop the player and leave the voice channel.
+    guildAudio.delete(i.guild.id);
+    try { entry.player.stop(); entry.connection.destroy(); } catch(_) {}
+    return i.reply({ embeds: [new EmbedBuilder().setColor(BRAND_COLOR)
+      .setDescription('🛑 Loop stop kar diya gaya, bot voice channel se nikal gaya.')] });
+  },
+};
+
 // ════════════════════════════════════════════════════════════
 //  INTERACTION HANDLER — Registration Flow (Select Menus)
 // ════════════════════════════════════════════════════════════
@@ -6758,6 +6949,7 @@ const client = new Client({ intents:[
   GatewayIntentBits.GuildMembers,
   GatewayIntentBits.GuildPresences,
   GatewayIntentBits.MessageContent,
+  GatewayIntentBits.GuildVoiceStates, // required for /play to join & work in voice channels
 ]});
 
 client.once('ready', async () => {
