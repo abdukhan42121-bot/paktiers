@@ -1,0 +1,6839 @@
+// ============================================================
+//  EclipseTiers — ALL IN ONE v5 (Combined + Ticket Fix)
+//  NEW FEATURES:
+//  ✅ Android/Bedrock + Java platform selection on register
+//  ✅ Registration: crack/premium, region, IGN (ephemeral to player)
+//  ✅ Specific register channel enforcement
+//  ✅ Auto Discord roles per gamemode tier (HT1-LT5)
+//  ✅ Queue cooldown system (2 days after getting a rank)
+//  ✅ Ticket system when player joins queue (pings staff role)
+//  ✅ Ticket channel auto-created with player name
+// ============================================================
+
+const express             = require('express');
+const http                = require('http');
+const { WebSocketServer } = require('ws');
+const cors                = require('cors');
+const path                = require('path');
+const fs                  = require('fs');
+
+const {
+  Client, GatewayIntentBits, REST, Routes,
+  SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle,
+  StringSelectMenuBuilder, ChannelType, PermissionsBitField,
+} = require('discord.js');
+
+// ════════════════════════════════════════════════════════════
+//  CONFIG — Set these env vars on Railway
+// ════════════════════════════════════════════════════════════
+const CONFIG = {
+  BOT_TOKEN:            process.env.BOT_TOKEN,
+  CLIENT_ID:            process.env.CLIENT_ID            || '1504744014526677003',
+  GUILD_ID:             process.env.GUILD_ID             || '1478080380014952610',
+  TIERER_ROLE_ID:       process.env.TIERER_ROLE_ID       || '1504503176358006834',
+  MATCH_CHANNEL_ID:     process.env.MATCH_CHANNEL_ID     || '1504510227322503189',
+  TIER_SYNC_CHANNEL_ID: process.env.TIER_SYNC_CHANNEL_ID || '1504510227322503189',
+
+  // ── NEW CONFIG ──
+  REGISTER_CHANNEL_ID:  process.env.REGISTER_CHANNEL_ID  || '',   // Channel where /register works
+  QUEUE_CHANNEL_ID:     process.env.QUEUE_CHANNEL_ID     || '',   // Channel where queue commands work
+  TICKET_CATEGORY_ID:   process.env.TICKET_CATEGORY_ID   || '',   // Category where tickets will be created
+  TICKET_CATEGORY_NAME: 'Tier-TesTing--Tickets',            // Fallback/auto-created ticket category name
+  TICKET_STAFF_ROLE_ID: process.env.TICKET_STAFF_ROLE_ID || '',   // Staff role that gets pinged in tickets
+  VERIFIED_ROLE_ID:          process.env.VERIFIED_ROLE_ID          || '',   // Role granted after registration
+  TESTERS_ROLE_ID:           process.env.TESTERS_ROLE_ID           || '',   // "﹂Tᴇsᴛᴇʀs ﹁ 👥" role — can use /startqueue
+  QUEUE_ANNOUNCE_CHANNEL_ID: process.env.QUEUE_ANNOUNCE_CHANNEL_ID || '',   // Channel where @everyone ping will be sent
+  PANEL_CHANNEL_ID:          process.env.PANEL_CHANNEL_ID          || '',   // Channel where waitlist panel message stays (for /setuppanel)
+  REG_LOGS_CHANNEL_ID:       process.env.REG_LOGS_CHANNEL_ID       || '',   // Channel for registration logs
+  STAFF_LOGS_CHANNEL_ID:     process.env.STAFF_LOGS_CHANNEL_ID     || '',   // Channel for staff hire/fire logs (also settable via /setstafflogs)
+
+  // ── EclipseTiers Application Panel ──
+  APPLICATION_CHANNEL_ID:    process.env.APPLICATION_CHANNEL_ID    || '1518103705889542274', // Channel where /setupticketpnl sends the panel
+  APPLICATION_CATEGORY_ID:   process.env.APPLICATION_CATEGORY_ID   || '',   // Category where application tickets get created (auto-created if empty)
+
+  // ── EclipseTiers Support Panel (simple "Open a ticket!" button) ──
+  SUPPORT_CHANNEL_ID:        process.env.SUPPORT_CHANNEL_ID        || '1517571631550038256', // Channel where /setupsupportpnl sends the panel
+  SUPPORT_CATEGORY_ID:       process.env.SUPPORT_CATEGORY_ID       || '',   // Category where support tickets get created (auto-created if empty)
+
+  API_SECRET: process.env.API_SECRET || 'eclipsetiers-secret-change-me',
+  PORT:       process.env.PORT       || 3001,
+
+  // Cooldown days after tier assignment per gamemode
+  TIER_COOLDOWN_DAYS: 2,
+
+  // ── GitHub Backup (/backup create, /backup load) ──
+  GITHUB_TOKEN:      process.env.GITHUB_TOKEN      || '',            // GitHub Personal Access Token (repo scope)
+  GITHUB_REPO:       process.env.GITHUB_REPO       || '',            // format: username/repo
+  GITHUB_BRANCH:     process.env.GITHUB_BRANCH     || 'main',
+  GITHUB_BACKUP_DIR: process.env.GITHUB_BACKUP_DIR || 'eclipsetiers-backups', // folder inside repo
+};
+
+// ── QUEUE PERM ROLES — runtime settings via /queueperm ──────────────
+const QUEUE_PERM_FILE = path.join(__dirname, 'eclipsetiers_data', 'queue_perms.json');
+function loadQueuePerms() {
+  try {
+    if (fs.existsSync(QUEUE_PERM_FILE)) return JSON.parse(fs.readFileSync(QUEUE_PERM_FILE, 'utf8'));
+  } catch(_) {}
+  return { roles: [] };
+}
+function saveQueuePerms(data) {
+  try {
+    if (!fs.existsSync(path.join(__dirname, 'eclipsetiers_data')))
+      fs.mkdirSync(path.join(__dirname, 'eclipsetiers_data'), { recursive: true });
+    fs.writeFileSync(QUEUE_PERM_FILE, JSON.stringify(data, null, 2));
+  } catch(_) {}
+}
+function hasQueuePerm(member) {
+  if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
+  if (CONFIG.TESTERS_ROLE_ID && member.roles.cache.has(CONFIG.TESTERS_ROLE_ID)) return true;
+  const perms = loadQueuePerms();
+  return perms.roles.some(rid => member.roles.cache.has(rid));
+}
+
+// ── TIERER PERM ROLES + MEMBERS — runtime settings via /tiererperm ──
+const TIERER_PERM_FILE = path.join(__dirname, 'eclipsetiers_data', 'tierer_perms.json');
+function loadTiererPerms() {
+  try {
+    if (fs.existsSync(TIERER_PERM_FILE)) return JSON.parse(fs.readFileSync(TIERER_PERM_FILE, 'utf8'));
+  } catch(_) {}
+  return { roles: [], members: [] };
+}
+function saveTiererPerms(data) {
+  try {
+    if (!fs.existsSync(path.join(__dirname, 'eclipsetiers_data')))
+      fs.mkdirSync(path.join(__dirname, 'eclipsetiers_data'), { recursive: true });
+    fs.writeFileSync(TIERER_PERM_FILE, JSON.stringify(data, null, 2));
+  } catch(_) {}
+}
+function hasTiererPerm(member) {
+  if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
+  if (CONFIG.TIERER_ROLE_ID && member.roles.cache.has(CONFIG.TIERER_ROLE_ID)) return true;
+  const perms = loadTiererPerms();
+  if (perms.members.includes(member.id)) return true;
+  return perms.roles.some(rid => member.roles.cache.has(rid));
+}
+
+// ── TICKETHANDLER PERM ROLES + MEMBERS — runtime settings via /tickethandler ──
+// Gate for /add, /remove, /close (in addition to Admin/TICKET_STAFF_ROLE_ID/Tierer/queue perm,
+// which stay allowed too so nothing that already worked breaks).
+const TICKETHANDLER_PERM_FILE = path.join(__dirname, 'eclipsetiers_data', 'tickethandler_perms.json');
+function loadTicketHandlerPerms() {
+  try {
+    if (fs.existsSync(TICKETHANDLER_PERM_FILE)) return JSON.parse(fs.readFileSync(TICKETHANDLER_PERM_FILE, 'utf8'));
+  } catch(_) {}
+  return { roles: [], members: [] };
+}
+function saveTicketHandlerPerms(data) {
+  try {
+    if (!fs.existsSync(path.join(__dirname, 'eclipsetiers_data')))
+      fs.mkdirSync(path.join(__dirname, 'eclipsetiers_data'), { recursive: true });
+    fs.writeFileSync(TICKETHANDLER_PERM_FILE, JSON.stringify(data, null, 2));
+  } catch(_) {}
+}
+function hasTicketHandlerPerm(member) {
+  if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
+  const perms = loadTicketHandlerPerms();
+  if (perms.members.includes(member.id)) return true;
+  return perms.roles.some(rid => member.roles.cache.has(rid));
+}
+
+// ── HIGHTIERER PERM ROLES + MEMBERS — runtime settings via /hightierer ──
+// This is a STANDALONE gate for /submitresult only. Having Tierer perm
+// (or even Administrator role in Discord's sense, minus real Admin perm)
+// does NOT automatically grant this — it must be set explicitly.
+const HIGHTIERER_PERM_FILE = path.join(__dirname, 'eclipsetiers_data', 'hightierer_perms.json');
+function loadHighTiererPerms() {
+  try {
+    if (fs.existsSync(HIGHTIERER_PERM_FILE)) return JSON.parse(fs.readFileSync(HIGHTIERER_PERM_FILE, 'utf8'));
+  } catch(_) {}
+  return { roles: [], members: [] };
+}
+function saveHighTiererPerms(data) {
+  try {
+    if (!fs.existsSync(path.join(__dirname, 'eclipsetiers_data')))
+      fs.mkdirSync(path.join(__dirname, 'eclipsetiers_data'), { recursive: true });
+    fs.writeFileSync(HIGHTIERER_PERM_FILE, JSON.stringify(data, null, 2));
+  } catch(_) {}
+}
+function hasHighTiererPerm(member) {
+  if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
+  const perms = loadHighTiererPerms();
+  if (perms.members.includes(member.id)) return true;
+  return perms.roles.some(rid => member.roles.cache.has(rid));
+}
+
+// ── HIRE PERM ROLES + MEMBERS — runtime settings via /hire perm ──────
+// STANDALONE gate for /hire and /fire. The server owner always has access.
+// Administrator permission does NOT grant this on its own — it must be
+// granted explicitly by the server owner via "/hire perm set".
+const HIRE_PERM_FILE = path.join(__dirname, 'eclipsetiers_data', 'hire_perms.json');
+function loadHirePerms() {
+  try {
+    if (fs.existsSync(HIRE_PERM_FILE)) return JSON.parse(fs.readFileSync(HIRE_PERM_FILE, 'utf8'));
+  } catch(_) {}
+  return { roles: [], members: [] };
+}
+function saveHirePerms(data) {
+  try {
+    if (!fs.existsSync(path.join(__dirname, 'eclipsetiers_data')))
+      fs.mkdirSync(path.join(__dirname, 'eclipsetiers_data'), { recursive: true });
+    fs.writeFileSync(HIRE_PERM_FILE, JSON.stringify(data, null, 2));
+  } catch(_) {}
+}
+function hasHirePerm(member) {
+  if (member.id === member.guild.ownerId) return true; // server creator always allowed
+  const perms = loadHirePerms();
+  if (perms.members.includes(member.id)) return true;
+  return perms.roles.some(rid => member.roles.cache.has(rid));
+}
+
+// ── Role-hierarchy guard for /hire and /fire ─────────────────────────
+// Nobody — not even someone granted hire perm, and not even a Discord
+// "Administrator" — can hire/fire into/out of a role that sits at or
+// above their own highest role. Only the server owner bypasses this.
+function canActOnRole(actorMember, role) {
+  if (actorMember.id === actorMember.guild.ownerId) return true;
+  return actorMember.roles.highest.position > role.position;
+}
+
+// ── TESTER-OF-GAMEMODE ASSIGNMENTS — set via /tester ─────────────────
+// Tracks which gamemodes each Discord user is an assigned tester of.
+// { [discordId]: ['Mace','Pot', ...] } — separate from earned tier ranks.
+const TESTER_GAMEMODES_FILE = path.join(__dirname, 'eclipsetiers_data', 'tester_gamemodes.json');
+function loadTesterGamemodes() {
+  try {
+    if (fs.existsSync(TESTER_GAMEMODES_FILE)) return JSON.parse(fs.readFileSync(TESTER_GAMEMODES_FILE, 'utf8'));
+  } catch(_) {}
+  return {};
+}
+function saveTesterGamemodes(data) {
+  try {
+    if (!fs.existsSync(path.join(__dirname, 'eclipsetiers_data')))
+      fs.mkdirSync(path.join(__dirname, 'eclipsetiers_data'), { recursive: true });
+    fs.writeFileSync(TESTER_GAMEMODES_FILE, JSON.stringify(data, null, 2));
+  } catch(_) {}
+}
+function getTesterGamemodes(discordId) {
+  const data = loadTesterGamemodes();
+  return data[discordId] || [];
+}
+
+
+// ════════════════════════════════════════════════════════════
+//  EXPRESS + WEBSOCKET
+// ════════════════════════════════════════════════════════════
+const app    = express();
+const server = http.createServer(app);
+const wss    = new WebSocketServer({ server });
+
+app.set('trust proxy', 1);
+app.use(cors({ origin: true, credentials: true }));
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// ── Pretty top-level page routes (SPA — all serve index.html) ──
+// Lets people link directly / refresh on /home, /rankings, /testers, /tiertagger
+// and still land on the right section instead of a 404.
+app.get(['/home', '/rankings', '/testers', '/tiertagger'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// ── IN-MEMORY DB ──────────────────────────────────────────
+const MEM = {
+  players:   {},
+  queues:    { Mace:[], Crystal:[], Sword:[], Axe:[], Netherite:[], UHC:[], Pot:[], SMP:[], DiaSMP:[], SpearMace:[], Cart:[] },
+  matches:   [],
+  cooldowns: {},   // { discordId: { weapon: {ts, tier} } }
+  tickets:   {},   // { discordId: channelId }
+  blacklist: {},   // { discordId: { by, at, reason } }
+};
+
+const REMOVED_GAMEMODES = new Set(['Vanilla', 'NethOP']);
+const GAMEMODE_ALIASES = {};
+
+function normalizeGamemodeName(name) {
+  if (!name) return name;
+  if (REMOVED_GAMEMODES.has(name)) return null;
+  return GAMEMODE_ALIASES[name] || name;
+}
+
+function sanitizeGamemodeObject(obj) {
+  const out = {};
+  for (const [key, value] of Object.entries(obj || {})) {
+    const normalized = normalizeGamemodeName(key);
+    if (!normalized) continue;
+    out[normalized] = value;
+  }
+  return out;
+}
+
+function requireSecret(req, res, next) {
+  if (req.headers['x-api-secret'] !== CONFIG.API_SECRET)
+    return res.status(401).json({ error: 'Unauthorized' });
+  next();
+}
+
+function broadcast(data) {
+  const msg = JSON.stringify(data);
+  wss.clients.forEach(c => { if (c.readyState === 1) c.send(msg); });
+}
+
+wss.on('connection', (ws) => {
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
+  ws.send(JSON.stringify({ type: 'init', data: MEM }));
+  ws.on('error', () => {});
+});
+
+const wsInterval = setInterval(() => {
+  wss.clients.forEach(ws => {
+    if (!ws.isAlive) return ws.terminate();
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 30000);
+
+// ── TIER UTILS ───────────────────────────────────────────
+const TIER_PTS = { HT1:60,LT1:45,HT2:30,LT2:20,HT3:10,LT3:6,HT4:4,LT4:3,HT5:2,LT5:1 };
+
+function getRankTitle(pts) {
+  if (pts>=400) return { label:'Combat Grandmaster', emoji:'🏆' };
+  if (pts>=250) return { label:'Combat Master',      emoji:'🥈' };
+  if (pts>=100) return { label:'Combat Ace',         emoji:'🔥' };
+  if (pts>=50)  return { label:'Combat Specialist',  emoji:'⚡' };
+  if (pts>=20)  return { label:'Combat Cadet',       emoji:'🟢' };
+  if (pts>=10)  return { label:'Combat Novice',      emoji:'🔵' };
+  return               { label:'Rookie',             emoji:'⚪' };
+}
+
+// Skin display name — cracked players can borrow a real premium
+// player's skin via /skin set; falls back to their own IGN otherwise.
+function skinName(p) {
+  return (p.skinSource || p.ign);
+}
+
+function enrichPlayer(p) {
+  const totalPts = Object.values(p.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
+  return { ...p, totalPts, rankTitle:getRankTitle(totalPts),
+    retiredTiers:p.retiredTiers || {},
+    avatar:`https://mc-heads.net/avatar/${skinName(p)}/64` };
+}
+
+// ════════════════════════════════════════════════════════════
+//  BOT -> API ENDPOINTS
+// ════════════════════════════════════════════════════════════
+app.post('/bot/register', requireSecret, (req,res) => {
+  const { discordId, ign, uuid, platform, accountType, region } = req.body;
+  if (!discordId||!ign) return res.status(400).json({ error:'Missing fields' });
+  if (MEM.players[discordId]) return res.status(409).json({ error:'Already registered' });
+  MEM.players[discordId] = {
+    discordId, ign, uuid: uuid||null,
+    platform: platform||'Java',
+    accountType: accountType||'Premium',
+    region: region||'PK',
+    tiers:{}, registeredAt:Date.now()
+  };
+  broadcast({ type:'player_registered', player:MEM.players[discordId] });
+  res.json({ success:true, player:MEM.players[discordId] });
+});
+
+app.post('/bot/tier', requireSecret, (req,res) => {
+  const { discordId, weapon, tier } = req.body;
+  const player = MEM.players[discordId];
+  if (!player) return res.status(404).json({ error:'Player not found' });
+  const oldTier = player.tiers[weapon];
+  player.tiers[weapon] = tier;
+  // Set cooldown
+  if (!MEM.cooldowns[discordId]) MEM.cooldowns[discordId] = {};
+  MEM.cooldowns[discordId][weapon] = Date.now();
+  broadcast({ type:'tier_updated', discordId, ign:player.ign, weapon, tier, oldTier });
+  res.json({ success:true, player });
+});
+
+app.delete('/bot/tier', requireSecret, (req,res) => {
+  const { discordId, weapon } = req.body;
+  const player = MEM.players[discordId];
+  if (!player) return res.status(404).json({ error:'Player not found' });
+  delete player.tiers[weapon];
+  broadcast({ type:'tier_removed', discordId, ign:player.ign, weapon });
+  res.json({ success:true, player });
+});
+
+app.post('/bot/queue', requireSecret, (req,res) => {
+  const { discordId, weapon, action } = req.body;
+  const player = MEM.players[discordId];
+  if (!player) return res.status(404).json({ error:'Player not found' });
+  if (action==='join') {
+    const q = MEM.queues[weapon];
+    if (!q) return res.status(400).json({ error:'Invalid weapon' });
+    if (q.find(e=>e.discordId===discordId)) return res.json({ success:true, match:null });
+    q.push({ discordId, ign:player.ign, joinedAt:Date.now() });
+    if (q.length>=2) {
+      const [p1,p2]=[q.shift(),q.shift()];
+      const match={ id:Date.now(), weapon, players:[p1,p2], createdAt:Date.now() };
+      MEM.matches.push(match);
+      broadcast({ type:'match_created', match });
+      broadcast({ type:'queue_updated', queues:MEM.queues });
+      return res.json({ success:true, match });
+    }
+    broadcast({ type:'queue_updated', queues:MEM.queues });
+    return res.json({ success:true, match:null });
+  }
+  if (action==='leave') {
+    if (weapon==='all') {
+      for (const w of Object.keys(MEM.queues))
+        MEM.queues[w]=MEM.queues[w].filter(e=>e.discordId!==discordId);
+    } else {
+      MEM.queues[weapon]=(MEM.queues[weapon]||[]).filter(e=>e.discordId!==discordId);
+    }
+    broadcast({ type:'queue_updated', queues:MEM.queues });
+    return res.json({ success:true });
+  }
+  res.status(400).json({ error:'action must be join or leave' });
+});
+
+// ════════════════════════════════════════════════════════════
+//  WEBSITE -> API ENDPOINTS
+// ════════════════════════════════════════════════════════════
+app.get('/api/stats', (req,res) => {
+  const players   = Object.values(MEM.players);
+  const tiered    = players.filter(p=>Object.keys(p.tiers).length>0);
+  const queuedNow = Object.values(MEM.queues).reduce((s,q)=>s+q.length,0);
+  res.json({ totalPlayers:players.length, tieredPlayers:tiered.length, queuedNow, totalMatches:MEM.matches.length });
+});
+
+app.get('/api/leaderboard', (req,res) => {
+  const weapon = req.query.weapon||'all';
+  let players  = Object.values(MEM.players).filter(p=>Object.keys(p.tiers).length>0);
+  if (weapon!=='all') {
+    players=players.filter(p=>p.tiers[weapon])
+      .sort((a,b)=>(TIER_PTS[b.tiers[weapon]]||0)-(TIER_PTS[a.tiers[weapon]]||0));
+  } else {
+    players.sort((a,b)=>{
+      const pa=Object.values(a.tiers).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
+      const pb=Object.values(b.tiers).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
+      return pb-pa;
+    });
+  }
+  res.json({ players:players.map(enrichPlayer) });
+});
+
+app.get('/api/player/:ign', (req,res) => {
+  const player=Object.values(MEM.players)
+    .find(p=>p.ign.toLowerCase()===req.params.ign.toLowerCase());
+  if (!player) return res.status(404).json({ error:'Not found' });
+  res.json(enrichPlayer(player));
+});
+
+app.get('/api/queue', (req,res) => {
+  const queues={};
+  for (const [w,q] of Object.entries(MEM.queues))
+    queues[w]=q.map(e=>{
+      const p = MEM.players[e.discordId];
+      return { ...e, avatar:`https://mc-heads.net/avatar/${p?skinName(p):e.ign}/32` };
+    });
+  res.json({ queues });
+});
+
+// ════════════════════════════════════════════════════════════
+//  MOD API ENDPOINTS
+// ════════════════════════════════════════════════════════════
+const WEAPON_TO_MOD_GAMEMODE = {
+  Mace:'mace', Crystal:'crystal', Sword:'sword', Axe:'axe',
+  Netherite:'netherite', Vanilla:'vanilla', UHC:'uhc',
+  Pot:'pot', NethOP:'nethop', SMP:'smp', DiaSMP:'diasmp', SpearMace:'spearmace', Cart:'cart',
+};
+const TIER_TO_MOD_VALUE = {
+  HT1:60,LT1:45,HT2:30,LT2:20,HT3:10,LT3:6,HT4:4,LT4:3,HT5:2,LT5:1,
+};
+
+function toModPlayer(p) {
+  const totalPts = Object.values(p.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
+  const rankInfo = getRankTitle(totalPts);
+  const ranks = {};
+  for (const [weapon, tier] of Object.entries(p.tiers||{})) {
+    const gamemode = WEAPON_TO_MOD_GAMEMODE[weapon] || weapon.toLowerCase();
+    const retired = Boolean(p.retiredTiers?.[weapon]);
+    const displayTier = retired ? formatRetiredTier(tier) : tier;
+    ranks[gamemode] = {
+      gamemode, tier, rank:displayTier, displayTier,
+      tierValue:TIER_TO_MOD_VALUE[tier]||0,
+      tierRank:TIER_TO_MOD_VALUE[tier]||0, retired
+    };
+  }
+  return { ingameName:p.ign, uuid:p.ign, region:p.region||'PK',
+    avatar:`https://mc-heads.net/avatar/${skinName(p)}/64`,
+    totalPoints:totalPts, overallRank:totalPts, tierRank:totalPts,
+    title:rankInfo.label, rank:rankInfo.label, ranks };
+}
+
+app.get('/rankings/overall', (req,res) => {
+  try {
+    const leaderboard = Object.values(MEM.players)
+      .filter(p=>Object.keys(p.tiers||{}).length>0)
+      .sort((a,b)=>{
+        const pa=Object.values(a.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
+        const pb=Object.values(b.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
+        return pb-pa;
+      }).map(toModPlayer);
+    res.json({ leaderboard });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+app.get('/api/search_profile/:ign', (req,res) => {
+  try {
+    const query = req.params.ign.toLowerCase();
+    const players = Object.values(MEM.players)
+      .filter(p=>p.ign.toLowerCase().includes(query)).map(toModPlayer);
+    res.json({ profile:{ players } });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+const TIER_TO_INT = {HT1:1,LT1:1,HT2:2,LT2:2,HT3:3,LT3:3,HT4:4,LT4:4,HT5:5,LT5:5};
+const TIER_TO_POS = {HT1:1,LT1:2,HT2:1,LT2:2,HT3:1,LT3:2,HT4:1,LT4:2,HT5:1,LT5:2};
+
+function toV2Player(p) {
+  const rankings = {};
+  for (const [weapon, tier] of Object.entries(p.tiers||{})) {
+    const gamemode = WEAPON_TO_MOD_GAMEMODE[weapon] || weapon.toLowerCase();
+    const retired = Boolean(p.retiredTiers?.[weapon]);
+    rankings[gamemode] = {
+      tier:TIER_TO_INT[tier]||5, pos:TIER_TO_POS[tier]||2,
+      tierName:tier, displayTier: retired ? formatRetiredTier(tier) : tier,
+      peakTier:null, peakPos:null, attained:0, retired
+    };
+  }
+  const totalPts = Object.values(p.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
+  return { uuid:p.ign, name:p.ign, rankings, region:p.region||'PK',
+    avatar:`https://mc-heads.net/avatar/${skinName(p)}/64`,
+    points:totalPts, overall:totalPts, badges:[], combat_master:false };
+}
+
+function findPlayerByUuidOrIgn(query) {
+  const q = query.toLowerCase();
+  return Object.values(MEM.players).find(x=>
+    x.ign.toLowerCase()===q || (x.uuid&&x.uuid.toLowerCase()===q)
+  ) || null;
+}
+
+app.get('/v2/mode/list', (req,res) => {
+  res.json({
+    mace:'Mace', crystal:'Crystal', sword:'Sword', axe:'Axe',
+    netherite:'Netherite', vanilla:'Vanilla', uhc:'UHC',
+    pot:'Pot', nethop:'NethOP', smp:'SMP', diasmp:'DiaSMP', spearmace:'SpearMace', cart:'Cart',
+  });
+});
+
+app.get('/v2/profile/by-name/:name', (req,res) => {
+  try {
+    const p = Object.values(MEM.players).find(x=>x.ign.toLowerCase()===req.params.name.toLowerCase());
+    if (!p) return res.status(404).json({ error:'Player not found' });
+    res.json(toV2Player(p));
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+app.get('/v2/profile/:uuid/rankings', (req,res) => {
+  try {
+    const p = findPlayerByUuidOrIgn(req.params.uuid);
+    if (!p) return res.status(404).json({});
+    const rankings = {};
+    for (const [weapon, tier] of Object.entries(p.tiers||{})) {
+      const gamemode = WEAPON_TO_MOD_GAMEMODE[weapon] || weapon.toLowerCase();
+      rankings[gamemode] = {
+        tier:TIER_TO_INT[tier]||5, pos:TIER_TO_POS[tier]||2,
+        tierName:tier, displayTier:p.retiredTiers?.[weapon] ? formatRetiredTier(tier) : tier,
+        peakTier:null, peakPos:null, attained:0, retired:Boolean(p.retiredTiers?.[weapon])
+      };
+    }
+    res.json(rankings);
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+app.get('/v2/profile/:uuid', (req,res) => {
+  try {
+    const p = findPlayerByUuidOrIgn(req.params.uuid);
+    if (!p) return res.status(404).json({ error:'Player not found' });
+    res.json(toV2Player(p));
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+// ════════════════════════════════════════════════════════════
+//  TESTERS API (website "Testers" section)
+//  Testers = members with Tierer permission: the built-in
+//  TIERER_ROLE_ID role, plus any roles/members added via
+//  "/tiererperm add" — the command that grants people the
+//  ability to test/tier players.
+// ════════════════════════════════════════════════════════════
+app.get('/api/testers', async (req, res) => {
+  try {
+    const guild = client.guilds.cache.get(CONFIG.GUILD_ID);
+    if (!guild) return res.json({ testers: [], count: 0, dashboard: { totalTestsThisMonth: 0, activeTesters: 0, onlineNow: 0, topContributor: null, topThree: [] } });
+    await guild.members.fetch().catch(() => {});
+    const payload = buildTesterDashboard(guild);
+    res.json(payload);
+  } catch (e) {
+    res.status(500).json({ error: e.message, testers: [], count: 0, dashboard: { totalTestsThisMonth: 0, activeTesters: 0, onlineNow: 0, topContributor: null, topThree: [] } });
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+//  DISCORD BOT
+// ════════════════════════════════════════════════════════════
+const WEAPONS = ['Mace','Crystal','Sword','Axe','Netherite','UHC','Pot','SMP','DiaSMP','SpearMace','Cart'];
+const TIERS   = ['HT1','LT1','HT2','LT2','HT3','LT3','HT4','LT4','HT5','LT5'];
+const WEAPON_EMOJI = {
+  Mace:'<:Mace:1513965730968637681>', Crystal:'<:vanilla:1540732140579323935>', Sword:'<:sword:1517752855577104474>', Axe:'<:Axe:1517753158812696646>', Netherite:'<:nethop:1522172951502258176>',
+  UHC:'<:UHC:1517753244288552972>', Pot:'<:diapot:1520829962385494076>', SMP:'<:SMP:1520830247606423652>', DiaSMP:'<:Diasmp:1520830093981913192>',
+  SpearMace:'<:spear:1517753301700182197>', Cart:'<:TNT_CART:1517759608117137459>',
+};
+const WEAPON_TO_MCTIERS = {
+  Mace:'mace', Crystal:'crystal', Sword:'sword', Axe:'axe', Netherite:'netherite',
+  UHC:'uhc', Pot:'pot', SMP:'smp', DiaSMP:'diasmp', SpearMace:'spearmace', Cart:'cart',
+};
+const TIER_COLOR = {
+  HT1:0xFF6B00, LT1:0xFF9933, HT2:0xFFB800, LT2:0xFFD700,
+  HT3:0x00C864, LT3:0x00A550, HT4:0x4FC3F7, LT4:0x29B6F6,
+  HT5:0x888888, LT5:0x555555,
+};
+const TIER_BAR = {
+  HT1:'▰▰▰▰▰▰▰▰▰▰', LT1:'▰▰▰▰▰▰▰▰▰▱', HT2:'▰▰▰▰▰▰▰▰▱▱', LT2:'▰▰▰▰▰▰▰▱▱▱',
+  HT3:'▰▰▰▰▰▰▱▱▱▱', LT3:'▰▰▰▰▰▱▱▱▱▱', HT4:'▰▰▰▰▱▱▱▱▱▱', LT4:'▰▰▰▱▱▱▱▱▱▱',
+  HT5:'▰▰▱▱▱▱▱▱▱▱', LT5:'▰▱▱▱▱▱▱▱▱▱',
+};
+const BRAND_COLOR = 0x7FFF00;
+const BOT_FOOTER  = 'EclipseTiers · Global Minecraft Community';
+
+// ── PLATFORM / REGION / ACCOUNT DATA ──────────────────────
+const PLATFORMS    = ['Java Edition'];
+const REGIONS_LIST = ['Pakistan 🇵🇰', 'India 🇮🇳', 'UAE 🇦🇪', 'Saudi Arabia 🇸🇦', 'UK 🇬🇧', 'USA 🇺🇸', 'Other 🌍'];
+const ACCOUNT_TYPES = ['Premium (Paid)', 'Cracked (Free)'];
+
+// ── REGION → FLAG NORMALIZER ───────────────────────────────
+// Player.region string to flag emoji helper — even if
+// region is stored in any format (full name, code, old synced entry, etc.)
+const REGION_FLAG_MAP = {
+  'pakistan':      '🇵🇰',
+  'pk':            '🇵🇰',
+  'india':         '🇮🇳',
+  'in':            '🇮🇳',
+  'uae':           '🇦🇪',
+  'united arab emirates': '🇦🇪',
+  'saudi arabia':  '🇸🇦',
+  'ksa':           '🇸🇦',
+  'uk':            '🇬🇧',
+  'united kingdom':'🇬🇧',
+  'usa':           '🇺🇸',
+  'us':            '🇺🇸',
+  'united states': '🇺🇸',
+  'as/au':         '🌏',
+  'asia':          '🌏',
+  'au':            '🌏',
+  'australia':     '🌏',
+  'eu':            '🇪🇺',
+  'europe':        '🇪🇺',
+  'na':            '🌎',
+  'other':         '🌍',
+};
+
+// Emoji regex — matches ANY existing flag/emoji already in the string
+const EMOJI_RE = /\p{Extended_Pictographic}/u;
+
+function formatRegion(region) {
+  if (!region) return 'Other 🌍';
+  const raw = String(region).trim();
+  if (EMOJI_RE.test(raw)) return raw; // already has a flag/emoji — leave as-is
+
+  const lower = raw.toLowerCase();
+  // exact match first, then "contains" match (handles things like "Region: Pakistan")
+  let flag = REGION_FLAG_MAP[lower];
+  if (!flag) {
+    for (const key of Object.keys(REGION_FLAG_MAP)) {
+      if (lower.includes(key)) { flag = REGION_FLAG_MAP[key]; break; }
+    }
+  }
+  return flag ? `${raw} ${flag}` : `${raw} 🌍`;
+}
+
+// ── AUTO REACTIONS on public tier-update messages ──────────
+const TIER_UPDATE_REACTIONS = ['🏆', '🎉', '🔥', '👍', '💀'];
+async function autoReact(message) {
+  for (const emoji of TIER_UPDATE_REACTIONS) {
+    try { await message.react(emoji); } catch (_) {}
+  }
+}
+
+// ── GAMEMODE ROLE MAP — AUTO CREATE ───────────────────────
+// The bot automatically creates roles if they do not exist.
+// Role name format: "[EclipseTiers] Sword HT1" etc.
+// In-memory cache: roleCache[weapon][tier] = roleId
+const roleCache = {};   // populated on first use / bot ready
+
+function roleName(weapon, tier) {
+  return `${weapon} ${tier}`;
+}
+
+// Old naming format — kept only so we can auto-migrate (rename) roles that
+// were created before the "[EclipseTiers] " prefix was dropped.
+function legacyRoleName(weapon, tier) {
+  return `[EclipseTiers] ${weapon} ${tier}`;
+}
+
+async function ensureRole(guild, weapon, tier) {
+  if (!roleCache[weapon]) roleCache[weapon] = {};
+  if (roleCache[weapon][tier]) {
+    const cached = guild.roles.cache.get(roleCache[weapon][tier]);
+    if (cached) return cached;
+  }
+
+  // Search existing roles by (new) name
+  const name = roleName(weapon, tier);
+  let role = guild.roles.cache.find(r => r.name === name);
+
+  // Not found under the new name — check for the old-prefixed version and
+  // rename it in place instead of creating a duplicate role.
+  if (!role) {
+    const oldName = legacyRoleName(weapon, tier);
+    const legacyRole = guild.roles.cache.find(r => r.name === oldName);
+    if (legacyRole) {
+      try {
+        role = await legacyRole.setName(name, 'EclipseTiers role rename — dropped [EclipseTiers] prefix');
+        console.log(`[ROLE] Renamed: ${oldName} -> ${name}`);
+      } catch(err) {
+        console.error(`[ROLE] Failed to rename ${oldName}:`, err.message);
+      }
+    }
+  }
+
+  if (!role) {
+    // Create the role
+    const TIER_COLORS_HEX = {
+      HT1:0xFF6B00, LT1:0xFF9933, HT2:0xFFB800, LT2:0xFFD700,
+      HT3:0x00C864, LT3:0x00A550, HT4:0x4FC3F7, LT4:0x29B6F6,
+      HT5:0x888888, LT5:0x555555,
+    };
+    try {
+      role = await guild.roles.create({
+        name,
+        color: TIER_COLORS_HEX[tier] || 0x99AAB5,
+        reason: 'EclipseTiers auto-created tier role',
+        mentionable: false,
+      });
+      console.log(`[ROLE] Created: ${name}`);
+    } catch(err) {
+      console.error(`[ROLE] Failed to create ${name}:`, err.message);
+      return null;
+    }
+  }
+
+  roleCache[weapon][tier] = role.id;
+  return role;
+}
+
+function getGamemodeRoleId(guild, weapon, tier) {
+  if (!guild || !weapon || !tier) return null;
+  const cached = roleCache[weapon]?.[tier];
+  if (cached) return cached;
+  const name = roleName(weapon, tier);
+  const role = guild.roles.cache.find(r => r.name === name);
+  if (!role) return null;
+  if (!roleCache[weapon]) roleCache[weapon] = {};
+  roleCache[weapon][tier] = role.id;
+  return role.id;
+}
+
+function getTierLabel(t) {
+  return { HT1:'High T1',LT1:'Low T1',HT2:'High T2',LT2:'Low T2',
+    HT3:'High T3',LT3:'Low T3',HT4:'High T4',LT4:'Low T4',
+    HT5:'High T5',LT5:'Low T5' }[t] || t;
+}
+
+// ── COOLDOWN UTILS ────────────────────────────────────────
+function getCooldownFile() { return path.join(DATA_DIR, 'cooldowns.json'); }
+
+// LT3 ya usse neeche (LT3, LT4, LT5) = 7 din cooldown, baaki = CONFIG.TIER_COOLDOWN_DAYS
+const LT3_OR_BELOW = new Set(['LT3']);
+function getCooldownDays(tier) {
+  return LT3_OR_BELOW.has(tier) ? 7 : CONFIG.TIER_COOLDOWN_DAYS;
+}
+
+function saveCooldown(discordId, weapon, tier) {
+  const f = getCooldownFile();
+  const db = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f,'utf8')) : {};
+  if (!db[discordId]) db[discordId] = {};
+  db[discordId][weapon] = { ts: Date.now(), tier: tier || null };
+  fs.writeFileSync(f, JSON.stringify(db, null, 2));
+  if (!MEM.cooldowns[discordId]) MEM.cooldowns[discordId] = {};
+  MEM.cooldowns[discordId][weapon] = db[discordId][weapon];
+}
+
+function getCooldown(discordId, weapon) {
+  const f = getCooldownFile();
+  if (!fs.existsSync(f)) return null;
+  const db = JSON.parse(fs.readFileSync(f,'utf8'));
+  const raw = db[discordId]?.[weapon];
+  if (!raw) return null;
+  // backward compat: old format stored plain number
+  if (typeof raw === 'number') return { ts: raw, tier: null };
+  return raw;
+}
+
+function isOnCooldown(discordId, weapon) {
+  const entry = getCooldown(discordId, weapon);
+  if (!entry) return { onCooldown: false };
+  const ts = entry.ts;
+  const days = getCooldownDays(entry.tier);
+  const cooldownMs = days * 24 * 60 * 60 * 1000;
+  const elapsed = Date.now() - ts;
+  if (elapsed < cooldownMs) {
+    const remaining = cooldownMs - elapsed;
+    const hours = Math.floor(remaining / 3600000);
+    const mins  = Math.floor((remaining % 3600000) / 60000);
+    return { onCooldown: true, hours, mins, endsAt: ts + cooldownMs, days };
+  }
+  return { onCooldown: false };
+}
+
+// ── LOCAL FILE DB ─────────────────────────────────────────
+const DATA_DIR = path.join(__dirname, 'eclipsetiers_data');
+const PF = path.join(DATA_DIR, 'players.json');
+
+// ── TIER LOGS — for the /logs command ────────────────────────
+const TIER_LOG_FILE = path.join(DATA_DIR, 'tier_logs.json');
+function loadTierLogs() {
+  try {
+    if (fs.existsSync(TIER_LOG_FILE)) return JSON.parse(fs.readFileSync(TIER_LOG_FILE, 'utf8'));
+  } catch(_) {}
+  return [];
+}
+function saveTierLog(entry) {
+  try {
+    const logs = loadTierLogs();
+    logs.push(entry);
+    if (logs.length > 5000) logs.splice(0, logs.length - 5000);
+    fs.writeFileSync(TIER_LOG_FILE, JSON.stringify(logs, null, 2));
+  } catch(_) {}
+}
+
+function startOfMonth(ts = Date.now()) {
+  const d = new Date(ts);
+  return new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+}
+
+function buildTesterDashboard(guild) {
+  const perms = loadTiererPerms();
+  const roleIds = new Set(perms.roles || []);
+  if (CONFIG.TIERER_ROLE_ID) roleIds.add(CONFIG.TIERER_ROLE_ID);
+  const memberIds = new Set(perms.members || []);
+  const monthStart = startOfMonth();
+
+  const allLogs = loadTierLogs().filter(log => log && !log.synced);
+  const monthLogs = allLogs.filter(log => Number(log.timestamp || 0) >= monthStart);
+
+  const monthlyCounts = new Map();
+  const lifetimeCounts = new Map();
+  for (const log of allLogs) {
+    if (!log?.tieredBy) continue;
+    lifetimeCounts.set(log.tieredBy, (lifetimeCounts.get(log.tieredBy) || 0) + 1);
+    if (Number(log.timestamp || 0) >= monthStart) {
+      monthlyCounts.set(log.tieredBy, (monthlyCounts.get(log.tieredBy) || 0) + 1);
+    }
+  }
+
+  const testers = [];
+  if (guild) {
+    guild.members.cache.forEach(member => {
+      if (!member || member.user?.bot) return;
+      const hasRole = [...roleIds].some(rid => member.roles.cache.has(rid));
+      if (!hasRole && !memberIds.has(member.id)) return;
+
+      const testsThisMonth = monthlyCounts.get(member.id) || 0;
+      const testsAllTime = lifetimeCounts.get(member.id) || 0;
+      const online = Boolean(member.presence && member.presence.status && member.presence.status !== 'offline');
+
+      testers.push({
+        id: member.id,
+        username: member.user?.username || member.displayName || 'Unknown',
+        displayName: member.displayName || member.user?.username || 'Unknown',
+        avatar: member.user?.displayAvatarURL({ extension: 'png', size: 128 }) || `https://mc-heads.net/avatar/${encodeURIComponent(member.displayName || member.user?.username || 'Steve')}/128`,
+        online,
+        testsThisMonth,
+        testsAllTime,
+      });
+    });
+  }
+
+  testers.sort((a, b) => (
+    (b.testsThisMonth - a.testsThisMonth) ||
+    (b.testsAllTime - a.testsAllTime) ||
+    a.displayName.localeCompare(b.displayName)
+  ));
+
+  const dashboard = {
+    totalTestsThisMonth: monthLogs.length,
+    activeTesters: testers.length,
+    onlineNow: testers.filter(t => t.online).length,
+    topContributor: testers[0] || null,
+    topThree: testers.slice(0, 3),
+  };
+
+  return { testers, count: testers.length, dashboard };
+}
+const QF = path.join(DATA_DIR, 'queue.json');
+const MF = path.join(DATA_DIR, 'matches.json');
+const TF = path.join(DATA_DIR, 'tickets.json');
+const SF = path.join(DATA_DIR, 'settings.json');
+
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive:true });
+const initF = (f, d) => { if (!fs.existsSync(f)) fs.writeFileSync(f, JSON.stringify(d, null, 2)); };
+initF(PF, {});
+initF(QF, { Mace:[], Crystal:[], Sword:[], Axe:[], Netherite:[], UHC:[], Pot:[], SMP:[], DiaSMP:[], SpearMace:[], Cart:[] });
+initF(MF, []);
+initF(TF, {});
+initF(SF, { regLogsChannelId: '', staffLogsChannelId: '', appManagerRoles: [], appManagerUsers: [], supManagerRoles: [], supManagerUsers: [] });
+
+const rDB = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
+const wDB = (f, d) => fs.writeFileSync(f, JSON.stringify(d, null, 2));
+
+// ════════════════════════════════════════════════════════════
+//  UUID VERIFICATION — Cracked/Premium name-ownership check
+//  Requires Node 18+ for global fetch().
+// ════════════════════════════════════════════════════════════
+const crypto = require('crypto');
+
+// Standard offline-mode UUID algorithm (same one vanilla servers
+// use for cracked/offline players): UUIDv3 of "OfflinePlayer:<name>"
+function offlineUUID(username) {
+  const hash = crypto.createHash('md5').update('OfflinePlayer:' + username).digest();
+  hash[6] = (hash[6] & 0x0f) | 0x30; // version 3
+  hash[8] = (hash[8] & 0x3f) | 0x80; // variant
+  const hex = hash.toString('hex');
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+}
+// Looks up a username against Mojang. Returns:
+//   { exists:true,  uuid, name }   -> real premium account, `name` is canonical capitalization
+//   { exists:false }               -> no premium account with this name
+//   { exists:null }                -> lookup failed (Mojang down/rate-limited) — caller should not hard-block on this
+async function lookupMojangName(username) {
+  try {
+    const res = await fetch(`https://api.minecraftservices.com/minecraft/profile/lookup/name/${encodeURIComponent(username)}`);
+    if (res.status === 404) return { exists: false };
+    if (!res.ok) return { exists: null };
+    const data = await res.json();
+    if (!data || !data.id) return { exists: null };
+    const hex = data.id.replace(/-/g, '');
+    const hyphenated = `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+    return { exists: true, uuid: hyphenated, name: data.name };
+  } catch(_) {
+    return { exists: null };
+  }
+}
+
+// Backfills `uuid`/`verified` for players registered before this feature
+// existed (their record has no uuid field at all).
+//   Cracked (Free) -> generate the standard offline UUID from their IGN.
+//   Premium (Paid) -> look up their real UUID on Mojang if possible;
+//                      falls back to an offline UUID as a placeholder if
+//                      the name can't be resolved (e.g. Mojang is down,
+//                      or the account has since been renamed/deleted).
+//                      `verified` stays false either way — this only fills
+//                      in a UUID, it does not prove ownership (that's the
+//                      separate OAuth verification piece).
+async function backfillMissingUUIDs() {
+  const db = rDB(PF);
+  const toFix = Object.entries(db).filter(([, p]) => !p.uuid);
+  if (!toFix.length) return { fixed: 0, total: Object.keys(db).length };
+
+  let fixed = 0;
+  for (const [id, p] of toFix) {
+    if (p.accountType === 'Cracked (Free)') {
+      db[id].uuid = offlineUUID(p.ign);
+      db[id].verified = false;
+    } else {
+      const lookup = await lookupMojangName(p.ign);
+      db[id].uuid = lookup.exists === true ? lookup.uuid : offlineUUID(p.ign);
+      db[id].verified = false;
+      await new Promise(r => setTimeout(r, 150)); // stay well under Mojang's rate limit
+    }
+    fixed++;
+  }
+
+  wDB(PF, db);
+  Object.assign(MEM.players, db);
+  return { fixed, total: Object.keys(db).length };
+}
+
+function loadSettings() {
+  try { return rDB(SF); } catch(_) { return { regLogsChannelId: '', staffLogsChannelId: '', appManagerRoles: [], appManagerUsers: [], supManagerRoles: [], supManagerUsers: [] }; }
+}
+function saveSettings(data) {
+  try { wDB(SF, data); } catch(_) {}
+}
+
+const persistedSettings = loadSettings();
+if (persistedSettings?.regLogsChannelId) {
+  CONFIG.REG_LOGS_CHANNEL_ID = persistedSettings.regLogsChannelId;
+}
+if (persistedSettings?.staffLogsChannelId) {
+  CONFIG.STAFF_LOGS_CHANNEL_ID = persistedSettings.staffLogsChannelId;
+}
+
+// ── STAFF RECORDS — tracks which roles were granted via /hire ──────
+const STAFF_FILE = path.join(DATA_DIR, 'staff.json');
+initF(STAFF_FILE, {});
+function loadStaff() {
+  try { return rDB(STAFF_FILE); } catch(_) { return {}; }
+}
+function saveStaff(data) {
+  try { wDB(STAFF_FILE, data); } catch(_) {}
+}
+
+// ── BLACKLIST — permanent manual restriction until /unblacklist ──
+// Blacklisted members cannot register/update profile, join queues,
+// receive/take tier tests, or have tiers set manually.
+const BLACKLIST_FILE = path.join(DATA_DIR, 'blacklist.json');
+initF(BLACKLIST_FILE, {});
+
+function loadBlacklist() {
+  try { return rDB(BLACKLIST_FILE); } catch(_) { return {}; }
+}
+function saveBlacklist(data) {
+  try { wDB(BLACKLIST_FILE, data); } catch(_) {}
+}
+function parseBlacklistDuration(duration) {
+  if (!duration || duration === 'Permanent') return null;
+  const m = String(duration).match(/^(\d+)([smhdw])$/i);
+  if (!m) return null;
+  const amount = Number(m[1]);
+  const unitMs = { s:1000, m:60000, h:3600000, d:86400000, w:604800000 };
+  const ms = amount * (unitMs[m[2].toLowerCase()] || 0);
+  return ms > 0 ? ms : null;
+}
+
+function isBlacklisted(id) {
+  const db = loadBlacklist();
+  const entry = db[id];
+  if (!entry) return false;
+  if (entry.expiresAt && Date.now() >= entry.expiresAt) {
+    delete db[id];
+    saveBlacklist(db);
+    MEM.blacklist = db;
+    return false;
+  }
+  return true;
+}
+function getBlacklistEntry(id) {
+  const db = loadBlacklist();
+  return db[id] || null;
+}
+function blacklistReason(id) {
+  const e = getBlacklistEntry(id);
+  if (!e) return '';
+  const durationText = e.duration && e.duration !== 'Permanent' ? `\n**Duration:** ${e.duration}` : '\n**Duration:** Permanent';
+  const expiryText = e.expiresAt ? `\n**Expires:** <t:${Math.floor(e.expiresAt / 1000)}:F> (<t:${Math.floor(e.expiresAt / 1000)}:R>)` : '';
+  return `${e.reason ? `\n**Reason:** ${e.reason}` : ''}${durationText}${expiryText}`;
+}
+function setBlacklisted(id, byId, reason, duration = 'Permanent') {
+  const db = loadBlacklist();
+  const at = Date.now();
+  const ms = parseBlacklistDuration(duration);
+  db[id] = { by: byId, at, reason: reason || 'No reason provided', duration: duration || 'Permanent', expiresAt: ms ? at + ms : null };
+  saveBlacklist(db);
+  MEM.blacklist = db;
+}
+function clearBlacklisted(id) {
+  const db = loadBlacklist();
+  delete db[id];
+  saveBlacklist(db);
+  MEM.blacklist = db;
+}
+
+function formatRetiredTier(tier) {
+  return tier ? `R${String(tier).toLowerCase()}` : tier;
+}
+function isRetirableTier(tier) {
+  return new Set(['HT1','LT1','HT2','LT2']).has(tier);
+}
+function getDisplayTier(player, weapon, tier) {
+  return player?.retiredTiers?.[weapon] ? formatRetiredTier(tier) : tier;
+}
+
+function syncToMem() {
+  try {
+    const p=rDB(PF), q=rDB(QF), m=rDB(MF);
+    const cleanPlayers = {};
+    for (const [id, player] of Object.entries(p)) {
+      const tiers = sanitizeGamemodeObject(player.tiers || {});
+      cleanPlayers[id] = { ...player, tiers };
+    }
+    const cleanQueues = sanitizeGamemodeObject(q);
+    Object.assign(MEM.players, cleanPlayers);
+    Object.assign(MEM.queues, cleanQueues);
+    m.forEach(match => { if (!MEM.matches.find(x=>x.id===match.id)) MEM.matches.push(match); });
+    if (fs.existsSync(getCooldownFile()))
+      Object.assign(MEM.cooldowns, rDB(getCooldownFile()));
+    if (fs.existsSync(TF))
+      Object.assign(MEM.tickets, rDB(TF));
+    if (fs.existsSync(BLACKLIST_FILE))
+      Object.assign(MEM.blacklist, rDB(BLACKLIST_FILE));
+    console.log(`📂 Loaded ${Object.keys(p).length} players from disk`);
+  } catch(_) {}
+}
+
+// ════════════════════════════════════════════════════════════
+//  GITHUB BACKUP — /backup create, /backup load
+// ════════════════════════════════════════════════════════════
+const https = require('https');
+
+function githubRequest(method, urlPath, bodyObj) {
+  return new Promise((resolve, reject) => {
+    const bodyStr = bodyObj ? JSON.stringify(bodyObj) : null;
+    const options = {
+      hostname: 'api.github.com',
+      path: urlPath,
+      method,
+      headers: {
+        'User-Agent':     'EclipseTiers-Bot',
+        'Authorization':  `token ${CONFIG.GITHUB_TOKEN}`,
+        'Accept':         'application/vnd.github+json',
+        'Content-Type':   'application/json',
+      },
+    };
+    if (bodyStr) options.headers['Content-Length'] = Buffer.byteLength(bodyStr);
+
+    const req = https.request(options, res => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        let parsed = null;
+        try { parsed = data ? JSON.parse(data) : null; } catch(_) {}
+        resolve({ status: res.statusCode, body: parsed });
+      });
+    });
+    req.on('error', reject);
+    if (bodyStr) req.write(bodyStr);
+    req.end();
+  });
+}
+
+async function githubGetFileSha(repoPath) {
+  const res = await githubRequest('GET', `/repos/${CONFIG.GITHUB_REPO}/contents/${encodeURI(repoPath)}?ref=${CONFIG.GITHUB_BRANCH}`);
+  if (res.status === 200 && res.body && res.body.sha) return res.body.sha;
+  return null;
+}
+
+async function githubPutFile(repoPath, contentStr, message) {
+  const sha = await githubGetFileSha(repoPath);
+  const body = {
+    message,
+    content: Buffer.from(contentStr, 'utf8').toString('base64'),
+    branch:  CONFIG.GITHUB_BRANCH,
+  };
+  if (sha) body.sha = sha;
+  const res = await githubRequest('PUT', `/repos/${CONFIG.GITHUB_REPO}/contents/${encodeURI(repoPath)}`, body);
+  if (res.status !== 200 && res.status !== 201) {
+    throw new Error(`GitHub PUT failed (${res.status}): ${res.body?.message || 'unknown error'}`);
+  }
+  return res.body;
+}
+
+async function githubGetFile(repoPath) {
+  const res = await githubRequest('GET', `/repos/${CONFIG.GITHUB_REPO}/contents/${encodeURI(repoPath)}?ref=${CONFIG.GITHUB_BRANCH}`);
+  if (res.status !== 200 || !res.body || !res.body.content) {
+    throw new Error(`GitHub GET failed (${res.status}): ${res.body?.message || 'file not found'}`);
+  }
+  return Buffer.from(res.body.content, 'base64').toString('utf8');
+}
+
+// Files included in backups — all tierlist data
+function getBackupFileMap() {
+  return {
+    players:     PF,
+    queue:       QF,
+    matches:     MF,
+    tickets:     TF,
+    settings:    SF,
+    tierLogs:    TIER_LOG_FILE,
+    cooldowns:   getCooldownFile(),
+    blacklist:   BLACKLIST_FILE,
+    queuePerms:  QUEUE_PERM_FILE,
+    tiererPerms: TIERER_PERM_FILE,
+  };
+}
+
+function collectBackupData() {
+  const fileMap = getBackupFileMap();
+  const bundle = { createdAt: Date.now(), data: {} };
+  for (const [key, filePath] of Object.entries(fileMap)) {
+    try {
+      bundle.data[key] = fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf8')) : null;
+    } catch(_) { bundle.data[key] = null; }
+  }
+  return bundle;
+}
+
+function restoreBackupData(bundle) {
+  const fileMap = getBackupFileMap();
+  for (const [key, filePath] of Object.entries(fileMap)) {
+    if (bundle.data[key] === undefined || bundle.data[key] === null) continue;
+    try {
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, JSON.stringify(bundle.data[key], null, 2));
+    } catch(_) {}
+  }
+}
+
+const LDB = {
+  get:      id  => { const db=rDB(PF); return db[id]||null; },
+  all:      ()  => rDB(PF),
+  findIGN:  ign => Object.values(rDB(PF)).find(p=>p.ign.toLowerCase()===ign.toLowerCase())||null,
+
+  register(id, ign, platform, accountType, region, uuid, verified) {
+    const db = rDB(PF); if (db[id]) return null;
+    db[id] = { discordId:id, ign, platform:platform||'Java Edition',
+      accountType:accountType||'Premium (Paid)', region:region||'Other 🌍',
+      uuid: uuid || offlineUUID(ign), verified: verified===true,
+      tiers:{}, retiredTiers:{}, registeredAt:Date.now() };
+    wDB(PF, db); MEM.players[id]=db[id]; return db[id];
+  },
+  updateField(id, field, value) {
+    const db = rDB(PF); if (!db[id]) return null;
+    db[id][field] = value; wDB(PF, db);
+    if (MEM.players[id]) MEM.players[id][field] = value;
+    return db[id];
+  },
+  setTier(id, w, t) {
+    const db = rDB(PF); if (!db[id]) return null;
+    db[id].tiers[w]=t; wDB(PF, db);
+    if (MEM.players[id]) MEM.players[id].tiers[w]=t;
+    return db[id];
+  },
+  delTier(id, w) {
+    const db = rDB(PF); if (!db[id]) return null;
+    delete db[id].tiers[w]; wDB(PF, db);
+    if (MEM.players[id]) delete MEM.players[id].tiers[w];
+    return db[id];
+  },
+  getQ:     w => (rDB(QF)[w]||[]),
+  allQ:     ()  => rDB(QF),
+  joinQ(id, weapon) {
+    const db = rDB(QF); if (!db[weapon]) db[weapon]=[];
+    if (db[weapon].find(e=>e.discordId===id)) return { ok:false, reason:'dupe' };
+    const pData = rDB(PF)[id];
+    db[weapon].push({ discordId:id, ign: pData?.ign || null, joinedAt:Date.now() });
+    wDB(QF, db); MEM.queues[weapon]=db[weapon];
+    if (db[weapon].length>=2) {
+      const p1=db[weapon].shift(), p2=db[weapon].shift();
+      wDB(QF, db); MEM.queues[weapon]=db[weapon];
+      return { ok:true, match:[p1,p2] };
+    }
+    return { ok:true, match:null };
+  },
+  leaveQ(id, weapon) {
+    const db = rDB(QF); if (!db[weapon]) return;
+    db[weapon]=db[weapon].filter(e=>e.discordId!==id);
+    wDB(QF, db); MEM.queues[weapon]=db[weapon];
+  },
+  leaveAllQ(id) {
+    const db = rDB(QF);
+    for (const w of Object.keys(db)) db[w]=db[w].filter(e=>e.discordId!==id);
+    wDB(QF, db); Object.assign(MEM.queues, db);
+  },
+  addMatch(weapon, p1, p2) {
+    const db = rDB(MF);
+    const m = { id:Date.now(), weapon, players:[p1,p2], createdAt:Date.now(), status:'ongoing' };
+    db.push(m); wDB(MF, db); MEM.matches.push(m); return m;
+  },
+  // Ticket helpers
+  getTicket: id => {
+    const db = rDB(TF);
+    const v = db[id] || null;
+    if (!v) return null;
+    return typeof v === 'string' ? { channelId: v } : v;
+  },
+  setTicket(id, ticketData) {
+    const db = rDB(TF);
+    const normalized = typeof ticketData === 'string'
+      ? { channelId: ticketData }
+      : { ...ticketData };
+    db[id] = normalized;
+    wDB(TF, db);
+    MEM.tickets[id] = normalized;
+  },
+  delTicket(id) {
+    const db = rDB(TF); delete db[id]; wDB(TF, db); delete MEM.tickets[id];
+  },
+
+  // Ticket-category manager helpers (appmanager / supmanager)
+  getManagers(type) {
+    const s = rDB(SF);
+    return {
+      roles: s[`${type}ManagerRoles`] || [],
+      users: s[`${type}ManagerUsers`] || [],
+    };
+  },
+  addManagerRole(type, roleId) {
+    const s = rDB(SF);
+    const key = `${type}ManagerRoles`;
+    if (!s[key]) s[key] = [];
+    if (!s[key].includes(roleId)) s[key].push(roleId);
+    wDB(SF, s);
+    return s[key];
+  },
+  addManagerUser(type, userId) {
+    const s = rDB(SF);
+    const key = `${type}ManagerUsers`;
+    if (!s[key]) s[key] = [];
+    if (!s[key].includes(userId)) s[key].push(userId);
+    wDB(SF, s);
+    return s[key];
+  },
+  removeManagerRole(type, roleId) {
+    const s = rDB(SF);
+    const key = `${type}ManagerRoles`;
+    s[key] = (s[key] || []).filter(id => id !== roleId);
+    wDB(SF, s);
+    return s[key];
+  },
+  removeManagerUser(type, userId) {
+    const s = rDB(SF);
+    const key = `${type}ManagerUsers`;
+    s[key] = (s[key] || []).filter(id => id !== userId);
+    wDB(SF, s);
+    return s[key];
+  },
+};
+
+// ── UUID CACHE ────────────────────────────────────────────
+const uuidCache = new Map();
+async function getMCUUID(ign) {
+  const k=ign.toLowerCase(), c=uuidCache.get(k);
+  if (c && Date.now()-c.t<1800000) return c.v;
+  try {
+    const r = await fetch(`https://api.mojang.com/users/profiles/minecraft/${ign}`);
+    if (!r.ok) return null;
+    const d = await r.json(); if (!d?.id) return null;
+    const raw = d.id;
+    const uuid = `${raw.slice(0,8)}-${raw.slice(8,12)}-${raw.slice(12,16)}-${raw.slice(16,20)}-${raw.slice(20)}`;
+    uuidCache.set(k, { v:uuid, t:Date.now() }); return uuid;
+  } catch(_) { return null; }
+}
+
+async function syncEmbed(client, player, weapon, tier, byId) {
+  if (!CONFIG.TIER_SYNC_CHANNEL_ID) return;
+  try {
+    const ch = await client.channels.fetch(CONFIG.TIER_SYNC_CHANNEL_ID);
+    if (!ch) return;
+    const uuid = await getMCUUID(player.ign);
+    await ch.send({ embeds:[new EmbedBuilder().setColor(TIER_COLOR[tier]||BRAND_COLOR)
+      .setTitle('🔄 EclipseTiers Tier Sync')
+      .addFields(
+        {name:'Player',   value:player.ign,                         inline:true},
+        {name:'UUID',     value:uuid||'not-found',                  inline:true},
+        {name:'Weapon',   value:WEAPON_TO_MCTIERS[weapon]||weapon,  inline:true},
+        {name:'Tier',     value:tier,                               inline:true},
+        {name:'Tiered By',value:`<@${byId}>`,                       inline:true},
+      ).setTimestamp().setFooter({text:BOT_FOOTER})]});
+  } catch(_) {}
+}
+
+async function sendRegistrationLog(client, player) {
+  if (!CONFIG.REG_LOGS_CHANNEL_ID) return;
+  try {
+    const ch = await client.channels.fetch(CONFIG.REG_LOGS_CHANNEL_ID).catch(() => null);
+    if (!ch) return;
+    await ch.send({
+      embeds: [new EmbedBuilder()
+        .setColor(BRAND_COLOR)
+        .setTitle('📝 New Registration')
+        .addFields(
+          { name: 'Player', value: `${player.ign} (<@${player.discordId}>)`, inline: false },
+          { name: 'Platform', value: player.platform || 'Java Edition', inline: true },
+          { name: 'Account', value: player.accountType || 'Premium (Paid)', inline: true },
+          { name: 'Region', value: formatRegion(player.region), inline: true },
+          { name: 'UUID', value: `${player.uuid || '—'}${player.accountType === 'Cracked (Free)' ? ' (Offline/Cracked)' : ''}`, inline: true },
+          { name: 'Registered At', value: `<t:${Math.floor((player.registeredAt || Date.now()) / 1000)}:F>`, inline: false },
+        )
+        .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
+        .setFooter({ text: BOT_FOOTER })
+        .setTimestamp()],
+    });
+  } catch(_) {}
+}
+
+// ── STAFF MOVEMENT LOG (hire / fire) ────────────────────────
+async function sendStaffLog(client, { type, targetUser, roleName, byUser, reason }) {
+  if (!CONFIG.STAFF_LOGS_CHANNEL_ID) return;
+  try {
+    const ch = await client.channels.fetch(CONFIG.STAFF_LOGS_CHANNEL_ID).catch(() => null);
+    if (!ch) return;
+
+    const isHire = type === 'hire';
+    const embed = new EmbedBuilder()
+      .setColor(isHire ? 0x00C864 : 0xFF4444)
+      .setTitle(isHire ? '✅ Staff Hired' : '🔴 Staff Fired')
+      .setThumbnail(targetUser.displayAvatarURL({ size: 128 }))
+      .addFields(
+        { name: '👤 Player',   value: `${targetUser} (${targetUser.tag})`, inline: false },
+        { name: isHire ? '🎖️ Role Assigned' : '🎖️ Role Removed', value: roleName, inline: true },
+        { name: isHire ? '🧑‍💼 Hired By' : '🧑‍💼 Fired By', value: `${byUser}`, inline: true },
+      );
+
+    if (!isHire) embed.addFields({ name: '📝 Reason', value: reason || 'Not specified', inline: false });
+
+    embed.setFooter({ text: 'EclipseTiers Staff Team' }).setTimestamp();
+
+    await ch.send({ embeds: [embed] });
+  } catch(_) {}
+}
+
+// ════════════════════════════════════════════════════════════
+//  TICKET SYSTEM
+// ════════════════════════════════════════════════════════════
+
+const TICKET_CATEGORY_NAME = CONFIG.TICKET_CATEGORY_NAME || 'Tier-TesTing--Tickets';
+
+function sumPlayerPoints(player) {
+  return Object.values(player?.tiers || {}).reduce((s, t) => s + (TIER_PTS[t] || 0), 0);
+}
+
+function formatPlayerTierList(player) {
+  const entries = Object.entries(player?.tiers || {}).sort((a, b) => (TIER_PTS[b[1]] || 0) - (TIER_PTS[a[1]] || 0));
+  if (!entries.length) return '*No tiers yet*';
+  return entries.map(([w, t]) => `${WEAPON_EMOJI[w] || '•'} **${w}** — \`${t}\``).join('\n');
+}
+
+async function resolveTicketCategory(guild) {
+  if (!guild) return null;
+
+  if (CONFIG.TICKET_CATEGORY_ID) {
+    const existing = await guild.channels.fetch(CONFIG.TICKET_CATEGORY_ID).catch(() => null);
+    if (existing && existing.type === ChannelType.GuildCategory) {
+      if (existing.name !== TICKET_CATEGORY_NAME) {
+        await existing.edit({ name: TICKET_CATEGORY_NAME }).catch(() => {});
+      }
+      return existing;
+    }
+  }
+
+  let category = guild.channels.cache.find(
+    ch => ch.type === ChannelType.GuildCategory && ch.name === TICKET_CATEGORY_NAME
+  );
+
+  if (!category) {
+    category = await guild.channels.create({
+      name: TICKET_CATEGORY_NAME,
+      type: ChannelType.GuildCategory,
+      reason: 'EclipseTiers ticket category auto-created',
+    }).catch(() => null);
+  }
+
+  if (category) CONFIG.TICKET_CATEGORY_ID = category.id;
+  return category;
+}
+
+function buildTicketEmbed({ player, discordId, weapon = null, pullerId = null, openedById = null, mode = 'queue', reason = null }) {
+  const previousTier = weapon ? (player.tiers?.[weapon] || null) : null;
+  const previousRank = previousTier ? getTierLabel(previousTier) : 'Unranked';
+
+  const title = mode === 'manual'
+    ? '🎫 Player Ticket Opened'
+    : '🎫 Queue Ticket Opened';
+
+  const accountLabel = player.accountType === 'Cracked (Free)' ? '🔓 Cracked' : '💎 Premium';
+
+  const embed = new EmbedBuilder()
+    .setColor(BRAND_COLOR)
+    .setTitle(title)
+    .addFields(
+      { name: 'Minecraft Username', value: `**${player.ign}**`,                    inline: false },
+      { name: 'Account Type',       value: accountLabel,                           inline: false },
+      { name: 'Game Mode',          value: weapon ? `**${weapon}**` : 'General',   inline: false },
+      { name: 'Previous Rank',      value: previousRank,                           inline: false },
+      { name: 'Region',             value: formatRegion(player.region),        inline: false },
+    );
+
+  if (reason) {
+    embed.addFields({ name: '📝 Reason', value: reason, inline: false });
+  }
+
+  return embed
+    .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
+    .setFooter({ text: 'EclipseTiers Queue Ticket \u00b7 Close when testing is done' })
+    .setTimestamp();
+}
+
+async function createQueueTicket(client, guild, player, weapon, discordId, pullerId = null, reason = null) {
+  if (!guild) return null;
+
+  try {
+    const existing = LDB.getTicket(discordId);
+    const existingChannelId = existing?.channelId || existing;
+    if (existingChannelId) {
+      const existingCh = await client.channels.fetch(existingChannelId).catch(() => null);
+      if (existingCh) return existingCh;
+    }
+  } catch(_) {}
+
+  try {
+    const category = await resolveTicketCategory(guild);
+    if (!category) return null;
+
+    const safeName = (player.ign || `player-${discordId}`).replace(/[^a-zA-Z0-9]/g,'').toLowerCase();
+    const channelName = `ticket-${safeName}`;
+
+    const permOverwrites = [
+      { id: guild.roles.everyone.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+      {
+        id: discordId,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      },
+    ];
+
+    if (pullerId) {
+      permOverwrites.push({
+        id: pullerId,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      });
+    }
+
+    if (CONFIG.TICKET_STAFF_ROLE_ID) {
+      permOverwrites.push({
+        id: CONFIG.TICKET_STAFF_ROLE_ID,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      });
+    }
+
+    const ticketChannel = await guild.channels.create({
+      name: channelName,
+      type: ChannelType.GuildText,
+      parent: category.id,
+      permissionOverwrites: permOverwrites,
+      topic: `Queue Ticket — ${player.ign} | ${weapon} | <@${discordId}> | pulledBy=${pullerId || 'unknown'}${reason ? ` | reason=${reason}` : ''}`,
+    });
+
+    LDB.setTicket(discordId, {
+      channelId: ticketChannel.id,
+      playerId: discordId,
+      playerIGN: player.ign,
+      weapon,
+      testerId: pullerId || null,
+      createdAt: Date.now(),
+    });
+
+    const staffPing = CONFIG.TICKET_STAFF_ROLE_ID ? `<@&${CONFIG.TICKET_STAFF_ROLE_ID}>` : '';
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`close_ticket_${discordId}`)
+        .setLabel('🔒 Close Ticket')
+        .setStyle(ButtonStyle.Danger),
+    );
+
+    await ticketChannel.send({
+      content: `${staffPing} <@${discordId}> ${pullerId ? `<@${pullerId}>` : ''}`.trim(),
+      embeds: [buildTicketEmbed({
+        player,
+        discordId,
+        weapon,
+        pullerId,
+        mode: 'queue',
+        reason,
+      })],
+      components: [row],
+    });
+
+    return ticketChannel;
+  } catch(err) {
+    console.error('[TICKET ERROR]', err);
+    return null;
+  }
+}
+
+// ── ONE combined ticket for every registered member of a role ──
+async function createGroupTicket(client, guild, players, weapon, roleName, pullerId = null, reason = null) {
+  if (!guild || !players.length) return null;
+
+  try {
+    const category = await resolveTicketCategory(guild);
+    if (!category) return null;
+
+    const safeName = roleName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'role';
+    const channelName = `ticket-${safeName}`;
+
+    const permOverwrites = [
+      { id: guild.roles.everyone.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+    ];
+    for (const { discordId } of players) {
+      permOverwrites.push({
+        id: discordId,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      });
+    }
+    if (pullerId) {
+      permOverwrites.push({
+        id: pullerId,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      });
+    }
+    if (CONFIG.TICKET_STAFF_ROLE_ID) {
+      permOverwrites.push({
+        id: CONFIG.TICKET_STAFF_ROLE_ID,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      });
+    }
+
+    const ticketChannel = await guild.channels.create({
+      name: channelName,
+      type: ChannelType.GuildText,
+      parent: category.id,
+      permissionOverwrites: permOverwrites,
+      topic: `Group Ticket — Role: ${roleName} | ${weapon} | pulledBy=${pullerId || 'unknown'}${reason ? ` | reason=${reason}` : ''}`,
+    });
+
+    // Track this same channel against every member so /closeticket-style lookups still work
+    for (const { discordId, player } of players) {
+      LDB.setTicket(discordId, {
+        channelId: ticketChannel.id,
+        playerId:  discordId,
+        playerIGN: player.ign,
+        weapon,
+        testerId:  pullerId || null,
+        createdAt: Date.now(),
+      });
+    }
+
+    const staffPing   = CONFIG.TICKET_STAFF_ROLE_ID ? `<@&${CONFIG.TICKET_STAFF_ROLE_ID}>` : '';
+    const memberPings = players.map(p => `<@${p.discordId}>`).join(' ');
+
+    const playerLines = players
+      .map(({ discordId, player }) => `• <@${discordId}> — **${player.ign}**`)
+      .join('\n');
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`close_group_ticket_${ticketChannel.id}`)
+        .setLabel('🔒 Close Ticket')
+        .setStyle(ButtonStyle.Danger),
+    );
+
+    const embed = new EmbedBuilder()
+      .setColor(BRAND_COLOR)
+      .setTitle('🎫 Group Ticket Opened')
+      .addFields(
+        { name: 'Role',     value: roleName,                                inline: false },
+        { name: 'Game Mode', value: weapon ? `**${weapon}**` : 'General',   inline: false },
+        { name: `Players (${players.length})`, value: playerLines,          inline: false },
+      );
+
+    if (reason) {
+      embed.addFields({ name: '📝 Reason', value: reason, inline: false });
+    }
+
+    embed
+      .setFooter({ text: 'EclipseTiers Group Ticket \u00b7 Close when done' })
+      .setTimestamp();
+
+    await ticketChannel.send({
+      content: `${staffPing} ${memberPings}`.trim(),
+      embeds: [embed],
+      components: [row],
+    });
+
+    return ticketChannel;
+  } catch(err) {
+    console.error('[GROUP TICKET ERROR]', err);
+    return null;
+  }
+}
+
+async function closeTicket(client, guild, discordId, closedBy) {
+  const ticket = LDB.getTicket(discordId);
+  const channelId = ticket?.channelId || ticket;
+  if (!channelId) return false;
+  try {
+    const ch = await client.channels.fetch(channelId).catch(()=>null);
+    if (ch) {
+      await ch.send({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`🔒 Ticket closed by <@${closedBy}>. This channel will be deleted in 5 seconds.`)] });
+      setTimeout(() => ch.delete().catch(()=>{}), 5000);
+    }
+    LDB.delTicket(discordId);
+    return true;
+  } catch(_) { return false; }
+}
+
+// ════════════════════════════════════════════════════════════
+//  ECLIPSETIERS APPLICATION PANEL + TICKETS
+//  (Helper / Tester / Screensharer / Media)
+// ════════════════════════════════════════════════════════════
+const APPLICATION_CATEGORY_NAME = 'EclipseTiers-Applications';
+const APPLICATION_TYPE_LABELS = {
+  helper:       'EclipseTiers Helper Application',
+  tester:       'EclipseTiers Tester Application',
+  screensharer: 'EclipseTiers Screensharer Application',
+  media:        'EclipseTiers Media Application',
+};
+
+async function resolveApplicationCategory(guild) {
+  if (!guild) return null;
+
+  if (CONFIG.APPLICATION_CATEGORY_ID) {
+    const existing = await guild.channels.fetch(CONFIG.APPLICATION_CATEGORY_ID).catch(() => null);
+    if (existing && existing.type === ChannelType.GuildCategory) return existing;
+  }
+
+  let category = guild.channels.cache.find(
+    ch => ch.type === ChannelType.GuildCategory && ch.name === APPLICATION_CATEGORY_NAME
+  );
+
+  if (!category) {
+    category = await guild.channels.create({
+      name: APPLICATION_CATEGORY_NAME,
+      type: ChannelType.GuildCategory,
+      reason: 'EclipseTiers application ticket category auto-created',
+    }).catch(() => null);
+  }
+
+  if (category) CONFIG.APPLICATION_CATEGORY_ID = category.id;
+  return category;
+}
+
+async function createApplicationTicket(client, guild, member, appType) {
+  if (!guild || !member) return null;
+  const label = APPLICATION_TYPE_LABELS[appType] || 'EclipseTiers Application';
+
+  try {
+    const category = await resolveApplicationCategory(guild);
+    if (!category) return null;
+
+    const safeName   = (member.user?.username || member.id).replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const channelName = `app-${appType}-${safeName}`;
+
+    // Avoid duplicate open application of same type by same user
+    const existingCh = guild.channels.cache.find(
+      ch => ch.parentId === category.id && ch.name === channelName
+    );
+    if (existingCh) return existingCh;
+
+    const permOverwrites = [
+      { id: guild.roles.everyone.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+      {
+        id: member.id,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      },
+    ];
+
+    if (CONFIG.TICKET_STAFF_ROLE_ID) {
+      permOverwrites.push({
+        id: CONFIG.TICKET_STAFF_ROLE_ID,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      });
+    }
+
+    const { roles: appMgrRoles, users: appMgrUsers } = LDB.getManagers('app');
+    for (const rid of appMgrRoles) {
+      permOverwrites.push({
+        id: rid,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      });
+    }
+    for (const uid of appMgrUsers) {
+      permOverwrites.push({
+        id: uid,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      });
+    }
+
+    const ticketChannel = await guild.channels.create({
+      name: channelName,
+      type: ChannelType.GuildText,
+      parent: category.id,
+      permissionOverwrites: permOverwrites,
+      topic: `${label} — <@${member.id}>`,
+    });
+
+    const staffPing = CONFIG.TICKET_STAFF_ROLE_ID ? `<@&${CONFIG.TICKET_STAFF_ROLE_ID}>` : '';
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`close_apptkt_${member.id}`)
+        .setLabel('🔒 Close Application')
+        .setStyle(ButtonStyle.Danger),
+    );
+
+    await ticketChannel.send({
+      content: `${staffPing} <@${member.id}>`.trim(),
+      embeds: [new EmbedBuilder()
+        .setColor(BRAND_COLOR)
+        .setTitle(`📋 ${label}`)
+        .setDescription(
+          `<@${member.id}> applied for **${label}**.\n\n` +
+          `Staff will visit your ticket soon ✨`
+        )
+        .setFooter({ text: 'EclipseTiers Tierlist' })
+        .setTimestamp()],
+      components: [row],
+    });
+
+    return ticketChannel;
+  } catch(err) {
+    console.error('[APPLICATION TICKET ERROR]', err);
+    return null;
+  }
+}
+
+function buildApplicationPanelEmbed() {
+  return new EmbedBuilder()
+    .setColor(BRAND_COLOR)
+    .setAuthor({ name: 'Application Panel' })
+    .setTitle('EclipseTiers Application')
+    .setDescription(
+      'Thank you for showing interest in **EclipseTiers** Tierlist. Open an application ticket to apply for tester or moderator !!\n\n' +
+      '__**Helper Application**__\n' +
+      '• Must be 15 years old or above\n' +
+      '• Any moderation experience is not required, but it\'s a plus!\n' +
+      '• Must be active\n' +
+      '• Be active at least 3 hours a day.\n' +
+      '• Joined this server since 1 week or above\n' +
+      '• Must be mature\n' +
+      '• Be professional in handling tickets and in the application\n' +
+      '• Must follow requirements, and rules.\n' +
+      '• Be able to follow higher staffs instructions\n\n' +
+      '__**Tester Application**__\n' +
+      '• Must be 14 years old or above\n' +
+      '• Must be active\n' +
+      '• Must be Low tier 3 or above\n' +
+      '• Must be professional handling tickets\n' +
+      '• 15 Tests for Monthly Quota\n' +
+      '• Must be mature and unbiased to every players\n' +
+      '• Must not be toxic\n' +
+      '• Must follow requirements, and rules\n' +
+      '• Must follow the instructions from higher staffs\n' +
+      '• Must be patient\n\n' +
+      '❗ - Mass Pinging staff members will get you application ban.\n' +
+      '❗ - Troll / Blank applications will get you an application ban.\n' +
+      '❗ - **Application Cooldown: 5 Days**'
+    )
+    .setFooter({ text: 'EclipseTiers Tierlist' });
+}
+
+function buildApplicationSelectRow() {
+  return new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId('app_apply_select')
+      .setPlaceholder('Make a selection')
+      .addOptions(
+        { label: 'EclipseTiers Helper Application',       value: 'helper' },
+        { label: 'EclipseTiers Tester Application',       value: 'tester' },
+        { label: 'EclipseTiers Screensharer Application', value: 'screensharer' },
+        { label: 'EclipseTiers Media Application',        value: 'media' },
+      ),
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+//  ECLIPSETIERS SUPPORT PANEL (simple "Open a ticket!" button)
+// ════════════════════════════════════════════════════════════
+const SUPPORT_CATEGORY_NAME = 'EclipseTiers-Support-Tickets';
+
+async function resolveSupportCategory(guild) {
+  if (!guild) return null;
+
+  if (CONFIG.SUPPORT_CATEGORY_ID) {
+    const existing = await guild.channels.fetch(CONFIG.SUPPORT_CATEGORY_ID).catch(() => null);
+    if (existing && existing.type === ChannelType.GuildCategory) return existing;
+  }
+
+  let category = guild.channels.cache.find(
+    ch => ch.type === ChannelType.GuildCategory && ch.name === SUPPORT_CATEGORY_NAME
+  );
+
+  if (!category) {
+    category = await guild.channels.create({
+      name: SUPPORT_CATEGORY_NAME,
+      type: ChannelType.GuildCategory,
+      reason: 'EclipseTiers support ticket category auto-created',
+    }).catch(() => null);
+  }
+
+  if (category) CONFIG.SUPPORT_CATEGORY_ID = category.id;
+  return category;
+}
+
+async function createSupportTicket(client, guild, member) {
+  if (!guild || !member) return null;
+
+  try {
+    const category = await resolveSupportCategory(guild);
+    if (!category) return null;
+
+    const safeName    = (member.user?.username || member.id).replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const channelName = `support-${safeName}`;
+
+    // Avoid duplicate open support ticket for same user
+    const existingCh = guild.channels.cache.find(
+      ch => ch.parentId === category.id && ch.name === channelName
+    );
+    if (existingCh) return existingCh;
+
+    const permOverwrites = [
+      { id: guild.roles.everyone.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+      {
+        id: member.id,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      },
+    ];
+
+    if (CONFIG.TICKET_STAFF_ROLE_ID) {
+      permOverwrites.push({
+        id: CONFIG.TICKET_STAFF_ROLE_ID,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      });
+    }
+
+    const { roles: supMgrRoles, users: supMgrUsers } = LDB.getManagers('sup');
+    for (const rid of supMgrRoles) {
+      permOverwrites.push({
+        id: rid,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      });
+    }
+    for (const uid of supMgrUsers) {
+      permOverwrites.push({
+        id: uid,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      });
+    }
+
+    const ticketChannel = await guild.channels.create({
+      name: channelName,
+      type: ChannelType.GuildText,
+      parent: category.id,
+      permissionOverwrites: permOverwrites,
+      topic: `EclipseTiers Support Ticket — <@${member.id}>`,
+    });
+
+    const staffPing = CONFIG.TICKET_STAFF_ROLE_ID ? `<@&${CONFIG.TICKET_STAFF_ROLE_ID}>` : '';
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`close_supporttkt_${member.id}`)
+        .setLabel('🔒 Close Ticket')
+        .setStyle(ButtonStyle.Danger),
+    );
+
+    await ticketChannel.send({
+      content: `${staffPing} <@${member.id}>`.trim(),
+      embeds: [new EmbedBuilder()
+        .setColor(0xF5C842)
+        .setTitle('🎫 Support Ticket Opened')
+        .setDescription(`<@${member.id}> opened a support ticket.\n\nStaff will visit your ticket soon ✨`)
+        .setFooter({ text: 'EclipseTiers Support' })
+        .setTimestamp()],
+      components: [row],
+    });
+
+    return ticketChannel;
+  } catch(err) {
+    console.error('[SUPPORT TICKET ERROR]', err);
+    return null;
+  }
+}
+
+function buildSupportPanelEmbed() {
+  return new EmbedBuilder()
+    .setColor(0xF5C842)
+    .setTitle('🎫 EclipseTiers Support')
+    .setDescription(
+      'Need help with something? Our support team is here for you!\n\n' +
+      'Click the button below to open a new ticket, and our team will get back to you as soon as possible.\n\n' +
+      '📌 **Before opening a ticket:**\n' +
+      '• Clearly describe your issue\n' +
+      '• Attach any relevant screenshots or proof\n' +
+      '• Please open only one ticket per issue\n\n' +
+      '⏳ **Response Time:** Our team typically replies within 24 hours.\n\n' +
+      '👇 Click the button below to open a ticket\n' +
+      'If you want to apply for Media or Staff, please check the requirements category.\n\n' +
+      'Thanks.\n' +
+      '- EclipseTiers Support Team'
+    )
+    .setFooter({ text: 'EclipseTiers Support' });
+}
+
+function buildSupportButtonRow() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('support_open_ticket')
+      .setLabel('Press To Create Ticket')
+      .setEmoji('🎫')
+      .setStyle(ButtonStyle.Primary),
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+//  AUTO ROLE ASSIGNMENT (auto-creates roles if missing)
+// ════════════════════════════════════════════════════════════
+async function assignTierRole(guild, member, weapon, tier, oldTier) {
+  try {
+    // Remove old tier role
+    if (oldTier) {
+      const oldRole = await ensureRole(guild, weapon, oldTier);
+      if (oldRole) await member.roles.remove(oldRole).catch(()=>{});
+    }
+    // Add new tier role (auto-create if needed)
+    const newRole = await ensureRole(guild, weapon, tier);
+    if (newRole) await member.roles.add(newRole).catch(()=>{});
+  } catch(err) {
+    console.error('[ROLE ERROR]', err);
+  }
+}
+
+// Pre-warm role cache on bot ready (ensure all 100 roles exist)
+async function ensureAllRoles(guild) {
+  const WEAPONS_LIST = ['Mace','Crystal','Sword','Axe','Netherite','UHC','Pot','SMP','DiaSMP','SpearMace','Cart'];
+  const TIERS_LIST   = ['HT1','LT1','HT2','LT2','HT3','LT3','HT4','LT4','HT5','LT5'];
+  console.log('[ROLE] Ensuring all tier roles exist...');
+  for (const w of WEAPONS_LIST) {
+    for (const t of TIERS_LIST) {
+      await ensureRole(guild, w, t);
+      await new Promise(r => setTimeout(r, 300)); // rate-limit friendly
+    }
+  }
+  console.log('[ROLE] All tier roles ready.');
+}
+
+// ════════════════════════════════════════════════════════════
+//  WAITLIST ROLES — auto-create "Waitlist-<Weapon>" roles
+// ════════════════════════════════════════════════════════════
+const waitlistRoleCache = {};  // weapon -> roleId
+
+// ════════════════════════════════════════════════════════════
+//  LIVE PANEL — CTL-style persistent queue message
+// ════════════════════════════════════════════════════════════
+const LIVE_PANEL_FILE = path.join(__dirname, 'eclipsetiers_data', 'live_panels.json');
+
+function loadLivePanels() {
+  try { if (fs.existsSync(LIVE_PANEL_FILE)) return JSON.parse(fs.readFileSync(LIVE_PANEL_FILE, 'utf8')); } catch(_) {}
+  return {};
+}
+function saveLivePanels(data) {
+  try { fs.writeFileSync(LIVE_PANEL_FILE, JSON.stringify(data, null, 2)); } catch(_) {}
+}
+
+function buildLivePanelEmbed(weapon) {
+  const q       = LDB.getQ(weapon);
+  const panels  = loadLivePanels();
+  const testers = panels[weapon]?.activeTesters || [];
+  const currentTest = panels[weapon]?.currentTest || '*No active test*';
+
+  const queueTxt  = q.length
+    ? q.map((e, idx) => `${idx + 1}. <@${e.discordId}>`).join('\n')
+    : '*There is nobody in the queue yet.*';
+
+  const testerTxt = testers.length
+    ? testers.map((id, idx) => `${idx + 1}. <@${id}>`).join('\n')
+    : '*No active tester*';
+
+  const now = new Date().toLocaleTimeString('en-PK', { timeZone: 'Asia/Karachi', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
+  const reg = 'PK';
+
+  return new EmbedBuilder()
+    .setColor(0x57F287)
+    .setTitle(`✅  ${weapon} Tester Available!`)
+    .setDescription(
+      `A **${weapon}** queue is open for the **PK** region!\n\n` +
+      `The queue is now open and updates in real-time.`
+    )
+    .addFields(
+      { name: '📋  Queue',          value: queueTxt,    inline: false },
+      { name: '👥  Active Testers', value: testerTxt,   inline: false },
+      { name: '🌍 Region',          value: 'PK',        inline: false },
+      { name: '🧪 Current Test',    value: currentTest, inline: false },
+    )
+    .setFooter({ text: `🌍 Region: ${reg} | 🕐 Last Refresh: ${now}` });
+}
+
+async function refreshLivePanel(client, weapon) {
+  const panels = loadLivePanels();
+  const info   = panels[weapon];
+  if (!info?.channelId || !info?.messageId) return;
+  try {
+    const ch  = await client.channels.fetch(info.channelId).catch(() => null);
+    if (!ch) return;
+    const msg = await ch.messages.fetch(info.messageId).catch(() => null);
+    if (!msg) return;
+
+    const embed   = buildLivePanelEmbed(weapon);
+    const joinBtn = new ButtonBuilder().setCustomId(`wl_join_${weapon}`).setLabel('Join').setStyle(ButtonStyle.Success);
+    const leavBtn = new ButtonBuilder().setCustomId(`wl_leave_${weapon}`).setLabel('Leave').setStyle(ButtonStyle.Danger);
+    const pullBtn = new ButtonBuilder().setCustomId(`wl_pull_${weapon}`).setLabel('🎫 Pull').setStyle(ButtonStyle.Primary);
+    const row     = new ActionRowBuilder().addComponents(joinBtn, leavBtn, pullBtn);
+
+    await msg.edit({ content: '', embeds: [embed], components: [row] });
+    panels[weapon].lastRefresh = Date.now();
+    saveLivePanels(panels);
+  } catch(err) {
+    console.error(`[LIVE PANEL] refresh error (${weapon}):`, err.message);
+  }
+}
+
+async function ensureWaitlistRole(guild, weapon) {
+  if (waitlistRoleCache[weapon]) {
+    const cached = guild.roles.cache.get(waitlistRoleCache[weapon]);
+    if (cached) return cached;
+  }
+  const name = `Waitlist-${weapon}`;
+  let role = guild.roles.cache.find(r => r.name === name);
+  if (!role) {
+    try {
+      role = await guild.roles.create({
+        name,
+        color: 0x5865F2,
+        reason: 'EclipseTiers auto-created waitlist role',
+        mentionable: false,
+      });
+      console.log(`[WAITLIST ROLE] Created: ${name}`);
+    } catch(err) {
+      console.error(`[WAITLIST ROLE] Failed to create ${name}:`, err.message);
+      return null;
+    }
+  }
+  waitlistRoleCache[weapon] = role.id;
+  return role;
+}
+
+// ── Send / Refresh the persistent panel message ──────────────────────────────
+async function sendWaitlistPanel(channel) {
+  const embed = new EmbedBuilder()
+    .setColor(0x7FFF00)
+    .setTitle('📋  Evaluation Testing — Waitlist & Roles')
+    .setDescription(
+      '**Step 1: Register Your Profile**\n' +
+      'Click the **Register / Update Profile** button below to set your in-game details.\n\n' +
+      '**Step 2: Get a Waitlist Role**\n' +
+      'After registering, select any gamemode below to get the corresponding **Waitlist** role. Each role has a **2-day cooldown**.\n\n' +
+      '> • **Region:** Global server\n' +
+      '> • **Username:** Your registered Minecraft IGN\n\n' +
+      '\u26A0\uFE0F **Providing false information will result in a denied test.**'
+    )
+    .setFooter({ text: 'EclipseTiers · Global Minecraft Community' })
+    .setTimestamp();
+
+  const registerBtn = new ButtonBuilder()
+    .setCustomId('panel_register')
+    .setLabel('Register / Update Profile')
+    .setStyle(ButtonStyle.Success)
+    .setEmoji('📝');
+
+  const gamemodeSelect = new StringSelectMenuBuilder()
+    .setCustomId('panel_waitlist_select')
+    .setPlaceholder('Select a gamemode to get the waitlist role ›')
+    .addOptions(
+      WEAPONS.map(w => ({
+        label: `${w}`,
+        description: `Join the ${w} waitlist`,
+        value: w,
+        emoji: WEAPON_EMOJI[w],
+      }))
+    );
+
+  const row1 = new ActionRowBuilder().addComponents(registerBtn);
+  const row2 = new ActionRowBuilder().addComponents(gamemodeSelect);
+
+  return channel.send({ embeds: [embed], components: [row1, row2] });
+}
+
+// ════════════════════════════════════════════════════════════
+//  QUEUE ACCESS CHECK
+//  Player can join the queue if:
+//  (a) has a tier for that weapon, OR
+//  (b) has the Waitlist-<weapon> role for that weapon
+// ════════════════════════════════════════════════════════════
+async function hasQueueAccess(guild, discordId, player, weapon) {
+  // (a) tier check
+  if (player?.tiers?.[weapon]) return { allowed: true, via: 'tier', tier: player.tiers[weapon] };
+
+  // (b) waitlist role check
+  try {
+    const roleName = `Waitlist-${weapon}`;
+    const role = guild.roles.cache.find(r => r.name === roleName);
+    if (role) {
+      const member = await guild.members.fetch(discordId).catch(() => null);
+      if (member && member.roles.cache.has(role.id))
+        return { allowed: true, via: 'waitlist', tier: 'Waitlist' };
+    }
+  } catch(_) {}
+
+  return { allowed: false };
+}
+
+// ════════════════════════════════════════════════════════════
+//  COMMANDS
+// ════════════════════════════════════════════════════════════
+const CMDS = {};
+
+// ── /msgsend ───────────────────────────────────────────────
+CMDS.msgsend = {
+  data: new SlashCommandBuilder()
+    .setName('msgsend')
+    .setDescription('Send a message to any channel')
+    .addChannelOption(o => o.setName('channel').setDescription('Target channel').setRequired(true))
+    .addStringOption(o => o.setName('message').setDescription('Message content').setRequired(true)),
+
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Administrator permission required.')] });
+    }
+
+    const channel = i.options.getChannel('channel');
+    const message = i.options.getString('message');
+    try {
+      await channel.send({ content: message });
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x57F287)
+        .setDescription(`✅ Message sent to ${channel}.`)] });
+    } catch (err) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Could not send message: ${err.message}`)] });
+    }
+  },
+};
+
+// ── /punish ────────────────────────────────────────────────
+CMDS.punish = {
+  data: new SlashCommandBuilder()
+    .setName('punish')
+    .setDescription('Publicly announce a punishment in this channel')
+    .addUserOption(o => o.setName('user').setDescription('User being punished').setRequired(true))
+    .addStringOption(o => o.setName('type').setDescription('Punishment type').setRequired(true)
+      .addChoices(
+        { name: 'Warn', value: 'Warn' },
+        { name: 'Mute', value: 'Mute' },
+        { name: 'Kick', value: 'Kick' },
+        { name: 'Ban',  value: 'Ban'  },
+      ))
+    .addStringOption(o => o.setName('reason').setDescription('Reason for the punishment').setRequired(true))
+    .addStringOption(o => o.setName('duration').setDescription('Duration (e.g. 1h, 7d, Permanent)').setRequired(false)),
+
+  async execute(i) {
+    // Only Admins or the Ticket/Staff role can issue punishments
+    const isStaff = i.member.permissions.has(PermissionFlagsBits.Administrator) ||
+      (CONFIG.TICKET_STAFF_ROLE_ID && i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID));
+    if (!isStaff) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ You do not have permission to use this command.')] });
+    }
+
+    const target   = i.options.getUser('user');
+    const type     = i.options.getString('type');
+    const reason   = i.options.getString('reason');
+    const duration = i.options.getString('duration') || (type === 'Ban' ? 'Permanent' : 'N/A');
+
+    const TYPE_COLOR = { Warn: 0xFFD700, Mute: 0xFFA500, Kick: 0xFF6347, Ban: 0xFF0000 };
+    const TYPE_EMOJI = { Warn: '⚠️',     Mute: '🔇',     Kick: '👢',     Ban: '🔨'    };
+
+    const embed = new EmbedBuilder()
+      .setColor(TYPE_COLOR[type] || BRAND_COLOR)
+      .setTitle(`${TYPE_EMOJI[type] || ''} ${type} Issued`)
+      .addFields(
+        { name:'👤 User',     value:`${target}`,   inline:true },
+        { name:'📋 Reason',   value:reason,         inline:true },
+        { name:'⏱️ Duration', value:duration,       inline:true },
+        { name:'🛡️ Staff',    value:`${i.user}`,    inline:false },
+      )
+      .setFooter({ text: BOT_FOOTER })
+      .setTimestamp();
+
+    // Public reply (not ephemeral) so everyone in the channel sees it
+    return i.reply({ content:`${target}`, embeds:[embed] });
+  },
+};
+
+// ── /backup ────────────────────────────────────────────────
+CMDS.backup = {
+  data: new SlashCommandBuilder()
+    .setName('backup')
+    .setDescription('Back up or restore EclipseTiers data on GitHub')
+    .addSubcommand(sub => sub.setName('create')
+      .setDescription('Back up all current tierlist data to GitHub'))
+    .addSubcommand(sub => sub.setName('load')
+      .setDescription('Load the latest backup from GitHub (current data will be overwritten)')
+      .addBooleanOption(o => o.setName('confirm').setDescription('type true to confirm').setRequired(true))),
+
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Administrator permission required.')] });
+    }
+    if (!CONFIG.GITHUB_TOKEN || !CONFIG.GITHUB_REPO) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ `GITHUB_TOKEN` and `GITHUB_REPO` env vars are not set. Add them in Railway → Variables.\n`GITHUB_REPO` format: `username/repo`')] });
+    }
+
+    const sub = i.options.getSubcommand();
+    await i.deferReply({ ephemeral:true });
+
+    // ── /backup create ──
+    if (sub === 'create') {
+      try {
+        const bundle  = collectBackupData();
+        const jsonStr = JSON.stringify(bundle, null, 2);
+        const stamp   = new Date(bundle.createdAt).toISOString().replace(/[:.]/g, '-');
+
+        await githubPutFile(`${CONFIG.GITHUB_BACKUP_DIR}/latest.json`, jsonStr, `EclipseTiers backup (latest) — ${stamp}`);
+        await githubPutFile(`${CONFIG.GITHUB_BACKUP_DIR}/backup-${stamp}.json`, jsonStr, `EclipseTiers backup — ${stamp}`);
+
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+          .setTitle('✅ Backup Complete')
+          .setDescription(`All data saved to GitHub.\n📁 \`${CONFIG.GITHUB_REPO}\` → \`${CONFIG.GITHUB_BACKUP_DIR}/\`\n👤 Players: **${Object.keys(bundle.data.players || {}).length}**`)
+          .setFooter({ text: BOT_FOOTER }).setTimestamp()] });
+      } catch(err) {
+        console.error('[BACKUP CREATE]', err);
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription(`❌ Backup failed: ${err.message}`)] });
+      }
+    }
+
+    // ── /backup load ──
+    if (sub === 'load') {
+      const confirm = i.options.getBoolean('confirm');
+      if (!confirm) {
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF9933)
+          .setDescription('⚠️ Cancelled. Set `confirm: true` if you want to overwrite the current data.')] });
+      }
+      try {
+        const jsonStr = await githubGetFile(`${CONFIG.GITHUB_BACKUP_DIR}/latest.json`);
+        const bundle  = JSON.parse(jsonStr);
+        restoreBackupData(bundle);
+
+        // In-memory reload
+        MEM.players = {}; MEM.matches = []; MEM.cooldowns = {}; MEM.tickets = {};
+        Object.keys(MEM.queues).forEach(k => { MEM.queues[k] = []; });
+        syncToMem();
+        broadcast({ type: 'backup_restored' });
+
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+          .setTitle('✅ Backup Restored')
+          .setDescription(`Data restored from GitHub.\n🕒 Backup date: <t:${Math.floor((bundle.createdAt || Date.now()) / 1000)}:F>\n👤 Players: **${Object.keys(bundle.data.players || {}).length}**`)
+          .setFooter({ text: BOT_FOOTER }).setTimestamp()] });
+      } catch(err) {
+        console.error('[BACKUP LOAD]', err);
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription(`❌ Load failed: ${err.message}`)] });
+      }
+    }
+  },
+};
+
+// ── /embedsend ─────────────────────────────────────────────
+CMDS.embedsend = {
+  data: new SlashCommandBuilder()
+    .setName('embedsend')
+    .setDescription('Send a formatted embed message to any channel')
+    .addChannelOption(o => o.setName('channel').setDescription('Target channel').setRequired(true))
+    .addStringOption(o => o.setName('description').setDescription('Body text (use \\n for new lines, supports emoji/markdown)').setRequired(true))
+    .addStringOption(o => o.setName('title').setDescription('Embed title').setRequired(false))
+    .addStringOption(o => o.setName('color').setDescription('Hex color e.g. 5865F2').setRequired(false))
+    .addAttachmentOption(o => o.setName('image').setDescription('Upload image (shown big at the bottom)').setRequired(false))
+    .addAttachmentOption(o => o.setName('thumbnail').setDescription('Upload thumbnail (small image top-right)').setRequired(false)),
+
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Administrator permission required.')] });
+    }
+
+    const channel     = i.options.getChannel('channel');
+    const description = i.options.getString('description').replace(/\\n/g, '\n');
+    const title        = i.options.getString('title');
+    const colorInput    = i.options.getString('color');
+    const image        = i.options.getAttachment('image')?.url || null;
+    const thumbnail    = i.options.getAttachment('thumbnail')?.url || null;
+
+    let color = 0x5865F2;
+    if (colorInput) {
+      const parsed = parseInt(colorInput.replace('#',''), 16);
+      if (!isNaN(parsed)) color = parsed;
+    }
+
+    const embed = new EmbedBuilder().setColor(color).setDescription(description);
+    if (title) embed.setTitle(title);
+    if (image) embed.setImage(image);
+    if (thumbnail) embed.setThumbnail(thumbnail);
+
+    try {
+      await channel.send({ embeds: [embed] });
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x57F287)
+        .setDescription(`✅ Embed sent to ${channel}.`)] });
+    } catch (err) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Could not send embed: ${err.message}`)] });
+    }
+  },
+};
+
+// ── /setreglogschannel ────────────────────────────────────
+CMDS.setreglogschannel = {
+  data: new SlashCommandBuilder()
+    .setName('setreglogschannel')
+    .setDescription('Set the channel used for registration logs')
+    .addChannelOption(o => o.setName('channel').setDescription('Registration logs channel').setRequired(true)),
+
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Administrator permission required.')] });
+    }
+
+    const channel = i.options.getChannel('channel');
+    const settings = loadSettings();
+    settings.regLogsChannelId = channel.id;
+    saveSettings(settings);
+    CONFIG.REG_LOGS_CHANNEL_ID = channel.id;
+
+    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x57F287)
+      .setDescription(`✅ Registration logs channel set to ${channel}.`)] });
+  },
+};
+
+// ── /setstafflogs ─────────────────────────────────────────
+CMDS.setstafflogs = {
+  data: new SlashCommandBuilder()
+    .setName('setstafflogs')
+    .setDescription('Set the channel used for staff hire/fire logs')
+    .addChannelOption(o => o.setName('channel').setDescription('Staff movements logs channel').setRequired(true)),
+
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Administrator permission required.')] });
+    }
+
+    const channel = i.options.getChannel('channel');
+    const settings = loadSettings();
+    settings.staffLogsChannelId = channel.id;
+    saveSettings(settings);
+    CONFIG.STAFF_LOGS_CHANNEL_ID = channel.id;
+
+    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x57F287)
+      .setDescription(`✅ Staff logs channel set to ${channel}.`)] });
+  },
+};
+
+// ── /testerprofile ────────────────────────────────────────
+// Looks up a REAL registered tester by their Discord account (autocomplete
+// picker, not free text) and pulls their actual stored IGN, Discord tag,
+// and every gamemode tier they've earned — using the real custom emojis
+// already defined in WEAPON_EMOJI.
+CMDS.testerprofile = {
+  data: new SlashCommandBuilder()
+    .setName('testerprofile')
+    .setDescription("View a tester's full profile (Admin only)")
+    .addUserOption(o => o.setName('user').setDescription('The tester to look up').setRequired(true)),
+
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Administrator permission required.')] });
+    }
+
+    const target = i.options.getUser('user');
+    const player = LDB.get(target.id);
+
+    if (!player) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ **${target.username}** is not registered.`)] });
+    }
+
+    const tiers   = player.tiers || {};
+    const entries = Object.entries(tiers).sort((a,b)=>(TIER_PTS[b[1]]||0)-(TIER_PTS[a[1]]||0));
+
+    const tierBlock = entries.length
+      ? entries.map(([w,t]) => `${WEAPON_EMOJI[w] || '⚔️'} **${w}** — \`${t}\` (${getTierLabel(t)})`).join('\n')
+      : '*No gamemode tiers yet.*';
+
+    // Gamemodes this person is an assigned tester of (set via /tester)
+    const testerOf = getTesterGamemodes(target.id);
+    const gamemodesBlock = testerOf.length
+      ? testerOf.map(w => `${WEAPON_EMOJI[w] || '⚔️'} **${w}**`).join('\n')
+      : '*Not assigned as a tester for any gamemode yet. Use `/tester` to assign one.*';
+
+    const embed = new EmbedBuilder()
+      .setColor(entries[0] ? (TIER_COLOR[entries[0][1]] || BRAND_COLOR) : BRAND_COLOR)
+      .setAuthor({ name: '🧪 Tester Profile' })
+      .setTitle(`✨ ${player.ign} ✨`)
+      .setThumbnail(`https://mc-heads.net/avatar/${skinName(player)}/128`)
+      .addFields(
+        { name: '🎮 IGN', value: `\`${player.ign}\``,       inline: true },
+        { name: '🌍 DC',  value: `\`${target.username}\``,  inline: true },
+        { name: '🔑 Account', value: player.accountType || 'Premium', inline: true },
+        { name: '⚔️ Gamemodes', value: gamemodesBlock, inline: false },
+        { name: '🏆 Tiers', value: tierBlock, inline: false },
+      )
+      .setFooter({ text: BOT_FOOTER })
+      .setTimestamp();
+
+    return i.reply({ embeds: [embed] });
+  },
+};
+
+// ── /tester ────────────────────────────────────────────────
+// Assign (or unassign) which gamemode a Discord user is a tester of.
+// Toggle behavior: running it again for the same gamemode+user removes
+// the assignment. Shows up on /testerprofile under ⚔️ Gamemodes.
+CMDS.tester = {
+  data: new SlashCommandBuilder()
+    .setName('tester')
+    .setDescription('Assign a user as a tester for a gamemode (Admin only)')
+    .addStringOption(o => o.setName('gamemode').setDescription('Gamemode to assign').setRequired(true)
+      .addChoices(...WEAPONS.map(w => ({ name: w, value: w }))))
+    .addUserOption(o => o.setName('username').setDescription('The user to assign').setRequired(true)),
+
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Administrator permission required.')] });
+    }
+
+    const gamemode = i.options.getString('gamemode');
+    const target   = i.options.getUser('username');
+    const emoji    = WEAPON_EMOJI[gamemode] || '⚔️';
+
+    const data = loadTesterGamemodes();
+    if (!data[target.id]) data[target.id] = [];
+
+    const idx = data[target.id].indexOf(gamemode);
+    let added;
+    if (idx === -1) {
+      data[target.id].push(gamemode);
+      added = true;
+    } else {
+      data[target.id].splice(idx, 1);
+      added = false;
+    }
+    if (data[target.id].length === 0) delete data[target.id];
+    saveTesterGamemodes(data);
+
+    return i.reply({ embeds:[new EmbedBuilder().setColor(added ? 0x00C864 : 0xFF9933)
+      .setDescription(added
+        ? `✅ ${emoji} **${target.username}** is now a tester for **${gamemode}**.`
+        : `➖ ${emoji} **${target.username}** is no longer a tester for **${gamemode}**.`)
+      .setFooter({ text: BOT_FOOTER })
+      .setTimestamp()] });
+  },
+};
+
+// ── /testerremove ─────────────────────────────────────────
+// Explicitly removes a gamemode tester assignment (dedicated command,
+// unlike /tester which toggles). No-op with a warning if not assigned.
+CMDS.testerremove = {
+  data: new SlashCommandBuilder()
+    .setName('testerremove')
+    .setDescription('Remove a user as a tester for a gamemode (Admin only)')
+    .addStringOption(o => o.setName('gamemode').setDescription('Gamemode to remove').setRequired(true)
+      .addChoices(...WEAPONS.map(w => ({ name: w, value: w }))))
+    .addUserOption(o => o.setName('username').setDescription('The user to remove').setRequired(true)),
+
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Administrator permission required.')] });
+    }
+
+    const gamemode = i.options.getString('gamemode');
+    const target   = i.options.getUser('username');
+    const emoji    = WEAPON_EMOJI[gamemode] || '⚔️';
+
+    const data = loadTesterGamemodes();
+    const list = data[target.id] || [];
+    const idx  = list.indexOf(gamemode);
+
+    if (idx === -1) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription(`⚠️ ${emoji} **${target.username}** is not a tester for **${gamemode}**.`)] });
+    }
+
+    list.splice(idx, 1);
+    if (list.length === 0) delete data[target.id]; else data[target.id] = list;
+    saveTesterGamemodes(data);
+
+    return i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setDescription(`➖ ${emoji} **${target.username}** is no longer a tester for **${gamemode}**.`)
+      .setFooter({ text: BOT_FOOTER })
+      .setTimestamp()] });
+  },
+};
+
+// ── /openticket ───────────────────────────────────────────
+CMDS.openticket = {
+  data: new SlashCommandBuilder()
+    .setName('openticket')
+    .setDescription('Open a ticket for a player (or every registered member of a role) and show full details')
+    .addStringOption(o => o.setName('reason').setDescription('Reason for opening this ticket').setRequired(true))
+    .addUserOption(o => o.setName('player').setDescription('Player to open ticket for').setRequired(false))
+    .addRoleOption(o => o.setName('role').setDescription('Open a ticket for every registered member with this role').setRequired(false))
+    .addStringOption(o => o.setName('gamemode')
+      .setDescription('Gamemode for which the ticket should be opened (defaults to General)')
+      .setRequired(false)
+      .addChoices(
+        { name: 'Mace',       value: 'Mace'       },
+        { name: 'Crystal',    value: 'Crystal'    },
+        { name: 'Sword',      value: 'Sword'      },
+        { name: 'Axe',        value: 'Axe'        },
+        { name: 'Netherite',  value: 'Netherite'  },
+        { name: 'UHC',        value: 'UHC'        },
+        { name: 'Pot',        value: 'Pot'        },
+        { name: 'SMP',        value: 'SMP'        },
+        { name: 'DiaSMP',     value: 'DiaSMP'     },
+        { name: 'Cart',       value: 'Cart'       },
+      )),
+
+  async execute(i) {
+    const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasStaff  = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
+    const hasTierer = hasTiererPerm(i.member);
+    const canUse    = isAdmin || hasStaff || hasTierer || hasQueuePerm(i.member);
+    if (!canUse) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ You do not have permission to open a ticket.')] });
+    }
+
+    const user     = i.options.getUser('player');
+    const role     = i.options.getRole('role');
+    const gamemode = i.options.getString('gamemode') || 'General';
+    const reason   = i.options.getString('reason') || 'No reason provided';
+
+    if (!user && !role) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Provide either a **player** or a **role**.')] });
+    }
+
+    const gmEmoji = WEAPON_EMOJI[gamemode] || '🎮';
+
+    // ── Single player ticket ───────────────────────────────
+    if (user) {
+      const player = LDB.get(user.id);
+      if (!player) {
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription(`❌ **${user.username}** not is registered.`)] });
+      }
+
+      await i.deferReply({ ephemeral:true });
+
+      const ticketChannel = await createQueueTicket(i.client, i.guild, player, gamemode, user.id, i.user.id, reason);
+      if (!ticketChannel) {
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription('❌ Ticket could not be created. Check the category / permissions.')] });
+      }
+
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0x57F287)
+        .setTitle('✅ Ticket Opened!')
+        .addFields(
+          { name: '👤 Player',   value: `<@${user.id}> (**${player.ign}**)`, inline: true },
+          { name: '🎮 Gamemode', value: `${gmEmoji} **${gamemode}**`,         inline: true },
+          { name: '📝 Reason',   value: reason || 'No reason provided',      inline: false },
+          { name: '📩 Channel',  value: `${ticketChannel}`,                   inline: false },
+        )
+        .setFooter({ text: BOT_FOOTER })
+        .setTimestamp()] });
+    }
+
+    // ── Role: open ONE combined ticket for every registered member ──
+    await i.deferReply({ ephemeral:true });
+
+    const members = await i.guild.members.fetch();
+    const roleMembers = members.filter(m => m.roles.cache.has(role.id) && !m.user.bot);
+
+    const registered = [];
+    const skipped    = [];
+
+    for (const member of roleMembers.values()) {
+      const player = LDB.get(member.id);
+      if (!player) { skipped.push(`<@${member.id}>`); continue; }
+      registered.push({ discordId: member.id, player });
+    }
+
+    if (!registered.length) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ No registered members found in ${role}.`)] });
+    }
+
+    const ticketChannel = await createGroupTicket(i.client, i.guild, registered, gamemode, role.name, i.user.id, reason);
+    if (!ticketChannel) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Ticket could not be created. Check the category / permissions.')] });
+    }
+
+    return i.editReply({ embeds:[new EmbedBuilder().setColor(0x57F287)
+      .setTitle('✅ Ticket Opened!')
+      .addFields(
+        { name: '🎭 Role',     value: `${role}`,                                      inline: true },
+        { name: '🎮 Gamemode', value: `${gmEmoji} **${gamemode}**`,                    inline: true },
+        { name: '📝 Reason',   value: reason || 'No reason provided',                 inline: false },
+        { name: `👥 Included (${registered.length})`, value: registered.map(r => `<@${r.discordId}>`).join('\n'), inline: false },
+        { name: `⚠️ Skipped (${skipped.length})`,      value: skipped.length ? skipped.join('\n') : '*None*',      inline: false },
+        { name: '📩 Channel',  value: `${ticketChannel}`,                              inline: false },
+      )
+      .setFooter({ text: BOT_FOOTER })
+      .setTimestamp()] });
+  },
+};
+
+// ── /register ─────────────────────────────────────────────
+CMDS.register = {
+  data: new SlashCommandBuilder()
+    .setName('register')
+    .setDescription('Register a player in EclipseTiers — works only in the designated channel'),
+
+  async execute(i) {
+    if (CONFIG.REGISTER_CHANNEL_ID && i.channelId !== CONFIG.REGISTER_CHANNEL_ID) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Please use <#${CONFIG.REGISTER_CHANNEL_ID}> for registration.`)] });
+    }
+
+    const existing = LDB.get(i.user.id);
+    if (existing) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription(`⚠️ You are already registered as **${existing.ign}**. Use \`/profile\` to view it.`)] });
+    }
+
+    regState.set(i.user.id, { platform: 'Java Edition' });
+
+    const accRow = new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`reg_account_${i.user.id}`)
+        .setPlaceholder('🔑 Choose your account type...')
+        .addOptions(ACCOUNT_TYPES.map(a => ({ label:a, value:a }))),
+    );
+
+    await i.reply({
+      ephemeral: true,
+      embeds: [new EmbedBuilder().setColor(BRAND_COLOR)
+        .setTitle('📋 EclipseTiers Registration — Step 1/2')
+        .setDescription('🖥️ **Platform: Java Edition**\n\nChoose your **account type**:')
+        .addFields(
+          { name:'💎 Premium (Paid)', value:'Official purchased Minecraft account', inline:false },
+          { name:'🏴\u200d☠️ Cracked (Free)', value:'TLauncher or any other cracked launcher', inline:false },
+        )
+        .setFooter({ text:'Only you can see this | EclipseTiers' })],
+      components: [accRow],
+    });
+  },
+};
+
+// ── /profile ──────────────────────────────────────────────
+CMDS.profile = {
+  data: new SlashCommandBuilder()
+    .setName('profile')
+    .setDescription("View a player's EclipseTiers profile")
+    .addUserOption(o=>o.setName('user').setDescription('Discord user').setRequired(false))
+    .addStringOption(o=>o.setName('ign').setDescription('Search by IGN').setRequired(false)),
+
+  async execute(i) {
+    await i.deferReply();
+    const ignArg=i.options.getString('ign'), userArg=i.options.getUser('user');
+    const player = ignArg ? LDB.findIGN(ignArg) : userArg ? LDB.get(userArg.id) : LDB.get(i.user.id);
+    if (!player) return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setTitle('❌ Player Not Found')
+      .setDescription(ignArg ? `No player found with the name **${ignArg}**.` : 'You are not registered. Use `/register`.')
+      .setFooter({ text:BOT_FOOTER })] });
+
+    const tiers   = player.tiers||{};
+    const entries = Object.entries(tiers).sort((a,b)=>(TIER_PTS[b[1]]||0)-(TIER_PTS[a[1]]||0));
+    const pts     = entries.reduce((s,[,t])=>s+(TIER_PTS[t]||0),0);
+    const rank    = getRankTitle(pts);
+    const color   = entries[0] ? TIER_COLOR[entries[0][1]] : BRAND_COLOR;
+    const block   = entries.length===0
+      ? '```\nThere are no tiers yet. Ask a Tierer to set one!\n```'
+      : '```\n'+entries.map(([w,t])=>{
+          const retired = Boolean(player.retiredTiers?.[w]);
+          const displayTier = retired ? formatRetiredTier(t) : t;
+          const label = retired ? displayTier : getTierLabel(t);
+          return `${w.padEnd(11)} ${label.padEnd(8)}  ${TIER_BAR[t]||'▱▱▱▱▱▱▱▱▱▱'}  +${TIER_PTS[t]}pt`;
+        }).join('\n')+'\n```';
+
+    const ranked = Object.values(LDB.all())
+      .filter(p=>Object.keys(p.tiers||{}).length>0)
+      .map(p=>({ ...p, pts:Object.values(p.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0) }))
+      .sort((a,b)=>b.pts-a.pts);
+    const pos = ranked.findIndex(p=>p.discordId===player.discordId)+1;
+
+    await i.editReply({ embeds:[new EmbedBuilder().setColor(color)
+      .setTitle(`${rank.emoji}  ${player.ign}`)
+      .setDescription(`**${rank.label}**\n⭐ **${pts} pts** · 🏅 **Rank ${pos>0?`#${pos} of ${ranked.length}`:'Unranked'}** · 🇵🇰`)
+      .addFields(
+        { name:'⚔️ Weapon Disciplines', value:block },
+        { name:'🎮 Platform',   value:player.platform||'Java Edition',    inline:true },
+        { name:'🌍 Region',     value:formatRegion(player.region),      inline:true },
+        { name:'🔑 Account',    value:player.accountType||'Premium',      inline:true },
+        { name:'📅 Registered', value:`<t:${Math.floor(player.registeredAt/1000)}:D>`, inline:true },
+        { name:'🔰 Season',     value:'Season 1',                         inline:true },
+      )
+      .setThumbnail(`https://mc-heads.net/avatar/${skinName(player)}/128`)
+      .setFooter({ text:BOT_FOOTER })
+      .setTimestamp()] });
+  },
+};
+
+// ── /skin ─────────────────────────────────────────────────
+// Lets cracked/offline players choose any real premium player's
+// skin to display on the website (leaderboard, profile, tiertagger).
+// Purely cosmetic — does not change their IGN, UUID, or identity.
+CMDS.skin = {
+  data: new SlashCommandBuilder()
+    .setName('skin')
+    .setDescription('Choose which skin shows on your website profile (Cracked/offline accounts only)')
+    .addSubcommand(s=>s.setName('set').setDescription('Set your displayed skin to any real premium player\'s skin')
+      .addStringOption(o=>o.setName('username').setDescription('A premium Minecraft username to borrow the skin from').setRequired(true)))
+    .addSubcommand(s=>s.setName('clear').setDescription('Reset your displayed skin back to default'))
+    .addSubcommand(s=>s.setName('view').setDescription('View your current skin setting')),
+
+  async execute(i) {
+    const player = LDB.get(i.user.id);
+    if (!player)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ You must `/register` first.')] });
+
+    const sub = i.options.getSubcommand();
+
+    if (sub === 'view') {
+      const current = player.skinSource
+        ? `**${player.skinSource}**'s skin`
+        : `your own IGN (**${player.ign}**)`;
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+        .setDescription(`🖼️ Your website profile currently shows ${current}.`)
+        .setThumbnail(`https://mc-heads.net/avatar/${skinName(player)}/128`)] });
+    }
+
+    // set/clear are cosmetic-identity changes — restrict to Cracked accounts.
+    // Premium accounts already display their own real skin.
+    if (player.accountType !== 'Cracked (Free)')
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ `/skin` is only for **Cracked (Free)** accounts. Premium accounts already show their real skin.')] });
+
+    if (sub === 'clear') {
+      LDB.updateField(i.user.id, 'skinSource', null);
+      broadcast({ type:'player_updated', player: LDB.get(i.user.id) });
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+        .setDescription(`✅ Skin reset. Your website profile will now show the default skin for **${player.ign}**.`)] });
+    }
+
+    // sub === 'set'
+    const username = i.options.getString('username').trim();
+    if (!/^[a-zA-Z0-9_]+$/.test(username))
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Invalid username. Only letters, numbers, and underscores are allowed.')] });
+
+    await i.deferReply({ ephemeral:true });
+    const lookup = await lookupMojangName(username);
+
+    if (lookup.exists === false)
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ **${username}** isn't a real premium Minecraft account, so there's no skin to borrow.`)] });
+
+    // lookup.exists === true -> use Mojang's canonical capitalization
+    // lookup.exists === null -> Mojang lookup failed (down/rate-limited); proceed with what was typed
+    const finalName = lookup.exists === true ? lookup.name : username;
+
+    LDB.updateField(i.user.id, 'skinSource', finalName);
+    broadcast({ type:'player_updated', player: LDB.get(i.user.id) });
+
+    return i.editReply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+      .setTitle('✅ Skin Updated!')
+      .setDescription(`Your website profile will now show **${finalName}**'s skin.\nThis is cosmetic only — your IGN, UUID, and tiers are unchanged.`)
+      .setThumbnail(`https://mc-heads.net/avatar/${finalName}/128`)
+      .setFooter({ text: lookup.exists === null ? '⚠️ Could not verify against Mojang right now — showing anyway.' : BOT_FOOTER })] });
+  },
+};
+
+// ── /tier ─────────────────────────────────────────────────
+CMDS.tier = {
+  data: new SlashCommandBuilder()
+    .setName('tier')
+    .setDescription('Tier management (Tierer role required)')
+    .addSubcommand(s=>s.setName('set').setDescription("Set a player's tier")
+      .addUserOption(o=>o.setName('player').setDescription('Discord user').setRequired(true))
+      .addStringOption(o=>o.setName('weapon').setDescription('Weapon').setRequired(true)
+        .addChoices(...WEAPONS.map(w=>({name:w,value:w}))))
+      .addStringOption(o=>o.setName('tier').setDescription('Tier (LT3 or lower)').setRequired(true)
+        .addChoices(...['LT3','HT4','LT4','HT5','LT5'].map(t=>({name:t,value:t})))))
+    .addSubcommand(s=>s.setName('remove').setDescription("Remove a player's tier")
+      .addUserOption(o=>o.setName('player').setDescription('Discord user').setRequired(true))
+      .addStringOption(o=>o.setName('weapon').setDescription('Weapon').setRequired(true)
+        .addChoices(...WEAPONS.map(w=>({name:w,value:w})))))
+    .addSubcommand(s=>s.setName('view').setDescription('View all tiers for a player')
+      .addUserOption(o=>o.setName('player').setDescription('Discord user').setRequired(true)))
+    .addSubcommand(s=>s.setName('wipe').setDescription("Remove ALL tiers from a player")
+      .addUserOption(o=>o.setName('player').setDescription('Discord user').setRequired(true))),
+
+  async execute(i) {
+    const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasTierer = hasTiererPerm(i.member);
+    if (!isAdmin && !hasTierer)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ **Tierer** role required.')]});
+
+    const sub    = i.options.getSubcommand();
+    const target = i.options.getUser('player');
+    const weapon = i.options.getString('weapon');
+    const tier   = i.options.getString('tier');
+    const player = LDB.get(target.id);
+
+    if (sub !== 'view' && isBlacklisted(target.id)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('🚫 Player Blacklisted')
+        .setDescription(`**${target.username}** is blacklisted and cannot be tiered.${blacklistReason(target.id)}`)] });
+    }
+
+    if (sub==='view') {
+      if (!player) return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ **${target.username}** not registered.`)] });
+      const entries = Object.entries(player.tiers||{}).sort((a,b)=>(TIER_PTS[b[1]]||0)-(TIER_PTS[a[1]]||0));
+      const pts = entries.reduce((s,[,t])=>s+(TIER_PTS[t]||0),0);
+      return i.reply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+        .setTitle(`📋 Tiers — ${player.ign}`)
+        .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
+        .setDescription(entries.length
+          ? entries.map(([w,t])=>`${WEAPON_EMOJI[w]} **${w}** — ${getTierLabel(t)} \`${t}\``).join('\n')
+          : '*No tiers yet*')
+        .setFooter({ text:`Total: ${pts} pts` })] });
+    }
+
+    if (sub==='wipe') {
+      if (!i.member.permissions.has(PermissionFlagsBits.Administrator))
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription('❌ Only **Admin** can use `/tier wipe`.')] });
+      if (!player)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription(`❌ **${target.username}** is not registered.`)] });
+
+      const oldTiers = { ...(player.tiers || {}) };
+      const oldWeapons = Object.keys(oldTiers);
+      for (const weapon of oldWeapons) {
+        LDB.delTier(target.id, weapon);
+        await syncEmbed(i.client, player, weapon, 'REMOVED', i.user.id);
+      }
+
+      const db = rDB(PF);
+      if (db[target.id]) {
+        db[target.id].tiers = {};
+        db[target.id].retiredTiers = {};
+        wDB(PF, db);
+      }
+      if (MEM.players[target.id]) {
+        MEM.players[target.id].tiers = {};
+        MEM.players[target.id].retiredTiers = {};
+      }
+
+      const cdb = fs.existsSync(getCooldownFile()) ? rDB(getCooldownFile()) : {};
+      if (cdb[target.id]) {
+        delete cdb[target.id];
+        fs.writeFileSync(getCooldownFile(), JSON.stringify(cdb, null, 2));
+      }
+      delete MEM.cooldowns[target.id];
+
+      try {
+        const member = await i.guild.members.fetch(target.id).catch(()=>null);
+        if (member) {
+          for (const [weapon, tier] of Object.entries(oldTiers)) {
+            const roleId = getGamemodeRoleId(i.guild, weapon, tier);
+            if (roleId) {
+              const role = i.guild.roles.cache.get(roleId);
+              if (role) await member.roles.remove(role).catch(()=>{});
+            }
+          }
+        }
+      } catch(_) {}
+
+      broadcast({ type:'player_updated', player:LDB.get(target.id) });
+      broadcast({ type:'testers_updated' });
+
+      return i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('🧹 Tier Wipe Complete')
+        .setDescription(`All EclipseTiers tiers, retirement flags, and tier cooldowns were removed from **${player.ign}**.`)
+        .addFields({ name:'🗑️ Removed', value: oldWeapons.length ? oldWeapons.join(', ') : 'No tiers', inline:false })
+        .setFooter({ text: BOT_FOOTER }).setTimestamp()] });
+    }
+
+    if (sub==='set') {
+      if (!player) return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ **${target.username}** must register first with \`/register\`.`)] });
+      const oldTier = player.tiers?.[weapon];
+      LDB.setTier(target.id, weapon, tier);
+      // Set cooldown (with tier info for LT3 = 1 week logic)
+      saveCooldown(target.id, weapon, tier);
+      // Log the tier action
+      saveTierLog({
+        tieredBy:     i.user.id,
+        tieredByTag:  i.user.username,
+        playerId:     target.id,
+        playerIGN:    player.ign,
+        weapon,
+        tier,
+        oldTier:      oldTier || null,
+        timestamp:    Date.now(),
+      });
+      broadcast({ type:'tier_updated', discordId:target.id, ign:player.ign, weapon, tier, oldTier });
+      broadcast({ type:'testers_updated' });
+
+      // Auto assign Discord role
+      try {
+        const guild  = i.guild;
+        const member = await guild.members.fetch(target.id).catch(()=>null);
+        if (member) {
+          await assignTierRole(guild, member, weapon, tier, oldTier);
+          // Remove Waitlist-<weapon> role during cooldown
+          const wlRole = guild.roles.cache.find(r => r.name === `Waitlist-${weapon}`);
+          if (wlRole && member.roles.cache.has(wlRole.id)) {
+            await member.roles.remove(wlRole).catch(() => {});
+          }
+        }
+      } catch(_) {}
+
+      // Ephemeral ack — only the tester will see this, so a "used /tier set"
+      // indicator will not be visible to anyone else (ephemeral replies are shown only to the invoker).
+      await i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+        .setDescription(`✅ **${player.ign}**'s ${weapon} tier set to **${getTierLabel(tier)}** \`${tier}\`.`)] });
+
+      const tierUpdateEmbed = new EmbedBuilder()
+        .setColor(TIER_COLOR[tier] || BRAND_COLOR)
+        .setTitle(`${player.ign}'s Tier Update 🏆`)
+        .setThumbnail(`https://mc-heads.net/head/${player.ign}/128`)
+        .addFields(
+          { name:'Tester',             value:`<@${i.user.id}>`,                         inline:false },
+          { name:'Minecraft Username', value:`${player.ign}`,                           inline:false },
+          { name:'Game Mode',          value:`${weapon.toUpperCase()}`,                 inline:false },
+          { name:'Previous Rank',      value: oldTier ? getTierLabel(oldTier) : 'Unranked', inline:false },
+          { name:'Rank Earned',        value: getTierLabel(tier),                       inline:false },
+          { name:'Region',             value: formatRegion(player.region),              inline:false },
+        )
+        .setTimestamp();
+
+      // Public message posted as a normal message (not an interaction reply) —
+      // this mentions the player and does not show the "used /tier set" text.
+      let publicMsg = null;
+      try {
+        publicMsg = await i.channel.send({ content:`<@${target.id}>`, embeds:[tierUpdateEmbed] });
+      } catch (_) {}
+      if (publicMsg) await autoReact(publicMsg);
+
+      await syncEmbed(i.client, player, weapon, tier, i.user.id);
+
+      // DM player
+      try {
+        const cdDays = getCooldownDays(tier);
+        await target.send({ embeds:[new EmbedBuilder().setColor(TIER_COLOR[tier]||BRAND_COLOR)
+          .setTitle(`${WEAPON_EMOJI[weapon]} Your ${weapon} tier has been ${oldTier?'updated':'assigned'}!`)
+          .setDescription(`**${getTierLabel(tier)}** (\`${tier}\`) · +${TIER_PTS[tier]} pts\n\n⏳ You can join the **${weapon}** queue after **${cdDays} days**.`)
+          .setFooter({ text:BOT_FOOTER })] });
+      } catch(_) {}
+      return;
+    }
+
+    if (sub==='remove') {
+      if (!player||!player.tiers?.[weapon])
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+          .setDescription(`⚠️ **${player?.ign||target.username}** does not have a ${weapon} tier.`)] });
+      const removed = player.tiers[weapon];
+      LDB.delTier(target.id, weapon);
+      broadcast({ type:'tier_removed', discordId:target.id, ign:player.ign, weapon });
+
+      // Remove Discord role
+      try {
+        const guild  = i.guild;
+        const member = await guild.members.fetch(target.id).catch(()=>null);
+        if (member) {
+          const roleId = getGamemodeRoleId(guild, weapon, removed);
+          if (roleId) {
+            const role = guild.roles.cache.get(roleId);
+            if (role) await member.roles.remove(role).catch(()=>{});
+          }
+        }
+      } catch(_) {}
+
+      await i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444).setTitle('🗑️ Tier Removed')
+        .addFields(
+          { name:'Player',       value:`**${player.ign}** (<@${target.id}>)`, inline:true },
+          { name:'Weapon',       value:`${WEAPON_EMOJI[weapon]} ${weapon}`,   inline:true },
+          { name:'Removed Tier', value:`\`${removed}\``,                      inline:true },
+          { name:'Removed By',   value:`<@${i.user.id}>`,                     inline:true },
+        ).setTimestamp()] });
+      await syncEmbed(i.client, player, weapon, 'REMOVED', i.user.id);
+    }
+  },
+};
+
+// ── /submitresult ─────────────────────────────────────────
+// Usage: /submitresult player:@user tier:HT3 result:Passed gamemode:Sword
+//        region:PK rounds:3 opponent1:@x opponent2:@y opponent3:@z
+CMDS.submitresult = {
+  data: new SlashCommandBuilder()
+    .setName('submitresult')
+    .setDescription('Submit a tier test result (Tierer role required)')
+    .addUserOption(o => o.setName('player').setDescription('Player who was tested').setRequired(true))
+    .addStringOption(o => o.setName('tier').setDescription('Tier tested for').setRequired(true)
+      .addChoices(
+        { name: 'HT3', value: 'HT3' },
+        { name: 'LT2', value: 'LT2' },
+        { name: 'HT2', value: 'HT2' },
+        { name: 'LT1', value: 'LT1' },
+        { name: 'HT1', value: 'HT1' },
+      ))
+    .addStringOption(o => o.setName('result').setDescription('Test result').setRequired(true)
+      .addChoices(
+        { name: 'Passed', value: 'Passed' },
+        { name: 'Failed', value: 'Failed' },
+      ))
+    .addStringOption(o => o.setName('gamemode').setDescription('Gamemode').setRequired(true)
+      .addChoices(...WEAPONS.map(w => ({ name: `${WEAPON_EMOJI[w]} ${w}`, value: w }))))
+    .addStringOption(o => o.setName('region').setDescription('Region').setRequired(true)
+      .addChoices(
+        { name: 'PK',    value: 'PK'    },
+        { name: 'AS/AU', value: 'AS/AU' },
+        { name: 'EU',    value: 'EU'    },
+        { name: 'NA',    value: 'NA'    },
+        { name: 'SA',    value: 'SA'    },
+      ))
+    .addIntegerOption(o => o.setName('rounds').setDescription('How many rounds were played').setRequired(true)
+      .addChoices(
+        { name: '1', value: 1 },
+        { name: '2', value: 2 },
+        { name: '3', value: 3 },
+        { name: '4', value: 4 },
+        { name: '5', value: 5 },
+      ))
+    .addUserOption(o => o.setName('opponent1').setDescription('Opponent for round 1').setRequired(true))
+    .addIntegerOption(o => o.setName('score1').setDescription('Your score in round 1 (0-10)').setRequired(true).setMinValue(0).setMaxValue(10))
+    .addIntegerOption(o => o.setName('oppscore1').setDescription("Opponent's score in round 1 (0-10)").setRequired(true).setMinValue(0).setMaxValue(10))
+    .addUserOption(o => o.setName('opponent2').setDescription('Opponent for round 2 (if rounds ≥ 2)').setRequired(false))
+    .addIntegerOption(o => o.setName('score2').setDescription('Your score in round 2 (0-10)').setRequired(false).setMinValue(0).setMaxValue(10))
+    .addIntegerOption(o => o.setName('oppscore2').setDescription("Opponent's score in round 2 (0-10)").setRequired(false).setMinValue(0).setMaxValue(10))
+    .addUserOption(o => o.setName('opponent3').setDescription('Opponent for round 3 (if rounds ≥ 3)').setRequired(false))
+    .addIntegerOption(o => o.setName('score3').setDescription('Your score in round 3 (0-10)').setRequired(false).setMinValue(0).setMaxValue(10))
+    .addIntegerOption(o => o.setName('oppscore3').setDescription("Opponent's score in round 3 (0-10)").setRequired(false).setMinValue(0).setMaxValue(10))
+    .addUserOption(o => o.setName('opponent4').setDescription('Opponent for round 4 (if rounds ≥ 4)').setRequired(false))
+    .addIntegerOption(o => o.setName('score4').setDescription('Your score in round 4 (0-10)').setRequired(false).setMinValue(0).setMaxValue(10))
+    .addIntegerOption(o => o.setName('oppscore4').setDescription("Opponent's score in round 4 (0-10)").setRequired(false).setMinValue(0).setMaxValue(10))
+    .addUserOption(o => o.setName('opponent5').setDescription('Opponent for round 5 (if rounds ≥ 5)').setRequired(false))
+    .addIntegerOption(o => o.setName('score5').setDescription('Your score in round 5 (0-10)').setRequired(false).setMinValue(0).setMaxValue(10))
+    .addIntegerOption(o => o.setName('oppscore5').setDescription("Opponent's score in round 5 (0-10)").setRequired(false).setMinValue(0).setMaxValue(10)),
+
+  async execute(i) {
+    const isAdmin       = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasHighTierer = hasHighTiererPerm(i.member);
+    if (!isAdmin && !hasHighTierer)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ **HighTierer** permission required. Ask an admin to grant it with `/hightierer add`.')]});
+
+    const target   = i.options.getUser('player');
+    const tier     = i.options.getString('tier');
+    const result   = i.options.getString('result');
+    const weapon   = i.options.getString('gamemode');
+    const region   = i.options.getString('region');
+    const rounds   = i.options.getInteger('rounds');
+
+    const roundData = [1,2,3,4,5].slice(0, rounds).map(n => ({
+      opponent: i.options.getUser(`opponent${n}`),
+      score:    i.options.getInteger(`score${n}`),
+      oppScore: i.options.getInteger(`oppscore${n}`),
+    }));
+
+    // ── Validate every active round has an opponent + both scores ──
+    const incomplete = roundData.some(r => !r.opponent || r.score === null || r.oppScore === null);
+    if (incomplete)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ You selected **${rounds}** round(s) but a round is missing an opponent or score. Every active round needs \`opponentN\`, \`scoreN\`, and \`oppscoreN\`.`)] });
+
+    const player = LDB.get(target.id);
+    if (!player)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ **${target.username}** must register first with \`/register\`.`)] });
+    if (isBlacklisted(target.id))
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('🚫 Player Blacklisted')
+        .setDescription(`**${target.username}** is blacklisted and cannot receive a tier test result.${blacklistReason(target.id)}`)] });
+
+    const emoji     = WEAPON_EMOJI[weapon] || '<:sword:1517752855577104474>';
+    const oldTier   = player.tiers?.[weapon];
+    const passed    = result === 'Passed';
+
+    // ── If passed, apply the tier same as /tier set ────────
+    if (passed) {
+      LDB.setTier(target.id, weapon, tier);
+      saveCooldown(target.id, weapon, tier);
+      saveTierLog({
+        tieredBy:     i.user.id,
+        tieredByTag:  i.user.username,
+        playerId:     target.id,
+        playerIGN:    player.ign,
+        weapon,
+        tier,
+        oldTier:      oldTier || null,
+        timestamp:    Date.now(),
+      });
+      broadcast({ type:'tier_updated', discordId:target.id, ign:player.ign, weapon, tier, oldTier });
+      broadcast({ type:'testers_updated' });
+
+      try {
+        const guild  = i.guild;
+        const member = await guild.members.fetch(target.id).catch(()=>null);
+        if (member) {
+          await assignTierRole(guild, member, weapon, tier, oldTier);
+          const wlRole = guild.roles.cache.find(r => r.name === `Waitlist-${weapon}`);
+          if (wlRole && member.roles.cache.has(wlRole.id)) {
+            await member.roles.remove(wlRole).catch(() => {});
+          }
+        }
+      } catch(_) {}
+
+      await syncEmbed(i.client, player, weapon, tier, i.user.id);
+    }
+
+    // ── Build the fights list: "Round N vs @opp  Score X-Y won/lose" ──
+    const fightLines = roundData
+      .map((r, idx) => {
+        const outcome = r.score > r.oppScore ? 'won' : r.score < r.oppScore ? 'lose' : 'tied';
+        return `> Round ${idx + 1} vs <@${r.opponent.id}>  Score ${r.score}-${r.oppScore} ${outcome}`;
+      })
+      .join('\n');
+
+    // ── Ephemeral ack to the tierer ────────────────────────
+    await i.reply({ ephemeral:true, content:`✅ Result submitted for **${player.ign}** — **${result}** their **${tier}** test.` });
+
+    // ── Public announcement — plain message, not an embed ──
+    const resultLine =
+      `<@${target.id}> - **${player.ign}** - Has **${result.toUpperCase()}** Their **${tier}** Test - ${emoji} - **${region}**\n\n` +
+      `**${tier} FIGHTS (${rounds} Round${rounds > 1 ? 's' : ''})**\n${fightLines}\n\n` +
+      `*Tested by ${i.user.username} · ${BOT_FOOTER}*`;
+
+    let publicMsg = null;
+    try {
+      publicMsg = await i.channel.send({ content: resultLine });
+    } catch(_) {}
+    if (publicMsg) await autoReact(publicMsg);
+  },
+};
+// ════════════════════════════════════════════════════════════
+//  /blacklist + /unblacklist
+// ════════════════════════════════════════════════════════════
+CMDS.blacklist = {
+  data: new SlashCommandBuilder()
+    .setName('blacklist')
+    .setDescription('Blacklist a member from EclipseTiers queue/testing/profile actions (Admin only)')
+    .addUserOption(o=>o.setName('player').setDescription('Member to blacklist').setRequired(true))
+    .addStringOption(o=>o.setName('duration').setDescription('How long the blacklist lasts').setRequired(true)
+      .addChoices(
+        { name:'1 Hour', value:'1h' }, { name:'6 Hours', value:'6h' }, { name:'12 Hours', value:'12h' },
+        { name:'1 Day', value:'1d' }, { name:'3 Days', value:'3d' }, { name:'7 Days', value:'7d' },
+        { name:'14 Days', value:'14d' }, { name:'30 Days', value:'30d' }, { name:'Permanent', value:'Permanent' },
+      ))
+    .addStringOption(o=>o.setName('reason').setDescription('Reason for blacklist').setRequired(false)),
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator))
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Only **Admin** can use this command.')] });
+
+    const target = i.options.getUser('player');
+    const duration = i.options.getString('duration') || 'Permanent';
+    const reason = i.options.getString('reason') || 'No reason provided';
+
+    setBlacklisted(target.id, i.user.id, reason, duration);
+    try { LDB.leaveAllQ(target.id); } catch(_) {}
+    for (const w of WEAPONS) refreshSQPanel(i.client, w).catch(()=>{});
+
+    const entry = getBlacklistEntry(target.id);
+    return i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setTitle('🚫 Player Blacklisted')
+      .setDescription(`**${target.tag}** is now blacklisted from EclipseTiers queue/testing/profile actions.\n\n**Duration:** ${duration}\n**Reason:** ${reason}${entry?.expiresAt ? `\n**Expires:** <t:${Math.floor(entry.expiresAt / 1000)}:F> (<t:${Math.floor(entry.expiresAt / 1000)}:R>)` : ''}${duration === 'Permanent' ? '\n\nUse \`/unblacklist\` to remove the blacklist.' : ''}`)
+      .setFooter({ text: BOT_FOOTER }).setTimestamp()] });
+  },
+};
+
+CMDS.unblacklist = {
+  data: new SlashCommandBuilder()
+    .setName('unblacklist')
+    .setDescription('Remove a EclipseTiers blacklist (Admin only)')
+    .addUserOption(o=>o.setName('player').setDescription('Member to unblacklist').setRequired(true)),
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator))
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Only **Admin** can use this command.')] });
+
+    const target = i.options.getUser('player');
+    if (!isBlacklisted(target.id))
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription(`⚠️ **${target.tag}** is not blacklisted.`)] });
+
+    clearBlacklisted(target.id);
+    return i.reply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+      .setTitle('✅ Player Unblacklisted')
+      .setDescription(`**${target.tag}** can use EclipseTiers queue/testing/profile actions again.`)
+      .setFooter({ text: BOT_FOOTER }).setTimestamp()] });
+  },
+};
+
+// ════════════════════════════════════════════════════════════
+//  /ban — Discord server ban
+// ════════════════════════════════════════════════════════════
+CMDS.ban = {
+  data: new SlashCommandBuilder()
+    .setName('ban')
+    .setDescription('Ban a member from the Discord server (Admin only)')
+    .addUserOption(o=>o.setName('player').setDescription('Member to ban').setRequired(true))
+    .addStringOption(o=>o.setName('reason').setDescription('Ban reason').setRequired(false)),
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator))
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Only **Admin** can use this command.')] });
+
+    const target = i.options.getUser('player');
+    const reason = i.options.getString('reason') || 'EclipseTiers moderation';
+    if (target.id === i.user.id)
+      return i.reply({ ephemeral:true, content:'❌ You cannot ban yourself.' });
+
+    await i.deferReply({ ephemeral:true });
+    try {
+      await i.guild.members.ban(target.id, { reason, deleteMessageSeconds: 0 });
+    } catch(err) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('❌ Ban Failed')
+        .setDescription(`Could not ban **${target.tag}**.\n\`${err.message}\``)
+        .setFooter({ text: BOT_FOOTER })] });
+    }
+
+    return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setTitle('🔨 Discord Ban Applied')
+      .setDescription(`**${target.tag}** has been banned from the Discord server.\n\n**Reason:** ${reason}`)
+      .setFooter({ text: BOT_FOOTER }).setTimestamp()] });
+  },
+};
+
+// ════════════════════════════════════════════════════════════
+//  /retire — keep the tier but mark it retired as RHt/RLt style
+// ════════════════════════════════════════════════════════════
+CMDS.retire = {
+  data: new SlashCommandBuilder()
+    .setName('retire')
+    .setDescription("Retire a player's HT1/LT1/HT2/LT2 gamemode tier (Admin/Tierer)")
+    .addUserOption(o=>o.setName('player').setDescription('Player to retire').setRequired(true))
+    .addStringOption(o=>o.setName('gamemode').setDescription('Gamemode to retire').setRequired(true)
+      .addChoices(...WEAPONS.map(w=>({name:`${WEAPON_EMOJI[w]} ${w}`,value:w})))),
+  async execute(i) {
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasTierer = hasTiererPerm(i.member);
+    if (!isAdmin && !hasTierer)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ **Tierer** permission required.')] });
+
+    const target = i.options.getUser('player');
+    const weapon = i.options.getString('gamemode');
+    const player = LDB.get(target.id);
+    if (!player)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ **${target.username}** is not registered.`)] });
+
+    const tier = player.tiers?.[weapon];
+    if (!tier)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription(`⚠️ **${player.ign}** has no **${weapon}** tier.`)] });
+    if (!isRetirableTier(tier))
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Only **HT1, LT1, HT2, or LT2** can be retired. Current **${weapon}** tier is **${tier}**.`)] });
+    if (player.retiredTiers?.[weapon])
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription(`⚠️ **${player.ign}** is already retired in **${weapon}** as **${formatRetiredTier(tier)}**.`)] });
+
+    const db = rDB(PF);
+    db[target.id].retiredTiers = { ...(db[target.id].retiredTiers || {}), [weapon]: tier };
+    wDB(PF, db);
+    if (!player.retiredTiers) player.retiredTiers = {};
+    player.retiredTiers[weapon] = tier;
+    MEM.players[target.id] = player;
+
+    broadcast({ type:'player_updated', player });
+    broadcast({ type:'testers_updated' });
+
+    return i.reply({ embeds:[new EmbedBuilder().setColor(TIER_COLOR[tier] || BRAND_COLOR)
+      .setTitle('🏅 Gamemode Retired')
+      .setDescription(`**${player.ign}** is now shown as **${formatRetiredTier(tier)}** for **${weapon}** on EclipseTiers bot/API profiles.`)
+      .addFields(
+        { name:'⚔️ Gamemode', value:weapon, inline:true },
+        { name:'🏆 Previous Tier', value:tier, inline:true },
+        { name:'📌 Displayed Tier', value:formatRetiredTier(tier), inline:true },
+      )
+      .setFooter({ text:BOT_FOOTER }).setTimestamp()] });
+  },
+};
+
+// ════════════════════════════════════════════════════════════
+//  /migrate — import tiers by the player's Minecraft username
+//  Sources supported: MCTiers and PvPTiers public profile APIs.
+// ════════════════════════════════════════════════════════════
+const MIGRATE_MODE_ALIASES = {
+  mace:'Mace', crystal:'Crystal', sword:'Sword', axe:'Axe',
+  netherite:'Netherite', neth_pot:'Netherite', netheritepot:'Netherite', nethop:'Netherite',
+  uhc:'UHC', pot:'Pot', smp:'SMP', diasmp:'DiaSMP', spearmace:'SpearMace',
+  vanilla:'Vanilla'
+};
+const KNOWN_MIGRATE_TIERS = new Set(TIERS);
+
+function normalizeExternalMode(key) {
+  return MIGRATE_MODE_ALIASES[String(key || '').toLowerCase()] || null;
+}
+function looksLikeTier(v) {
+  return typeof v === 'string' && /^(?:H|L)T[1-5]$/i.test(v.trim());
+}
+function collectExternalRankings(payload) {
+  const found = {};
+  const walk = (node, depth = 0) => {
+    if (!node || typeof node !== 'object' || depth > 8) return;
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item, depth + 1);
+      return;
+    }
+    for (const [k, v] of Object.entries(node)) {
+      const mode = normalizeExternalMode(k);
+      if (mode && v && typeof v === 'object') {
+        let tier = v.tier || v.rank || v.tierName || v.displayTier;
+        if (!looksLikeTier(tier) && Number.isInteger(Number(v.tier)) && Number.isInteger(Number(v.pos))) {
+          const n = Number(v.tier), pos = Number(v.pos);
+          if (n >= 1 && n <= 5 && (pos === 1 || pos === 2)) tier = `${pos === 1 ? 'HT' : 'LT'}${n}`;
+        }
+        if (looksLikeTier(tier) && !found[mode]) {
+          found[mode] = { tier:String(tier).toUpperCase(), retired:Boolean(v.retired) || /^R/i.test(String(tier)) };
+        }
+      }
+      if (mode && looksLikeTier(v)) {
+        found[mode] = { tier:String(v).toUpperCase(), retired:false };
+      }
+      walk(v, depth + 1);
+    }
+  };
+  walk(payload);
+  // Some providers wrap the actual player in profile.players[0].
+  if (payload?.profile?.players?.[0]) walk(payload.profile.players[0], 0);
+  if (payload?.players?.[0]) walk(payload.players[0], 0);
+  return found;
+}
+async function fetchJsonWithTimeout(url, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent':'EclipseTiers-Tier-Migration/1.0', 'Accept':'application/json' },
+      signal: controller.signal
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    try { return JSON.parse(text); }
+    catch(_) { throw new Error('Response was not valid JSON'); }
+  } finally {
+    clearTimeout(timer);
+  }
+}
+async function fetchExternalPlayer(source, ign) {
+  const encoded = encodeURIComponent(ign);
+  if (source === 'mctiers') {
+    return fetchJsonWithTimeout(`https://mctiers.com/api/v2/profile/by-name/${encoded}`);
+  }
+  return fetchJsonWithTimeout(`https://pvptiers.com/api/search_profile/${encodeURIComponent(ign.toLowerCase())}`);
+}
+
+CMDS.migrate = {
+  data: new SlashCommandBuilder()
+    .setName('migrate')
+    .setDescription('Import tiers into EclipseTiers from MCTiers or PvPTiers using the registered IGN')
+    .addUserOption(o=>o.setName('player').setDescription('EclipseTiers player to update').setRequired(true))
+    .addStringOption(o=>o.setName('source').setDescription('Source tierlist').setRequired(true)
+      .addChoices(
+        { name:'MCTiers', value:'mctiers' },
+        { name:'PvPTiers', value:'pvptiers' },
+      ))
+    .addStringOption(o=>o.setName('gamemode').setDescription('Optional: migrate only one gamemode').setRequired(false)
+      .addChoices(...WEAPONS.map(w=>({name:`${WEAPON_EMOJI[w]} ${w}`,value:w})))),
+  async execute(i) {
+    if (!i.member.permissions.has(PermissionFlagsBits.Administrator))
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Only **Admin** can use this command.')] });
+
+    const target = i.options.getUser('player');
+    const source = i.options.getString('source');
+    const modeFilter = i.options.getString('gamemode');
+    const player = LDB.get(target.id);
+    if (!player)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ **${target.username}** must register first with \`/register\`.`)] });
+    if (isBlacklisted(target.id))
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ **${target.username}** is blacklisted and cannot be migrated until unblacklisted.`)] });
+
+    await i.deferReply({ ephemeral:true });
+    let payload;
+    try {
+      payload = await fetchExternalPlayer(source, player.ign);
+    } catch(err) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('❌ Migration Failed')
+        .setDescription(`Could not fetch **${player.ign}** from **${source}**.\n\`${err.message}\``)
+        .setFooter({ text: BOT_FOOTER })] });
+    }
+
+    const rankings = collectExternalRankings(payload);
+    const selected = modeFilter ? { [modeFilter]: rankings[modeFilter] } : rankings;
+    const imported = [];
+    const skipped = [];
+    const retiredImported = [];
+
+    for (const [weapon, rec] of Object.entries(selected)) {
+      if (!rec?.tier || !KNOWN_MIGRATE_TIERS.has(rec.tier)) continue;
+      if (!WEAPONS.includes(weapon)) {
+        skipped.push(`${weapon}: unsupported`);
+        continue;
+      }
+      const oldTier = player.tiers?.[weapon] || null;
+      LDB.setTier(target.id, weapon, rec.tier);
+      if (rec.retired && isRetirableTier(rec.tier)) {
+        const db = rDB(PF);
+        db[target.id].retiredTiers = { ...(db[target.id].retiredTiers || {}), [weapon]: rec.tier };
+        wDB(PF, db);
+        if (!player.retiredTiers) player.retiredTiers = {};
+        player.retiredTiers[weapon] = rec.tier;
+        retiredImported.push(`${weapon} → ${formatRetiredTier(rec.tier)}`);
+      } else if (player.retiredTiers?.[weapon] && !rec.retired) {
+        delete player.retiredTiers[weapon];
+        const db = rDB(PF);
+        db[target.id].retiredTiers = { ...(db[target.id].retiredTiers || {}) };
+        delete db[target.id].retiredTiers[weapon];
+        wDB(PF, db);
+      }
+      imported.push(`${weapon}: ${oldTier ? `${oldTier} → ` : ''}${rec.tier}`);
+      await syncEmbed(i.client, player, weapon, rec.tier, i.user.id);
+      try {
+        const member = await i.guild.members.fetch(target.id).catch(()=>null);
+        if (member) await assignTierRole(i.guild, member, weapon, rec.tier, oldTier);
+      } catch(_) {}
+    }
+
+    MEM.players[target.id] = LDB.get(target.id);
+    broadcast({ type:'player_updated', player:MEM.players[target.id] });
+    broadcast({ type:'testers_updated' });
+
+    return i.editReply({ embeds:[new EmbedBuilder().setColor(imported.length ? 0x00C864 : 0xFF9933)
+      .setTitle(imported.length ? '✅ Tier Migration Complete' : '⚠️ No Supported Tiers Found')
+      .setDescription(imported.length
+        ? `Imported **${imported.length}** tier${imported.length === 1 ? '' : 's'} for **${player.ign}** from **${source}** using the player's registered Minecraft username.`
+        : `No HT/LT tier data was found for **${player.ign}** on **${source}**.`)
+      .addFields(
+        ...(imported.length ? [{ name:'📥 Imported', value:imported.slice(0,25).join('\\n'), inline:false }] : []),
+        ...(retiredImported.length ? [{ name:'🏅 Retired', value:retiredImported.slice(0,25).join('\\n'), inline:false }] : []),
+        ...(skipped.length ? [{ name:'⏭️ Skipped', value:skipped.slice(0,25).join('\\n'), inline:false }] : []),
+      )
+      .setFooter({ text: `${BOT_FOOTER} · ${source}` }).setTimestamp()] });
+  },
+};
+
+// NOTE: 'join' and 'leave' subcommands were removed — players now
+// join/leave queues via the panel buttons (wl_join/wl_leave, sq_join/sq_leave).
+CMDS.queue = {
+  data: new SlashCommandBuilder()
+    .setName('queue')
+    .setDescription('Queue commands for matchmaking')
+    .addSubcommand(s=>s.setName('status').setDescription('View queue status')),
+
+  async execute(i) {
+    const sub = i.options.getSubcommand();
+
+    if (sub==='status') {
+      const queues=LDB.allQ(), all=LDB.all();
+      const fields=WEAPONS.map(w=>{
+        const q=queues[w]||[];
+        return { name:`${WEAPON_EMOJI[w]} ${w} — ${q.length}/2`,
+          value:q.length ? q.map((e,idx)=>`${idx+1}. **${all[e.discordId]?.ign||e.ign||'Unknown'}** (<@${e.discordId}>)`).join('\n') : '*Empty*',
+          inline:false };
+      });
+      return i.reply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+        .setTitle('🏆 Queue Status')
+        .setDescription(`**${WEAPONS.reduce((s,w)=>s+(queues[w]?.length||0),0)}** players in queue`)
+        .addFields(fields).setFooter({text:BOT_FOOTER}).setTimestamp()] });
+    }
+
+  },
+};
+
+// ── /leaderboard ──────────────────────────────────────────
+CMDS.leaderboard = {
+  data: new SlashCommandBuilder()
+    .setName('leaderboard')
+    .setDescription('View the EclipseTiers leaderboard')
+    .addStringOption(o=>o.setName('weapon').setDescription('Weapon filter').setRequired(false)
+      .addChoices({name:'🏆 All Weapons',value:'all'},...WEAPONS.map(w=>({name:`${WEAPON_EMOJI[w]} ${w}`,value:w})))),
+  async execute(i) {
+    await i.deferReply();
+    const weapon = i.options.getString('weapon')||'all';
+    let ranked = Object.values(LDB.all()).filter(p=>Object.keys(p.tiers||{}).length>0);
+    if (weapon!=='all') {
+      ranked=ranked.filter(p=>p.tiers?.[weapon])
+        .sort((a,b)=>(TIER_PTS[b.tiers[weapon]]||0)-(TIER_PTS[a.tiers[weapon]]||0));
+    } else {
+      ranked.sort((a,b)=>{
+        const pa=Object.values(a.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
+        const pb=Object.values(b.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
+        return pb-pa;
+      });
+    }
+    if (!ranked.length) return i.editReply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+      .setDescription('No ranked players yet!')] });
+    const medals=['🥇','🥈','🥉'];
+    const rows=ranked.slice(0,10).map((p,idx)=>{
+      const medal=medals[idx]||`**${idx+1}.**`;
+      if (weapon==='all') {
+        const pts=Object.values(p.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
+        const rk=getRankTitle(pts);
+        return`${medal} **${p.ign}** · ${Object.keys(p.tiers||{}).map(w=>WEAPON_EMOJI[w]).join('')}\n   ${rk.emoji} ${rk.label} · **${pts} pts**`;
+      }
+      return`${medal} **${p.ign}** · \`${p.tiers[weapon]}\` · ${TIER_PTS[p.tiers[weapon]]||0} pts`;
+    });
+    await i.editReply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+      .setTitle(weapon==='all' ? '🏆 EclipseTiers — Overall Leaderboard' : `${WEAPON_EMOJI[weapon]} EclipseTiers — ${weapon} Leaderboard`)
+      .setDescription(rows.join('\n\n'))
+      .addFields(
+        { name:'Total Ranked', value:`**${ranked.length}** players`, inline:true },
+        { name:'Season',       value:'**S1**',                       inline:true },
+      ).setFooter({ text:BOT_FOOTER }).setTimestamp()] });
+  },
+};
+
+// ── /help ─────────────────────────────────────────────────
+CMDS.help = {
+  data: new SlashCommandBuilder().setName('help').setDescription('View all EclipseTiers commands'),
+  async execute(i) {
+    await i.reply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+      .setTitle('🏆 EclipseTiers Bot — Commands')
+      .setDescription("A global Minecraft Java PvP ranking system 🌍")
+      .addFields(
+        { name:'👤 Player',   value:'`/register` · `/profile [user]` · `/leaderboard [weapon]` · `/skin set/clear/view` *(Cracked accounts)*' },
+        { name:'⚔️ Queue',   value:'Queue panel · `/queue status`' },
+        { name:'🛡️ Tierer',  value:'`/tier set` · `/tier remove` · `/tier view` *(Tierer role required)*' },
+        { name:'📊 Tiers',   value:'`HT1 > LT1 > HT2 > LT2 > HT3 > LT3 > HT4 > LT4 > HT5 > LT5`' },
+        { name:'⏳ Cooldown', value:`After receiving a tier, that gamemode's queue stays closed for **${CONFIG.TIER_COOLDOWN_DAYS} days**` },
+        { name:'🎫 Tickets',  value:'A ticket is automatically created when someone joins the queue so staff are notified' },
+        { name:'🖥️ Platform', value:'Java Edition only' },
+      ).setFooter({ text:BOT_FOOTER })] });
+  },
+};
+
+// ── /closeticket ──────────────────────────────────────────
+CMDS.closeticket = {
+  data: new SlashCommandBuilder()
+    .setName('closeticket')
+    .setDescription("Close a player's queue ticket (Staff only)")
+    .addUserOption(o=>o.setName('player').setDescription("Player whose ticket should be closed").setRequired(true)),
+  async execute(i) {
+    const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasStaff  = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
+    const hasTierer = hasTiererPerm(i.member);
+    if (!isAdmin && !hasStaff && !hasTierer)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Staff or Tierer role required.')]});
+    const target = i.options.getUser('player');
+    const closed = await closeTicket(i.client, i.guild, target.id, i.user.id);
+    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder()
+      .setColor(closed ? 0x00C864 : 0xFF9933)
+      .setDescription(closed ? `✅ **${target.username}**'s ticket has been closed.` : `⚠️ **${target.username}** has no open ticket.`)] });
+  },
+};
+
+
+// ── /syncroles ─────────────────────────────────────────────
+CMDS.syncroles = {
+  data: new SlashCommandBuilder()
+    .setName('syncroles')
+    .setDescription('Sync Discord roles for all players based on their tiers (Admin/Tierer only)'),
+
+  async execute(i) {
+    const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasTierer = hasTiererPerm(i.member);
+    if (!isAdmin && !hasTierer)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Admin or Tierer role required.')] });
+
+    await i.deferReply({ ephemeral:true });
+
+    const allPlayers = LDB.all();
+    const playerList = Object.values(allPlayers).filter(p => Object.keys(p.tiers||{}).length > 0);
+
+    if (!playerList.length)
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription('⚠️ No tiered players found.')] });
+
+    let success = 0, failed = 0, skipped = 0;
+    const errors = [];
+
+    for (const player of playerList) {
+      try {
+        const member = await i.guild.members.fetch(player.discordId).catch(() => null);
+        if (!member) { skipped++; continue; }
+
+        for (const [weapon, tier] of Object.entries(player.tiers || {})) {
+          const role = await ensureRole(i.guild, weapon, tier);
+          if (role) {
+            await member.roles.add(role).catch(() => {});
+          }
+        }
+        success++;
+      } catch(err) {
+        failed++;
+        errors.push(`${player.ign}: ${err.message}`);
+      }
+      // Rate limit friendly
+      await new Promise(r => setTimeout(r, 200));
+    }
+
+    return i.editReply({ embeds:[new EmbedBuilder()
+      .setColor(BRAND_COLOR)
+      .setTitle('✅ Role Sync Complete')
+      .addFields(
+        { name:'✅ Synced',  value:`**${success}** players`, inline:true },
+        { name:'⏭️ Skipped', value:`**${skipped}** (left server)`, inline:true },
+        { name:'❌ Failed',  value:`**${failed}** players`, inline:true },
+        errors.length
+          ? { name:'⚠️ Errors', value:errors.slice(0,5).join('\n'), inline:false }
+          : { name:'​', value:'​', inline:false },
+      )
+      .setDescription(`Roles have been assigned to all registered players according to their tiers.`)
+      .setFooter({ text:BOT_FOOTER })
+      .setTimestamp()] });
+  },
+};
+
+
+// ── /backfilluuids ────────────────────────────────────────
+// Manually re-runs the uuid/verified backfill for any registered
+// player whose record predates uuid tracking, without needing a
+// bot restart. Admin/Tierer only.
+CMDS.backfilluuids = {
+  data: new SlashCommandBuilder()
+    .setName('backfilluuids')
+    .setDescription('Backfill missing UUIDs for players registered before UUID tracking (Admin/Tierer only)'),
+
+  async execute(i) {
+    const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasTierer = hasTiererPerm(i.member);
+    if (!isAdmin && !hasTierer)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Admin or Tierer role required.')] });
+
+    await i.deferReply({ ephemeral:true });
+    const { fixed, total } = await backfillMissingUUIDs();
+
+    return i.editReply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+      .setTitle('✅ UUID Backfill Complete')
+      .addFields(
+        { name:'🆔 Backfilled', value:`**${fixed}** players`, inline:true },
+        { name:'👥 Total registered', value:`**${total}** players`, inline:true },
+      )
+      .setDescription(fixed
+        ? 'Cracked accounts got an offline UUID; Premium accounts were looked up on Mojang where possible.'
+        : 'Nothing to do — every registered player already has a UUID.')
+      .setFooter({ text:BOT_FOOTER })
+      .setTimestamp()] });
+  },
+};
+
+
+// ── /queueperm ────────────────────────────────────────────
+CMDS.queueperm = {
+  data: new SlashCommandBuilder()
+    .setName('queueperm')
+    .setDescription('Grant or revoke queue start/stop/pull permission for a role (Admin only)')
+    .addSubcommand(s => s
+      .setName('add')
+      .setDescription('Grant queue permission to a role')
+      .addRoleOption(o => o.setName('role').setDescription('Role to grant permission to').setRequired(true)))
+    .addSubcommand(s => s
+      .setName('remove')
+      .setDescription('Role ki queue permission hato')
+      .addRoleOption(o => o.setName('role').setDescription('Role to remove permission from').setRequired(true)))
+    .addSubcommand(s => s
+      .setName('list')
+      .setDescription('View all roles with queue permission')),
+
+  async execute(i) {
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isAdmin)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Only **Admin** can use this command.')] });
+
+    const sub   = i.options.getSubcommand();
+    const perms = loadQueuePerms();
+
+    if (sub === 'list') {
+      const roles = perms.roles;
+      const builtinLines = [];
+      if (CONFIG.TESTERS_ROLE_ID) builtinLines.push(`• <@&${CONFIG.TESTERS_ROLE_ID}> *(built-in: TESTERS_ROLE_ID)*`);
+
+      const customLines = roles.length
+        ? roles.map(rid => `• <@&${rid}>`).join('\n')
+        : '*No custom role*';
+
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+        .setTitle('🔑 Queue Permission Roles')
+        .addFields(
+          { name:'Built-in', value: builtinLines.length ? builtinLines.join('\n') : '*None set*', inline:false },
+          { name:'Custom (/queueperm add)', value: customLines, inline:false },
+        )
+        .setDescription('These roles can use **/queue start**, the **Pull** button, and queue access (testers).')
+        .setFooter({ text: BOT_FOOTER })] });
+    }
+
+    const role = i.options.getRole('role');
+
+    if (sub === 'add') {
+      if (perms.roles.includes(role.id))
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+          .setDescription(`⚠️ **${role.name}** already has queue permission.`)] });
+
+      perms.roles.push(role.id);
+      saveQueuePerms(perms);
+      return i.reply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+        .setTitle('✅ Queue Permission Granted')
+        .setDescription(`<@&${role.id}> (**${role.name}**) can now do the following:\n• \`/queue start\` — announce the queue\n• 🎫 **Pull** button — pull a player\n• Join the queue (waitlist flow)`)
+        .setFooter({ text: BOT_FOOTER })
+        .setTimestamp()] });
+    }
+
+    if (sub === 'remove') {
+      if (!perms.roles.includes(role.id))
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+          .setDescription(`⚠️ **${role.name}** does not have queue permission.`)] });
+
+      perms.roles = perms.roles.filter(rid => rid !== role.id);
+      saveQueuePerms(perms);
+      return i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('🗑️ Queue Permission Removed')
+        .setDescription(`Queue permission removed from <@&${role.id}> (**${role.name}**).`)
+        .setFooter({ text: BOT_FOOTER })
+        .setTimestamp()] });
+    }
+  },
+};
+
+// ── /tiererperm ───────────────────────────────────────────
+CMDS.tiererperm = {
+  data: new SlashCommandBuilder()
+    .setName('tiererperm')
+    .setDescription('Grant or revoke tier-setting permission for a role/member (Admin only)')
+    .addSubcommand(s => s
+      .setName('add')
+      .setDescription('Grant Tierer permission to a role or member')
+      .addRoleOption(o => o.setName('role').setDescription('Role to grant Tierer permission to').setRequired(false))
+      .addUserOption(o => o.setName('member').setDescription('Member to grant Tierer permission to').setRequired(false)))
+    .addSubcommand(s => s
+      .setName('remove')
+      .setDescription('Role ya member ki Tierer permission hato')
+      .addRoleOption(o => o.setName('role').setDescription('Role to remove Tierer permission from').setRequired(false))
+      .addUserOption(o => o.setName('member').setDescription('Member to remove Tierer permission from').setRequired(false)))
+    .addSubcommand(s => s
+      .setName('list')
+      .setDescription('View all roles and members with Tierer permission')),
+
+  async execute(i) {
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isAdmin)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Only **Admin** can use this command.')] });
+
+    const sub   = i.options.getSubcommand();
+    const perms = loadTiererPerms();
+
+    // ── LIST ─────────────────────────────────────────────────
+    if (sub === 'list') {
+      const builtinLines = [];
+      if (CONFIG.TIERER_ROLE_ID) builtinLines.push(`• <@&${CONFIG.TIERER_ROLE_ID}> *(built-in: TIERER_ROLE_ID)*`);
+
+      const roleLines = perms.roles.length
+        ? perms.roles.map(rid => `• <@&${rid}>`).join('\n')
+        : '*No custom role*';
+
+      const memberLines = perms.members.length
+        ? perms.members.map(uid => `• <@${uid}>`).join('\n')
+        : '*No custom member*';
+
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+        .setTitle('🛡️ Tierer Permission List')
+        .addFields(
+          { name:'Built-in Roles', value: builtinLines.length ? builtinLines.join('\n') : '*None set*', inline:false },
+          { name:'Custom Roles (/tiererperm add role)', value: roleLines, inline:false },
+          { name:'Custom Members (/tiererperm add member)', value: memberLines, inline:false },
+        )
+        .setDescription('These can all use `/tier set`, `/tier remove`, `/syncroles`, and other Tierer-only commands.')
+        .setFooter({ text: BOT_FOOTER })] });
+    }
+
+    const role   = i.options.getRole('role');
+    const member = i.options.getUser('member');
+
+    if (!role && !member)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription('⚠️ You must provide at least one **role** or **member**.')] });
+
+    // ── ADD ──────────────────────────────────────────────────
+    if (sub === 'add') {
+      const added = [];
+      const already = [];
+
+      if (role) {
+        if (perms.roles.includes(role.id)) {
+          already.push(`<@&${role.id}> (${role.name})`);
+        } else {
+          perms.roles.push(role.id);
+          added.push(`<@&${role.id}> (${role.name})`);
+        }
+      }
+
+      if (member) {
+        if (perms.members.includes(member.id)) {
+          already.push(`<@${member.id}> (${member.username})`);
+        } else {
+          perms.members.push(member.id);
+          added.push(`<@${member.id}> (${member.username})`);
+        }
+      }
+
+      if (added.length) saveTiererPerms(perms);
+
+      const lines = [];
+      if (added.length)   lines.push(`✅ **Permission granted:**\n${added.join('\n')}`);
+      if (already.length) lines.push(`⚠️ **Already has permission:**\n${already.join('\n')}`);
+
+      return i.reply({ embeds:[new EmbedBuilder()
+        .setColor(added.length ? 0x00C864 : 0xFF9933)
+        .setTitle('🛡️ Tierer Permission — Add')
+        .setDescription(lines.join('\n\n') + '\n\nThey can now use `/tier set`, `/tier remove`, and other Tierer-only commands.')
+        .setFooter({ text: BOT_FOOTER })
+        .setTimestamp()] });
+    }
+
+    // ── REMOVE ───────────────────────────────────────────────
+    if (sub === 'remove') {
+      const removed = [];
+      const notFound = [];
+
+      if (role) {
+        if (!perms.roles.includes(role.id)) {
+          notFound.push(`<@&${role.id}> (${role.name})`);
+        } else {
+          perms.roles = perms.roles.filter(rid => rid !== role.id);
+          removed.push(`<@&${role.id}> (${role.name})`);
+        }
+      }
+
+      if (member) {
+        if (!perms.members.includes(member.id)) {
+          notFound.push(`<@${member.id}> (${member.username})`);
+        } else {
+          perms.members = perms.members.filter(uid => uid !== member.id);
+          removed.push(`<@${member.id}> (${member.username})`);
+        }
+      }
+
+      if (removed.length) saveTiererPerms(perms);
+
+      const lines = [];
+      if (removed.length)  lines.push(`🗑️ **Permission removed:**\n${removed.join('\n')}`);
+      if (notFound.length) lines.push(`⚠️ **Did not have permission:**\n${notFound.join('\n')}`);
+
+      return i.reply({ embeds:[new EmbedBuilder()
+        .setColor(removed.length ? 0xFF4444 : 0xFF9933)
+        .setTitle('🛡️ Tierer Permission — Remove')
+        .setDescription(lines.join('\n\n'))
+        .setFooter({ text: BOT_FOOTER })
+        .setTimestamp()] });
+    }
+  },
+};
+
+// ── /tickethandler ────────────────────────────────────────
+// Grants/revokes permission to use /add, /remove, and /close inside
+// ticket channels. Admin/TICKET_STAFF_ROLE_ID/Tierer/queue-perm can
+// already use those commands — this just lets an Admin extend that
+// access to extra roles/players without touching Discord role setup.
+CMDS.tickethandler = {
+  data: new SlashCommandBuilder()
+    .setName('tickethandler')
+    .setDescription('Grant or revoke permission to use /add, /remove, /close in tickets (Admin only)')
+    .addSubcommand(s => s
+      .setName('set')
+      .setDescription('Grant ticket-handling permission to a role or player')
+      .addRoleOption(o => o.setName('role').setDescription('Role to grant ticket-handling permission to').setRequired(false))
+      .addUserOption(o => o.setName('player').setDescription('Player to grant ticket-handling permission to').setRequired(false)))
+    .addSubcommand(s => s
+      .setName('remove')
+      .setDescription('Revoke ticket-handling permission from a role or player')
+      .addRoleOption(o => o.setName('role').setDescription('Role to remove ticket-handling permission from').setRequired(false))
+      .addUserOption(o => o.setName('player').setDescription('Player to remove ticket-handling permission from').setRequired(false)))
+    .addSubcommand(s => s
+      .setName('list')
+      .setDescription('View all roles/players with ticket-handling permission')),
+
+  async execute(i) {
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isAdmin)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Only **Admin** can use this command.')] });
+
+    const sub   = i.options.getSubcommand();
+    const perms = loadTicketHandlerPerms();
+
+    // ── LIST ─────────────────────────────────────────────────
+    if (sub === 'list') {
+      const roleLines = perms.roles.length
+        ? perms.roles.map(rid => `• <@&${rid}>`).join('\n')
+        : '*No custom role*';
+
+      const memberLines = perms.members.length
+        ? perms.members.map(uid => `• <@${uid}>`).join('\n')
+        : '*No custom player*';
+
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+        .setTitle('🎫 Ticket-Handler Permission List')
+        .addFields(
+          { name:'Roles (/tickethandler set role)',   value: roleLines,   inline:false },
+          { name:'Players (/tickethandler set player)', value: memberLines, inline:false },
+        )
+        .setDescription('These can use `/add`, `/remove`, and `/close` inside ticket channels — on top of Admin, the ticket staff role, Tierers, and queue-perm roles, which can already use them.')
+        .setFooter({ text: BOT_FOOTER })] });
+    }
+
+    const role   = i.options.getRole('role');
+    const player = i.options.getUser('player');
+
+    if (!role && !player)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription('⚠️ You must provide at least one **role** or **player**.')] });
+
+    // ── SET (add) ────────────────────────────────────────────
+    if (sub === 'set') {
+      const added = [], already = [];
+
+      if (role) {
+        if (perms.roles.includes(role.id)) already.push(`<@&${role.id}> (${role.name})`);
+        else { perms.roles.push(role.id); added.push(`<@&${role.id}> (${role.name})`); }
+      }
+      if (player) {
+        if (perms.members.includes(player.id)) already.push(`<@${player.id}> (${player.username})`);
+        else { perms.members.push(player.id); added.push(`<@${player.id}> (${player.username})`); }
+      }
+
+      if (added.length) saveTicketHandlerPerms(perms);
+
+      const lines = [];
+      if (added.length)   lines.push(`✅ **Permission granted:**\n${added.join('\n')}`);
+      if (already.length) lines.push(`⚠️ **Already had permission:**\n${already.join('\n')}`);
+
+      return i.reply({ embeds:[new EmbedBuilder()
+        .setColor(added.length ? 0x00C864 : 0xFF9933)
+        .setTitle('🎫 Ticket-Handler Permission — Set')
+        .setDescription(lines.join('\n\n') + '\n\nThey can now use `/add`, `/remove`, and `/close` inside ticket channels.')
+        .setFooter({ text: BOT_FOOTER })
+        .setTimestamp()] });
+    }
+
+    // ── REMOVE ───────────────────────────────────────────────
+    if (sub === 'remove') {
+      const removed = [], notFound = [];
+
+      if (role) {
+        if (!perms.roles.includes(role.id)) notFound.push(`<@&${role.id}> (${role.name})`);
+        else { perms.roles = perms.roles.filter(rid => rid !== role.id); removed.push(`<@&${role.id}> (${role.name})`); }
+      }
+      if (player) {
+        if (!perms.members.includes(player.id)) notFound.push(`<@${player.id}> (${player.username})`);
+        else { perms.members = perms.members.filter(uid => uid !== player.id); removed.push(`<@${player.id}> (${player.username})`); }
+      }
+
+      if (removed.length) saveTicketHandlerPerms(perms);
+
+      const lines = [];
+      if (removed.length)  lines.push(`🗑️ **Permission removed:**\n${removed.join('\n')}`);
+      if (notFound.length) lines.push(`⚠️ **Did not have permission:**\n${notFound.join('\n')}`);
+
+      return i.reply({ embeds:[new EmbedBuilder()
+        .setColor(removed.length ? 0xFF4444 : 0xFF9933)
+        .setTitle('🎫 Ticket-Handler Permission — Remove')
+        .setDescription(lines.join('\n\n'))
+        .setFooter({ text: BOT_FOOTER })
+        .setTimestamp()] });
+    }
+  },
+};
+
+// ── /hightierer ──────────────────────────────────────────────
+// STANDALONE gate for /submitresult. Nobody — not even someone with
+// regular Tierer permission — can use /submitresult unless an Admin
+// has explicitly granted them HighTierer permission here.
+CMDS.hightierer = {
+  data: new SlashCommandBuilder()
+    .setName('hightierer')
+    .setDescription('Grant or revoke /submitresult permission for a role/member (Admin only)')
+    .addSubcommand(s => s
+      .setName('add')
+      .setDescription('Grant HighTierer (/submitresult) permission to a role or member')
+      .addRoleOption(o => o.setName('role').setDescription('Role to grant HighTierer permission to').setRequired(false))
+      .addUserOption(o => o.setName('member').setDescription('Member to grant HighTierer permission to').setRequired(false)))
+    .addSubcommand(s => s
+      .setName('remove')
+      .setDescription('Role ya member ki HighTierer permission hato')
+      .addRoleOption(o => o.setName('role').setDescription('Role to remove HighTierer permission from').setRequired(false))
+      .addUserOption(o => o.setName('member').setDescription('Member to remove HighTierer permission from').setRequired(false)))
+    .addSubcommand(s => s
+      .setName('list')
+      .setDescription('View all roles and members with HighTierer permission')),
+
+  async execute(i) {
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isAdmin)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Only **Admin** can use this command.')] });
+
+    const sub   = i.options.getSubcommand();
+    const perms = loadHighTiererPerms();
+
+    // ── LIST ─────────────────────────────────────────────────
+    if (sub === 'list') {
+      const roleLines = perms.roles.length
+        ? perms.roles.map(rid => `• <@&${rid}>`).join('\n')
+        : '*No custom role*';
+
+      const memberLines = perms.members.length
+        ? perms.members.map(uid => `• <@${uid}>`).join('\n')
+        : '*No custom member*';
+
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+        .setTitle('🛡️ HighTierer Permission List')
+        .addFields(
+          { name:'Roles (/hightierer add role)', value: roleLines, inline:false },
+          { name:'Members (/hightierer add member)', value: memberLines, inline:false },
+        )
+        .setDescription('Only these can use `/submitresult`. Without this permission, **no one** — including regular Tierers — can submit test results.')
+        .setFooter({ text: BOT_FOOTER })] });
+    }
+
+    const role   = i.options.getRole('role');
+    const member = i.options.getUser('member');
+
+    if (!role && !member)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription('⚠️ You must provide at least one **role** or **member**.')] });
+
+    // ── ADD ──────────────────────────────────────────────────
+    if (sub === 'add') {
+      const added = [];
+      const already = [];
+
+      if (role) {
+        if (perms.roles.includes(role.id)) {
+          already.push(`<@&${role.id}> (${role.name})`);
+        } else {
+          perms.roles.push(role.id);
+          added.push(`<@&${role.id}> (${role.name})`);
+        }
+      }
+
+      if (member) {
+        if (perms.members.includes(member.id)) {
+          already.push(`<@${member.id}> (${member.username})`);
+        } else {
+          perms.members.push(member.id);
+          added.push(`<@${member.id}> (${member.username})`);
+        }
+      }
+
+      if (added.length) saveHighTiererPerms(perms);
+
+      const lines = [];
+      if (added.length)   lines.push(`✅ **Permission granted:**\n${added.join('\n')}`);
+      if (already.length) lines.push(`⚠️ **Already has permission:**\n${already.join('\n')}`);
+
+      return i.reply({ embeds:[new EmbedBuilder()
+        .setColor(added.length ? 0x00C864 : 0xFF9933)
+        .setTitle('🛡️ HighTierer Permission — Add')
+        .setDescription(lines.join('\n\n') + '\n\nThey can now use `/submitresult`.')
+        .setFooter({ text: BOT_FOOTER })
+        .setTimestamp()] });
+    }
+
+    // ── REMOVE ───────────────────────────────────────────────
+    if (sub === 'remove') {
+      const removed = [];
+      const notFound = [];
+
+      if (role) {
+        if (!perms.roles.includes(role.id)) {
+          notFound.push(`<@&${role.id}> (${role.name})`);
+        } else {
+          perms.roles = perms.roles.filter(rid => rid !== role.id);
+          removed.push(`<@&${role.id}> (${role.name})`);
+        }
+      }
+
+      if (member) {
+        if (!perms.members.includes(member.id)) {
+          notFound.push(`<@${member.id}> (${member.username})`);
+        } else {
+          perms.members = perms.members.filter(uid => uid !== member.id);
+          removed.push(`<@${member.id}> (${member.username})`);
+        }
+      }
+
+      if (removed.length) saveHighTiererPerms(perms);
+
+      const lines = [];
+      if (removed.length)  lines.push(`🗑️ **Permission removed:**\n${removed.join('\n')}`);
+      if (notFound.length) lines.push(`⚠️ **Did not have permission:**\n${notFound.join('\n')}`);
+
+      return i.reply({ embeds:[new EmbedBuilder()
+        .setColor(removed.length ? 0xFF4444 : 0xFF9933)
+        .setTitle('🛡️ HighTierer Permission — Remove')
+        .setDescription(lines.join('\n\n'))
+        .setFooter({ text: BOT_FOOTER })
+        .setTimestamp()] });
+    }
+  },
+};
+
+// ── /setuppanel ────────────────────────────────────────────
+CMDS.setuppanel = {
+  data: new SlashCommandBuilder()
+    .setName('setuppanel')
+    .setDescription('Send the waitlist panel to a channel (Admin only)')
+    .addChannelOption(o => o
+      .setName('channel')
+      .setDescription('Channel to send the panel to (default: current)')
+      .setRequired(false)
+    ),
+
+  async execute(i) {
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isAdmin)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Only Admin can use this command.')] });
+
+    await i.deferReply({ ephemeral:true });
+    const targetChannel = i.options.getChannel('channel') || i.channel;
+    try {
+      await sendWaitlistPanel(targetChannel);
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+        .setDescription(`✅ Waitlist panel sent to <#${targetChannel.id}>!`)] });
+    } catch(err) {
+      console.error('[PANEL ERROR]', err);
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Problem sending the panel: ${err.message}`)] });
+    }
+  },
+};
+
+
+// ── /setupticketpnl ──────────────────────────────────────────
+CMDS.setupticketpnl = {
+  data: new SlashCommandBuilder()
+    .setName('setupticketpnl')
+    .setDescription('Send the EclipseTiers Application panel to a channel (Admin only)')
+    .addChannelOption(o => o
+      .setName('channel')
+      .setDescription('Channel to send the panel to (default: configured application channel)')
+      .setRequired(false)
+    ),
+
+  async execute(i) {
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isAdmin)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Only Admin can use this command.')] });
+
+    await i.deferReply({ ephemeral:true });
+
+    let targetChannel = i.options.getChannel('channel');
+    if (!targetChannel && CONFIG.APPLICATION_CHANNEL_ID) {
+      targetChannel = await i.client.channels.fetch(CONFIG.APPLICATION_CHANNEL_ID).catch(() => null);
+    }
+    if (!targetChannel) targetChannel = i.channel;
+
+    try {
+      await targetChannel.send({
+        embeds: [buildApplicationPanelEmbed()],
+        components: [buildApplicationSelectRow()],
+      });
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+        .setDescription(`✅ EclipseTiers Application panel sent to <#${targetChannel.id}>!`)] });
+    } catch(err) {
+      console.error('[APP PANEL ERROR]', err);
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Problem sending the panel: ${err.message}`)] });
+    }
+  },
+};
+
+
+// ── /setupsupportpnl ──────────────────────────────────────────
+CMDS.setupsupportpnl = {
+  data: new SlashCommandBuilder()
+    .setName('setupsupportpnl')
+    .setDescription('Send the EclipseTiers support ticket panel to a channel (Admin only)')
+    .addChannelOption(o => o
+      .setName('channel')
+      .setDescription('Channel to send the panel to (default: configured support channel)')
+      .setRequired(false)
+    ),
+
+  async execute(i) {
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isAdmin)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Only Admin can use this command.')] });
+
+    await i.deferReply({ ephemeral:true });
+
+    let targetChannel = i.options.getChannel('channel');
+    if (!targetChannel && CONFIG.SUPPORT_CHANNEL_ID) {
+      targetChannel = await i.client.channels.fetch(CONFIG.SUPPORT_CHANNEL_ID).catch(() => null);
+    }
+    if (!targetChannel) targetChannel = i.channel;
+
+    try {
+      await targetChannel.send({
+        embeds: [buildSupportPanelEmbed()],
+        components: [buildSupportButtonRow()],
+      });
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+        .setDescription(`✅ EclipseTiers Support panel sent to <#${targetChannel.id}>!`)] });
+    } catch(err) {
+      console.error('[SUPPORT PANEL ERROR]', err);
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Problem sending the panel: ${err.message}`)] });
+    }
+  },
+};
+
+
+// ── /appmanager ───────────────────────────────────────────────
+CMDS.appmanager = {
+  data: new SlashCommandBuilder()
+    .setName('appmanager')
+    .setDescription('Manage application ticket access (Admin only)')
+    .addSubcommand(sub => sub
+      .setName('add')
+      .setDescription('Grant access to application tickets for a role/member')
+      .addRoleOption(o => o
+        .setName('role')
+        .setDescription('Role that should see all application tickets')
+        .setRequired(false)
+      )
+      .addUserOption(o => o
+        .setName('member')
+        .setDescription('Member who should see all application tickets')
+        .setRequired(false)
+      )
+    )
+    .addSubcommand(sub => sub
+      .setName('remove')
+      .setDescription('Remove access to application tickets from a role/member')
+      .addRoleOption(o => o
+        .setName('role')
+        .setDescription('Role to remove access from')
+        .setRequired(false)
+      )
+      .addUserOption(o => o
+        .setName('member')
+        .setDescription('Member to remove access from')
+        .setRequired(false)
+      )
+    ),
+
+  async execute(i) {
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isAdmin)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Only Admin can use this command.')] });
+
+    const action = i.options.getSubcommand(); // 'add' | 'remove'
+    const role   = i.options.getRole('role');
+    const member = i.options.getUser('member');
+    if (!role && !member)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Provide at least one role or member.')] });
+
+    await i.deferReply({ ephemeral:true });
+
+    try {
+      const category = await resolveApplicationCategory(i.guild);
+      if (!category)
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription('❌ Application category could not be found.')] });
+
+      const targetId = role ? role.id : member.id;
+      const channels = i.guild.channels.cache.filter(
+        ch => ch.parentId === category.id && ch.type === ChannelType.GuildText
+      );
+
+      let updated = 0;
+
+      if (action === 'add') {
+        if (role)   LDB.addManagerRole('app', role.id);
+        if (member) LDB.addManagerUser('app', member.id);
+
+        for (const ch of channels.values()) {
+          try {
+            await ch.permissionOverwrites.edit(targetId, {
+              ViewChannel: true, SendMessages: true, ReadMessageHistory: true,
+            });
+            updated++;
+          } catch(_) {}
+        }
+
+        const mention = role ? `<@&${role.id}>` : `<@${member.id}>`;
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+          .setDescription(
+            `✅ ${mention} has been given access to ${updated} open application ticket(s).\n` +
+            `From now on, they will automatically get access in every new application ticket too.`
+          )] });
+      } else {
+        // remove
+        if (role)   LDB.removeManagerRole('app', role.id);
+        if (member) LDB.removeManagerUser('app', member.id);
+
+        for (const ch of channels.values()) {
+          try {
+            await ch.permissionOverwrites.delete(targetId);
+            updated++;
+          } catch(_) {}
+        }
+
+        const mention = role ? `<@&${role.id}>` : `<@${member.id}>`;
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+          .setDescription(
+            `✅ ${mention}'s access has been removed from ${updated} open application ticket(s).\n` +
+            `From now on, they will no longer automatically get access in new application tickets.`
+          )] });
+      }
+    } catch(err) {
+      console.error('[APPMANAGER ERROR]', err);
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ An error occurred: ${err.message}`)] });
+    }
+  },
+};
+
+
+// ── /supmanager ───────────────────────────────────────────────
+CMDS.supmanager = {
+  data: new SlashCommandBuilder()
+    .setName('supmanager')
+    .setDescription('Grant access to support tickets for a role/member (Admin only)')
+    .addRoleOption(o => o
+      .setName('role')
+      .setDescription('Role that should see all support tickets')
+      .setRequired(false)
+    )
+    .addUserOption(o => o
+      .setName('member')
+      .setDescription('Member who should see all support tickets')
+      .setRequired(false)
+    ),
+
+  async execute(i) {
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isAdmin)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Only Admin can use this command.')] });
+
+    const role   = i.options.getRole('role');
+    const member = i.options.getUser('member');
+    if (!role && !member)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Provide at least one role or member.')] });
+
+    await i.deferReply({ ephemeral:true });
+
+    try {
+      const category = await resolveSupportCategory(i.guild);
+      if (!category)
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription('❌ Support category could not be found.')] });
+
+      const targetId = role ? role.id : member.id;
+      if (role)   LDB.addManagerRole('sup', role.id);
+      if (member) LDB.addManagerUser('sup', member.id);
+
+      const channels = i.guild.channels.cache.filter(
+        ch => ch.parentId === category.id && ch.type === ChannelType.GuildText
+      );
+
+      let updated = 0;
+      for (const ch of channels.values()) {
+        try {
+          await ch.permissionOverwrites.edit(targetId, {
+            ViewChannel: true, SendMessages: true, ReadMessageHistory: true,
+          });
+          updated++;
+        } catch(_) {}
+      }
+
+      const mention = role ? `<@&${role.id}>` : `<@${member.id}>`;
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+        .setDescription(
+          `✅ ${mention} has been given access to ${updated} open support ticket(s).\n` +
+          `From now on, they will automatically get access in every new support ticket too.`
+        )] });
+    } catch(err) {
+      console.error('[SUPMANAGER ERROR]', err);
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ An error occurred: ${err.message}`)] });
+    }
+  },
+};
+
+
+// ── /add ──────────────────────────────────────────────────
+// Run INSIDE any ticket channel (queue ticket, group ticket,
+// application ticket, or support ticket) to give a role or
+// player access to that one ticket. Unlike /appmanager and
+// /supmanager, this only touches the current channel — it does
+// not persist for future tickets.
+CMDS.add = {
+  data: new SlashCommandBuilder()
+    .setName('add')
+    .setDescription('Add a role or player to this ticket (Staff/Tierer only)')
+    .addRoleOption(o => o.setName('role').setDescription('Role to add to this ticket').setRequired(false))
+    .addUserOption(o => o.setName('player').setDescription('Player/member to add to this ticket').setRequired(false)),
+
+  async execute(i) {
+    const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasStaff  = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
+    const hasTierer = hasTiererPerm(i.member);
+    const canUse    = isAdmin || hasStaff || hasTierer || hasQueuePerm(i.member) || hasTicketHandlerPerm(i.member);
+    if (!canUse)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ You do not have permission to add members to tickets. Ask an admin to grant it via `/tickethandler set`.')] });
+
+    const role   = i.options.getRole('role');
+    const member = i.options.getUser('player');
+    if (!role && !member)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Provide at least one **role** or **player**.')] });
+
+    const channel = i.channel;
+
+    // Make sure this is actually a ticket channel — queue/group ticket,
+    // application ticket, or support ticket category.
+    const [ticketCat, appCat, supCat] = await Promise.all([
+      resolveTicketCategory(i.guild).catch(() => null),
+      resolveApplicationCategory(i.guild).catch(() => null),
+      resolveSupportCategory(i.guild).catch(() => null),
+    ]);
+    const validParentIds = [ticketCat?.id, appCat?.id, supCat?.id].filter(Boolean);
+
+    if (!channel?.parentId || !validParentIds.includes(channel.parentId)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ This command can only be used inside a ticket channel.')] });
+    }
+
+    const targetId = role ? role.id : member.id;
+    try {
+      await channel.permissionOverwrites.edit(targetId, {
+        ViewChannel: true, SendMessages: true, ReadMessageHistory: true,
+      });
+    } catch(err) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Could not update channel permissions: ${err.message}`)] });
+    }
+
+    const mention = role ? `<@&${role.id}>` : `<@${member.id}>`;
+    return i.reply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+      .setTitle('✅ Added to Ticket')
+      .setDescription(`${mention} has been added to this ticket and can now view and send messages here.`)
+      .setFooter({ text: BOT_FOOTER })
+      .setTimestamp()] });
+  },
+};
+
+// ── /remove ───────────────────────────────────────────────
+// Opposite of /add — run INSIDE a ticket channel to revoke a role or
+// player's access to that one ticket. Only touches the current channel.
+CMDS.remove = {
+  data: new SlashCommandBuilder()
+    .setName('remove')
+    .setDescription('Remove a role or player from this ticket (Staff/Tierer only)')
+    .addRoleOption(o => o.setName('role').setDescription('Role to remove from this ticket').setRequired(false))
+    .addUserOption(o => o.setName('player').setDescription('Player/member to remove from this ticket').setRequired(false)),
+
+  async execute(i) {
+    const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasStaff  = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
+    const hasTierer = hasTiererPerm(i.member);
+    const canUse    = isAdmin || hasStaff || hasTierer || hasQueuePerm(i.member) || hasTicketHandlerPerm(i.member);
+    if (!canUse)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ You do not have permission to remove members from tickets. Ask an admin to grant it via `/tickethandler set`.')] });
+
+    const role   = i.options.getRole('role');
+    const member = i.options.getUser('player');
+    if (!role && !member)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Provide at least one **role** or **player**.')] });
+
+    const channel = i.channel;
+
+    // Make sure this is actually a ticket channel — queue/group ticket,
+    // application ticket, or support ticket category.
+    const [ticketCat, appCat, supCat] = await Promise.all([
+      resolveTicketCategory(i.guild).catch(() => null),
+      resolveApplicationCategory(i.guild).catch(() => null),
+      resolveSupportCategory(i.guild).catch(() => null),
+    ]);
+    const validParentIds = [ticketCat?.id, appCat?.id, supCat?.id].filter(Boolean);
+
+    if (!channel?.parentId || !validParentIds.includes(channel.parentId)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ This command can only be used inside a ticket channel.')] });
+    }
+
+    const targetId = role ? role.id : member.id;
+
+    // Don't let someone accidentally strip everyone's access via @everyone.
+    if (targetId === i.guild.roles.everyone.id) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ You can\'t remove the @everyone role from a ticket.')] });
+    }
+
+    try {
+      await channel.permissionOverwrites.delete(targetId);
+    } catch(err) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Could not update channel permissions: ${err.message}`)] });
+    }
+
+    const mention = role ? `<@&${role.id}>` : `<@${member.id}>`;
+    return i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setTitle('🚪 Removed From Ticket')
+      .setDescription(`${mention} has been removed from this ticket and can no longer view or send messages here.`)
+      .setFooter({ text: BOT_FOOTER })
+      .setTimestamp()] });
+  },
+};
+
+// ── /close ────────────────────────────────────────────────
+// Run INSIDE any ticket channel (queue ticket, group ticket, application
+// ticket, or support ticket) to close/delete that ticket — same idea as
+// the "🔒 Close Ticket" buttons, but as a slash command usable by anyone
+// with ticket-handling permission.
+CMDS.close = {
+  data: new SlashCommandBuilder()
+    .setName('close')
+    .setDescription('Close this ticket (Staff/Tierer only)')
+    .addStringOption(o => o.setName('reason').setDescription('Reason for closing').setRequired(false)),
+
+  async execute(i) {
+    const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasStaff  = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
+    const hasTierer = hasTiererPerm(i.member);
+    const canUse    = isAdmin || hasStaff || hasTierer || hasQueuePerm(i.member) || hasTicketHandlerPerm(i.member);
+    if (!canUse)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ You do not have permission to close tickets. Ask an admin to grant it via `/tickethandler set`.')] });
+
+    const channel = i.channel;
+    const reason  = i.options.getString('reason');
+
+    // Make sure this is actually a ticket channel — queue/group ticket,
+    // application ticket, or support ticket category.
+    const [ticketCat, appCat, supCat] = await Promise.all([
+      resolveTicketCategory(i.guild).catch(() => null),
+      resolveApplicationCategory(i.guild).catch(() => null),
+      resolveSupportCategory(i.guild).catch(() => null),
+    ]);
+    const validParentIds = [ticketCat?.id, appCat?.id, supCat?.id].filter(Boolean);
+
+    if (!channel?.parentId || !validParentIds.includes(channel.parentId)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ This command can only be used inside a ticket channel.')] });
+    }
+
+    await i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setDescription(`🔒 Ticket closed by <@${i.user.id}>.${reason ? `\n**Reason:** ${reason}` : ''}\nThis channel will be deleted in 5 seconds.`)] });
+
+    // Clean up any per-member ticket records (queue/group tickets) pointing at this channel
+    try {
+      const db = rDB(TF);
+      for (const [discordId, ticket] of Object.entries(db)) {
+        const cid = ticket?.channelId || ticket;
+        if (cid === channel.id) LDB.delTicket(discordId);
+      }
+    } catch(err) {
+      console.error('[CLOSE TICKET] cleanup error:', err.message);
+    }
+
+    setTimeout(() => channel.delete().catch(() => {}), 5000);
+  },
+};
+
+
+// ════════════════════════════════════════════════════════════
+//  /startqueue — CTL-STYLE LIVE QUEUE PANEL (NEW COMMAND)
+//  Usage: /startqueue gamemode:Axe region:AS/AU
+// ════════════════════════════════════════════════════════════
+
+// Storage for active startqueue panels: weapon -> { channelId, messageId, testerId, region }
+const SQ_PANEL_FILE = path.join(__dirname, 'eclipsetiers_data', 'sq_panels.json');
+const SQ_QUEUE_LIMIT = 15;
+
+function loadSQPanels() {
+  try { if (fs.existsSync(SQ_PANEL_FILE)) return JSON.parse(fs.readFileSync(SQ_PANEL_FILE, 'utf8')); } catch(_) {}
+  return {};
+}
+function saveSQPanels(data) {
+  try { fs.writeFileSync(SQ_PANEL_FILE, JSON.stringify(data, null, 2)); } catch(_) {}
+}
+
+function addToSQQueue(discordId, weapon, ign) {
+  const db = rDB(QF);
+  if (!db[weapon]) db[weapon] = [];
+  const q = db[weapon];
+
+  if (q.find(e => e.discordId === discordId)) return { ok: false, reason: 'dupe' };
+  if (q.length >= SQ_QUEUE_LIMIT) return { ok: false, reason: 'full' };
+
+  q.push({ discordId, ign, joinedAt: Date.now() });
+  db[weapon] = q;
+  wDB(QF, db);
+  MEM.queues[weapon] = q;
+  return { ok: true, position: q.length };
+}
+
+// Build the exact CTL-style embed
+function buildSQEmbed(weapon, region, testerIds) {
+  const q   = LDB.getQ(weapon);
+  const reg = region || 'AS/AU';
+  const panels = loadSQPanels();
+  const currentTest = panels[weapon]?.currentTest || '*No active test*';
+  const queueCount = q.length;
+  const queueLimit = SQ_QUEUE_LIMIT;
+
+  // Queue list — numbered mentions
+  const queueLines = queueCount
+    ? q.map((e, idx) => `${idx + 1}. <@${e.discordId}>`).join('\n')
+    : '*No one is in the queue.*';
+
+  // Active testers list
+  const testerLines = (testerIds && testerIds.length)
+    ? testerIds.map((id, idx) => `${idx + 1}. <@${id}>`).join('\n')
+    : '*No active tester.*';
+
+  const now = new Date().toLocaleTimeString('en-PK', {
+    timeZone: 'Asia/Karachi',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
+  });
+
+  const gmEmoji = WEAPON_EMOJI[weapon] || '<:sword:1517752855577104474>';
+
+  return new EmbedBuilder()
+    .setColor(0x57F287)  // CTL green
+    .setTitle(`${gmEmoji}  ${weapon} Tester Available!`)
+    .setDescription(
+      `A **${weapon}** queue is open for the **${reg}** region!\n\n` +
+      `The queue is now open and updates in real-time.`
+    )
+    .addFields(
+      { name: `📋 Queue (${queueCount}/${queueLimit})`, value: queueLines, inline: false },
+      { name: '👥 Active Testers', value: testerLines, inline: false },
+      { name: '🌍 Region', value: reg, inline: false },
+      { name: '🧪 Current Test', value: currentTest, inline: false },
+    )
+    .setFooter({ text: `🌍 Region: ${reg} | 🕐 Last Refresh: ${now}` });
+}
+
+// Discord components are shared by every viewer of one message, so the Pull
+// button cannot literally be hidden for only non-tierers. The interaction is
+// strictly permission-gated; Join/Leave remain public. Keep this in one row
+// to preserve the current panel layout.
+// Build Join / Leave / Pull buttons row
+function buildSQButtons(weapon) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`sq_join_${weapon}`).setLabel('Join').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`sq_leave_${weapon}`).setLabel('Leave').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`sq_pull_${weapon}`).setLabel('🎫 Pull').setStyle(ButtonStyle.Primary),
+  );
+}
+
+// Refresh the live panel message in-place
+async function refreshSQPanel(client, weapon) {
+  const panels = loadSQPanels();
+  const info   = panels[weapon];
+  if (!info?.channelId || !info?.messageId) return;
+  try {
+    const ch  = await client.channels.fetch(info.channelId).catch(() => null);
+    if (!ch) return;
+    const msg = await ch.messages.fetch(info.messageId).catch(() => null);
+    if (!msg) return;
+    await msg.edit({
+      content:    info.content || '',
+      embeds:     [buildSQEmbed(weapon, info.region, info.testers || [])],
+      components: [buildSQButtons(weapon)],
+    });
+    panels[weapon].lastRefresh = Date.now();
+    saveSQPanels(panels);
+  } catch(err) {
+    console.error(`[SQ PANEL] refresh error (${weapon}):`, err.message);
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  STAFF MANAGEMENT — /hire, /fire, /staff list
+// ════════════════════════════════════════════════════════════
+
+// ── /hire ─────────────────────────────────────────────────
+// "/hire user"        — actually hire someone (requires hire perm + hierarchy check)
+// "/hire perm set"    — grant hire perm to a role/member (owner only)
+// "/hire perm remove" — revoke hire perm from a role/member (owner only)
+// "/hire perm list"   — view current hire perm roles/members (owner only)
+CMDS.hire = {
+  data: new SlashCommandBuilder()
+    .setName('hire')
+    .setDescription('Hire a member into a staff role, or manage hire permissions')
+    .addSubcommand(s => s
+      .setName('user')
+      .setDescription('Hire a member into a staff role')
+      .addUserOption(o => o.setName('player').setDescription('Member to hire').setRequired(true))
+      .addRoleOption(o => o.setName('role').setDescription('Staff role to assign').setRequired(true)))
+    .addSubcommandGroup(g => g
+      .setName('perm')
+      .setDescription('Manage who is allowed to use /hire and /fire (server owner only)')
+      .addSubcommand(s => s
+        .setName('set')
+        .setDescription('Grant hire permission to a role or member')
+        .addRoleOption(o => o.setName('role').setDescription('Role to grant hire permission to').setRequired(false))
+        .addUserOption(o => o.setName('member').setDescription('Member to grant hire permission to').setRequired(false)))
+      .addSubcommand(s => s
+        .setName('remove')
+        .setDescription('Revoke hire permission from a role or member')
+        .addRoleOption(o => o.setName('role').setDescription('Role to remove hire permission from').setRequired(false))
+        .addUserOption(o => o.setName('member').setDescription('Member to remove hire permission from').setRequired(false)))
+      .addSubcommand(s => s
+        .setName('list')
+        .setDescription('View all roles/members with hire permission'))),
+
+  async execute(i) {
+    const group = i.options.getSubcommandGroup(false);
+    const sub   = i.options.getSubcommand();
+
+    // ══════════════════════════════════════════════════════
+    // /hire perm set|remove|list — server owner ONLY
+    // ══════════════════════════════════════════════════════
+    if (group === 'perm') {
+      if (i.user.id !== i.guild.ownerId) {
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription('❌ Only the **server owner** can manage hire permissions.')] });
+      }
+
+      const perms = loadHirePerms();
+
+      // ── LIST ─────────────────────────────────────────────
+      if (sub === 'list') {
+        const roleLines   = perms.roles.length   ? perms.roles.map(rid => `• <@&${rid}>`).join('\n')   : '*No roles granted*';
+        const memberLines = perms.members.length ? perms.members.map(uid => `• <@${uid}>`).join('\n') : '*No members granted*';
+
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+          .setTitle('🛡️ Hire Permission List')
+          .addFields(
+            { name:'Server Owner', value:`• <@${i.guild.ownerId}> *(always allowed, bypasses role hierarchy)*`, inline:false },
+            { name:'Roles (/hire perm set role)', value: roleLines, inline:false },
+            { name:'Members (/hire perm set member)', value: memberLines, inline:false },
+          )
+          .setDescription('Granted roles/members can use `/hire user` and `/fire`, but **never** on a target role that is equal to or higher than their own highest role.')
+          .setFooter({ text: BOT_FOOTER })] });
+      }
+
+      const role   = i.options.getRole('role');
+      const member = i.options.getUser('member');
+
+      if (!role && !member)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+          .setDescription('⚠️ You must provide at least one **role** or **member**.')] });
+
+      // ── SET (add) ────────────────────────────────────────
+      if (sub === 'set') {
+        const added = [], already = [];
+
+        if (role) {
+          if (perms.roles.includes(role.id)) already.push(`<@&${role.id}> (${role.name})`);
+          else { perms.roles.push(role.id); added.push(`<@&${role.id}> (${role.name})`); }
+        }
+        if (member) {
+          if (perms.members.includes(member.id)) already.push(`<@${member.id}> (${member.username})`);
+          else { perms.members.push(member.id); added.push(`<@${member.id}> (${member.username})`); }
+        }
+
+        if (added.length) saveHirePerms(perms);
+
+        const lines = [];
+        if (added.length)   lines.push(`✅ **Permission granted:**\n${added.join('\n')}`);
+        if (already.length) lines.push(`⚠️ **Already had permission:**\n${already.join('\n')}`);
+
+        return i.reply({ embeds:[new EmbedBuilder()
+          .setColor(added.length ? 0x00C864 : 0xFF9933)
+          .setTitle('🛡️ Hire Permission — Set')
+          .setDescription(lines.join('\n\n') + '\n\nThey can now use `/hire user` and `/fire` — but only on roles **below** their own highest role.')
+          .setFooter({ text: BOT_FOOTER })
+          .setTimestamp()] });
+      }
+
+      // ── REMOVE ───────────────────────────────────────────
+      if (sub === 'remove') {
+        const removed = [], notFound = [];
+
+        if (role) {
+          if (!perms.roles.includes(role.id)) notFound.push(`<@&${role.id}> (${role.name})`);
+          else { perms.roles = perms.roles.filter(rid => rid !== role.id); removed.push(`<@&${role.id}> (${role.name})`); }
+        }
+        if (member) {
+          if (!perms.members.includes(member.id)) notFound.push(`<@${member.id}> (${member.username})`);
+          else { perms.members = perms.members.filter(uid => uid !== member.id); removed.push(`<@${member.id}> (${member.username})`); }
+        }
+
+        if (removed.length) saveHirePerms(perms);
+
+        const lines = [];
+        if (removed.length)  lines.push(`🗑️ **Permission removed:**\n${removed.join('\n')}`);
+        if (notFound.length) lines.push(`⚠️ **Did not have permission:**\n${notFound.join('\n')}`);
+
+        return i.reply({ embeds:[new EmbedBuilder()
+          .setColor(removed.length ? 0xFF4444 : 0xFF9933)
+          .setTitle('🛡️ Hire Permission — Remove')
+          .setDescription(lines.join('\n\n'))
+          .setFooter({ text: BOT_FOOTER })
+          .setTimestamp()] });
+      }
+
+      return;
+    }
+
+    // ══════════════════════════════════════════════════════
+    // /hire user — the actual hire action
+    // ══════════════════════════════════════════════════════
+    if (!hasHirePerm(i.member)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ You don\'t have permission to hire. Ask the server owner to grant it via `/hire perm set`.')] });
+    }
+
+    const targetUser = i.options.getUser('player');
+    const role       = i.options.getRole('role');
+
+    if (!canActOnRole(i.member, role)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ You can't hire someone into **${role.name}** — that role is equal to or higher than your own highest role.`)] });
+    }
+
+    await i.deferReply({ ephemeral:true });
+
+    const member = await i.guild.members.fetch(targetUser.id).catch(() => null);
+    if (!member) return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setDescription('❌ Could not find that member in the server.')] });
+
+    if (member.roles.cache.has(role.id)) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription(`⚠️ **${targetUser.tag}** already has the **${role.name}** role.`)] });
+    }
+
+    await member.roles.add(role).catch(() => {});
+
+    // Track in staff.json
+    const staff = loadStaff();
+    if (!staff[targetUser.id]) staff[targetUser.id] = { roles: [], hiredBy: null, hiredAt: null };
+    if (!staff[targetUser.id].roles.includes(role.id)) staff[targetUser.id].roles.push(role.id);
+    staff[targetUser.id].hiredBy = i.user.id;
+    staff[targetUser.id].hiredAt = Date.now();
+    saveStaff(staff);
+
+    // Staff-movements log
+    await sendStaffLog(i.client, { type:'hire', targetUser, roleName:role.name, byUser:i.user });
+
+    // DM the player
+    await member.send({ embeds:[new EmbedBuilder().setColor(0x00C864)
+      .setTitle('🎉 You\'ve Been Hired!')
+      .setDescription(`Congratulations! You've been hired as **${role.name}** at **EclipseTiers**. 🇵🇰`)
+      .setFooter({ text:'EclipseTiers Staff Team' })
+      .setTimestamp()] }).catch(() => {});
+
+    return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+      .setTitle('✅ Staff Hired')
+      .setDescription(`**${targetUser.tag}** has been hired as **${role.name}**.`)
+      .setFooter({ text:'EclipseTiers Staff Team' })] });
+  },
+};
+
+// ── /fire ─────────────────────────────────────────────────
+CMDS.fire = {
+  data: new SlashCommandBuilder()
+    .setName('fire')
+    .setDescription('Fire a member from staff')
+    .addUserOption(o => o.setName('player').setDescription('Member to fire').setRequired(true))
+    .addRoleOption(o => o.setName('role').setDescription('Specific role to remove (omit to remove all hired roles)').setRequired(false))
+    .addStringOption(o => o.setName('reason').setDescription('Reason for firing').setRequired(false)),
+
+  async execute(i) {
+    if (!hasHirePerm(i.member)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ You don\'t have permission to fire. Ask the server owner to grant it via `/hire perm set`.')] });
+    }
+
+    const targetUser = i.options.getUser('player');
+    const roleOpt     = i.options.getRole('role');
+    const reason      = i.options.getString('reason');
+
+    // If a specific role was given, block it upfront if it's at/above the actor's own highest role.
+    if (roleOpt && !canActOnRole(i.member, roleOpt)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ You can't remove **${roleOpt.name}** — that role is equal to or higher than your own highest role.`)] });
+    }
+
+    await i.deferReply({ ephemeral:true });
+
+    const member = await i.guild.members.fetch(targetUser.id).catch(() => null);
+    if (!member) return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setDescription('❌ Could not find that member in the server.')] });
+
+    const staff = loadStaff();
+    const record = staff[targetUser.id];
+    const trackedRoleIds = record?.roles || [];
+
+    // Determine which roles to remove
+    const requestedRoleIds = roleOpt ? [roleOpt.id] : trackedRoleIds;
+
+    if (!requestedRoleIds.length) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription(`⚠️ **${targetUser.tag}** has no tracked staff roles to remove. Specify a role manually if needed.`)] });
+    }
+
+    // Filter out any roles the actor isn't allowed to touch (hierarchy guard).
+    // Only matters for the "remove all tracked roles" case — a single explicit
+    // role was already checked above.
+    const skippedNames = [];
+    const roleIdsToRemove = requestedRoleIds.filter(rid => {
+      const r = i.guild.roles.cache.get(rid);
+      if (r && !canActOnRole(i.member, r)) { skippedNames.push(r.name); return false; }
+      return true;
+    });
+
+    if (!roleIdsToRemove.length) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ You can't remove any of **${targetUser.tag}**'s tracked roles — they're all equal to or higher than your own highest role.`)] });
+    }
+
+    const removedNames = [];
+    for (const rid of roleIdsToRemove) {
+      const r = i.guild.roles.cache.get(rid);
+      if (r && member.roles.cache.has(rid)) {
+        await member.roles.remove(r).catch(() => {});
+        removedNames.push(r.name);
+      }
+    }
+
+    if (!removedNames.length) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription(`⚠️ **${targetUser.tag}** did not have the specified staff role(s).${skippedNames.length ? `\n\n⚠️ Skipped (above your role): ${skippedNames.join(', ')}` : ''}`)] });
+    }
+
+    // Update staff.json
+    if (record) {
+      record.roles = record.roles.filter(rid => !roleIdsToRemove.includes(rid));
+      if (!record.roles.length) delete staff[targetUser.id];
+      saveStaff(staff);
+    }
+
+    const roleNameStr = removedNames.join(', ');
+
+    // Staff-movements log
+    await sendStaffLog(i.client, { type:'fire', targetUser, roleName:roleNameStr, byUser:i.user, reason });
+
+    // DM the player
+    await member.send({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setTitle('📋 Staff Update')
+      .setDescription(`You've been removed from **${roleNameStr}** at **EclipseTiers**.${reason ? `\n\n**Reason:** ${reason}` : ''}`)
+      .setFooter({ text:'EclipseTiers Staff Team' })
+      .setTimestamp()] }).catch(() => {});
+
+    return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setTitle('🔴 Staff Fired')
+      .setDescription(`**${targetUser.tag}** has been removed from **${roleNameStr}**.${skippedNames.length ? `\n\n⚠️ Left untouched (equal to/above your role): ${skippedNames.join(', ')}` : ''}`)
+      .setFooter({ text:'EclipseTiers Staff Team' })] });
+  },
+};
+
+// ── /staff ────────────────────────────────────────────────
+// ── Shared builder: staff list embed (used by /staff list + 🔄 refresh button) ──
+// Discord hard limits we must respect or the API rejects the whole embed:
+//  - field.value  <= 1024 chars
+//  - field.name   <= 256 chars
+//  - embed.fields.length <= 25
+// A staff list that grows over time can easily blow past any of these,
+// which is what was causing "Something went wrong" on /staff list and
+// on the 🔄 refresh button (both call this same builder).
+function chunkLines(lines, maxLen = 1024) {
+  const chunks = [];
+  let current = '';
+  for (const line of lines) {
+    const candidate = current ? `${current}\n${line}` : line;
+    if (candidate.length > maxLen) {
+      if (current) chunks.push(current);
+      current = line.length > maxLen ? line.slice(0, maxLen - 1) + '…' : line;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks.length ? chunks : ['*None*'];
+}
+
+function buildStaffListEmbed(guild) {
+  try {
+    const staff = loadStaff();
+    const entries = Object.entries(staff || {}).filter(([, rec]) => rec && typeof rec === 'object');
+
+    if (!entries.length) {
+      return new EmbedBuilder().setColor(BRAND_COLOR)
+        .setTitle('🛡️ EclipseTiers Staff List')
+        .setDescription('No staff have been hired yet.')
+        .setFooter({ text:'EclipseTiers Staff Team' })
+        .setTimestamp();
+    }
+
+    // Group members by role (defensively — corrupted/legacy records shouldn't crash this)
+    const roleGroups = {}; // roleId -> [discordId,...]
+    for (const [discordId, rec] of entries) {
+      const roleIds = Array.isArray(rec.roles) ? rec.roles : [];
+      for (const rid of roleIds) {
+        if (!rid) continue;
+        if (!roleGroups[rid]) roleGroups[rid] = [];
+        roleGroups[rid].push(discordId);
+      }
+    }
+
+    // Sort roles by the server's actual role hierarchy (highest position first —
+    // same order Discord shows roles in, e.g. Owner > Admin > Tierer > Tester)
+    const sortedRoleIds = Object.keys(roleGroups).sort((a, b) => {
+      const roleA = guild.roles.cache.get(a);
+      const roleB = guild.roles.cache.get(b);
+      return (roleB?.position ?? 0) - (roleA?.position ?? 0);
+    });
+
+    const bullet = '<a:Purple_dot:1540434035594109148>';
+    let fields = [];
+    for (const rid of sortedRoleIds) {
+      const role = guild.roles.cache.get(rid);
+      const roleName = (role ? role.name : `Unknown Role (${rid})`).slice(0, 200);
+      const ids = roleGroups[rid];
+      const lines = ids.map(id => `${bullet} <@${id}>`);
+      const chunks = chunkLines(lines, 1024);
+
+      chunks.forEach((chunk, cIdx) => {
+        fields.push({
+          name: chunks.length > 1 ? `${roleName} (${ids.length}) [${cIdx + 1}/${chunks.length}]` : `${roleName} (${ids.length})`,
+          value: chunk,
+          inline: false,
+        });
+      });
+    }
+
+    // Only the first 2 fields get the compact inline box, and only if we
+    // didn't have to split anything (keeps the original look for the common case).
+    if (fields.length === sortedRoleIds.length) {
+      fields = fields.map((f, idx) => ({ ...f, inline: idx < 2 }));
+    }
+
+    // Discord allows a max of 25 fields per embed — collapse any overflow
+    // into a single "and more" note instead of letting the API reject it.
+    if (fields.length > 25) {
+      const shown = fields.slice(0, 24);
+      const overflowCount = fields.length - 24;
+      shown.push({ name: '…and more', value: `⚠️ ${overflowCount} more role group(s) not shown — staff list is too large to display fully.`, inline: false });
+      fields = shown;
+    }
+
+    const totalStaff = new Set(entries.map(([id]) => id)).size;
+
+    return new EmbedBuilder().setColor(BRAND_COLOR)
+      .setTitle('🛡️ EclipseTiers Staff List')
+      .addFields(fields)
+      .setFooter({ text:`Total Staff: ${totalStaff} · EclipseTiers` })
+      .setTimestamp();
+  } catch(err) {
+    console.error('[STAFF LIST] build error:', err);
+    return new EmbedBuilder().setColor(0xFF4444)
+      .setTitle('🛡️ EclipseTiers Staff List')
+      .setDescription('⚠️ Could not build the staff list — the staff data may be corrupted. Check the bot logs.')
+      .setFooter({ text:'EclipseTiers Staff Team' })
+      .setTimestamp();
+  }
+}
+
+function buildStaffListButtons() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('staff_list_refresh')
+      .setLabel('Refresh')
+      .setEmoji('🔄')
+      .setStyle(ButtonStyle.Secondary),
+  );
+}
+
+// ── /staff ────────────────────────────────────────────────
+CMDS.staff = {
+  data: new SlashCommandBuilder()
+    .setName('staff')
+    .setDescription('Staff management commands')
+    .addSubcommand(s => s.setName('list').setDescription('View the current staff list')),
+
+  async execute(i) {
+    const sub = i.options.getSubcommand();
+    if (sub !== 'list') return;
+
+    await i.deferReply();
+
+    try {
+      return await i.editReply({
+        embeds: [buildStaffListEmbed(i.guild)],
+        components: [buildStaffListButtons()],
+      });
+    } catch(err) {
+      console.error('[STAFF LIST] send error:', err);
+      return i.editReply({
+        embeds: [new EmbedBuilder().setColor(0xFF4444).setDescription(`⚠️ Could not display the staff list: ${err.message}`)],
+        components: [],
+      });
+    }
+  },
+};
+
+// ── /testerpnl ────────────────────────────────────────────
+// Shows every gamemode with its assigned testers (set via /tester),
+// each gamemode with its own custom emoji, in the same sequence/style
+// as the /staff list panel — used with the 🔄 refresh button.
+function buildTesterPnlEmbed() {
+  const data = loadTesterGamemodes(); // { discordId: [gamemode,...] }
+
+  // Invert into gamemode -> [discordId,...], keeping WEAPONS order
+  const gamemodeGroups = {};
+  for (const w of WEAPONS) gamemodeGroups[w] = [];
+  for (const [discordId, gamemodes] of Object.entries(data)) {
+    for (const gm of gamemodes) {
+      if (!gamemodeGroups[gm]) gamemodeGroups[gm] = [];
+      gamemodeGroups[gm].push(discordId);
+    }
+  }
+
+  const bullet = '<a:Purple_dot:1540434035594109148>';
+  const fields = WEAPONS
+    .filter(w => gamemodeGroups[w] && gamemodeGroups[w].length)
+    .map(w => {
+      const ids   = gamemodeGroups[w];
+      const emoji = WEAPON_EMOJI[w] || '⚔️';
+      const memberLines = ids.map(id => `${bullet} <@${id}>`).join('\n');
+      return { name: `${emoji} ${w} (${ids.length})`, value: memberLines, inline: false };
+    });
+
+  const totalTesters = new Set(Object.keys(data)).size;
+
+  if (!fields.length) {
+    return new EmbedBuilder().setColor(BRAND_COLOR)
+      .setTitle('🧪 EclipseTiers Tester List')
+      .setDescription('No testers have been assigned to any gamemode yet. Use `/tester` to assign one.')
+      .setFooter({ text: 'EclipseTiers Tester Team' })
+      .setTimestamp();
+  }
+
+  return new EmbedBuilder().setColor(BRAND_COLOR)
+    .setTitle('🧪 EclipseTiers Tester List')
+    .addFields(fields)
+    .setFooter({ text: `Total Testers: ${totalTesters} · EclipseTiers` })
+    .setTimestamp();
+}
+
+function buildTesterPnlButtons() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('tester_pnl_refresh')
+      .setLabel('Refresh')
+      .setEmoji('🔄')
+      .setStyle(ButtonStyle.Secondary),
+  );
+}
+
+// ── /testerpnl ────────────────────────────────────────────
+CMDS.testerpnl = {
+  data: new SlashCommandBuilder()
+    .setName('testerpnl')
+    .setDescription('View all testers grouped by gamemode'),
+
+  async execute(i) {
+    await i.deferReply();
+    return i.editReply({
+      embeds: [buildTesterPnlEmbed()],
+      components: [buildTesterPnlButtons()],
+    });
+  },
+};
+
+CMDS.startqueue = {
+  data: new SlashCommandBuilder()
+    .setName('startqueue')
+    .setDescription('CTL-style live queue panel kholo (Testers only)')
+    .addStringOption(o => o
+      .setName('gamemode')
+      .setDescription('Choose a gamemode')
+      .setRequired(true)
+      .addChoices(...WEAPONS.map(w => ({ name: `${WEAPON_EMOJI[w]} ${w}`, value: w })))
+    )
+    .addStringOption(o => o
+      .setName('region')
+      .setDescription('Region (default: AS/AU)')
+      .setRequired(false)
+      .addChoices(
+        { name: 'AS/AU', value: 'AS/AU' },
+        { name: 'PK',    value: 'PK'    },
+        { name: 'EU',    value: 'EU'    },
+        { name: 'NA',    value: 'NA'    },
+        { name: 'SA',    value: 'SA'    },
+      )
+    )
+    .addStringOption(o => o
+      .setName('message')
+      .setDescription('Extra announcement message (optional)')
+      .setRequired(false)
+    ),
+
+  async execute(i) {
+    // ── Permission check ─────────────────────────────────────
+    if (!hasQueuePerm(i.member))
+      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('❌ Permission Denied')
+        .setDescription('Only **Testers** or roles with queue permission can use this command.')
+        .setFooter({ text: BOT_FOOTER })] });
+
+    await i.deferReply({ ephemeral: true });
+
+    const weapon = i.options.getString('gamemode');
+    const region = i.options.getString('region') || 'AS/AU';
+    const extraMsg = i.options.getString('message') || null;
+    const emoji  = WEAPON_EMOJI[weapon] || '<:sword:1517752855577104474>';
+
+    // ── Find target channel: waitlist-<weapon> ────────────────
+    const targetName = `waitlist-${weapon.toLowerCase()}`;
+    let targetCh = null;
+
+    try {
+      const all = await i.guild.channels.fetch();
+      targetCh = all.find(c => c?.isTextBased?.() && c.name.toLowerCase() === targetName) || null;
+    } catch(_) {}
+
+    // Fallback chain: env var → current channel
+    if (!targetCh && CONFIG.QUEUE_ANNOUNCE_CHANNEL_ID) {
+      try { targetCh = await i.client.channels.fetch(CONFIG.QUEUE_ANNOUNCE_CHANNEL_ID).catch(() => null); } catch(_) {}
+    }
+    if (!targetCh) targetCh = i.channel;
+
+    // ── Bot permission check ──────────────────────────────────
+    const me    = i.guild.members.me;
+    const perms = targetCh.permissionsFor(me);
+    if (!perms?.has(PermissionFlagsBits.SendMessages) || !perms?.has(PermissionFlagsBits.ViewChannel)) {
+      return i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('❌ Bot Missing Permission')
+        .setDescription(
+          `Bot does not have permission to send messages in <#${targetCh.id}>.\n\n` +
+          `**Fix:** Channel settings → Permissions → Bot role → ✅ View Channel + ✅ Send Messages`
+        )
+        .setFooter({ text: BOT_FOOTER })] });
+    }
+
+    // ── Delete old panel for this weapon if exists ────────────
+    const panels = loadSQPanels();
+    console.log(`[STARTQUEUE] panels keys: ${Object.keys(panels).join(', ')}`);
+
+    if (panels[weapon]?.channelId && panels[weapon]?.messageId) {
+      const { channelId, messageId } = panels[weapon];
+      try {
+        const oldCh = await i.client.channels.fetch(channelId, { force: true });
+        if (!oldCh) {
+          console.error(`[STARTQUEUE] Could not fetch old panel channel ${channelId} for ${weapon}`);
+        } else {
+          const oldMsg = await oldCh.messages.fetch({ message: messageId, force: true }).catch(err => {
+            console.error(`[STARTQUEUE] Could not fetch old panel message ${messageId} for ${weapon}:`, err.message);
+            return null;
+          });
+          if (oldMsg) {
+            await oldMsg.delete().catch(err =>
+              console.error(`[STARTQUEUE] Could not delete old panel message ${messageId} for ${weapon}:`, err.message)
+            );
+          }
+        }
+      } catch(err) {
+        console.error(`[STARTQUEUE] Old panel cleanup error for ${weapon}:`, err.message);
+      }
+    }
+
+    // ── Delete "Queue Closed" embed if it exists ──────────────
+    const closedKey = `closed_${weapon}`;
+    console.log(`[STARTQUEUE] closedKey: ${closedKey}, exists: ${!!panels[closedKey]}`);
+    if (panels[closedKey]?.channelId && panels[closedKey]?.messageId) {
+      try {
+        const closedCh  = await i.client.channels.fetch(panels[closedKey].channelId).catch(() => null);
+        const closedMsg = closedCh ? await closedCh.messages.fetch(panels[closedKey].messageId).catch(() => null) : null;
+        if (closedMsg) {
+          await closedMsg.delete().catch(() => {});
+          console.log(`[STARTQUEUE] Deleted closed embed for ${weapon}`);
+        } else {
+          console.log(`[STARTQUEUE] Closed msg not found in channel (may be already deleted)`);
+        }
+      } catch(e) {
+        console.error(`[STARTQUEUE] Error deleting closed msg:`, e.message);
+      }
+      delete panels[closedKey];
+      saveSQPanels(panels);
+    }
+
+    // ── Send the live panel ───────────────────────────────────
+    let sentMsg = null;
+    const baseContent = `@here **${weapon}** queue is open for the **${region}** region!`;
+    const fullContent = extraMsg ? `${extraMsg} ${baseContent}` : baseContent;
+    try {
+      sentMsg = await targetCh.send({
+        content:           fullContent,
+        embeds:            [buildSQEmbed(weapon, region, [i.user.id])],
+        components:        [buildSQButtons(weapon)],
+        allowedMentions:   { parse: ['everyone'] },
+      });
+    } catch(err) {
+      console.error('[STARTQUEUE SEND ERROR]', err.message, 'Code:', err.code);
+      return i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('⚠️ Panel Failed to Send')
+        .setDescription(
+          `Failed to send message in <#${targetCh.id}>.\n\n` +
+          `**Error:** \`${err.message}\` (Code: ${err.code || 'N/A'})\n\n` +
+          `Check:\n• Does the bot have **Send Messages** permission in the channel?\n• Is there a permission override on the channel?`
+        )
+        .addFields(
+          { name: `${emoji} Gamemode`, value: weapon,              inline: true },
+          { name: '📢 Channel',        value: `<#${targetCh.id}>`, inline: true },
+        )
+        .setFooter({ text: BOT_FOOTER })] });
+    }
+
+    // ── Save panel info ───────────────────────────────────────
+    panels[weapon] = {
+      channelId:   targetCh.id,
+      messageId:   sentMsg.id,
+      testers:     [i.user.id],   // tester who started it
+      region,
+      content:     fullContent,   // preserved on refresh so the mention doesn't disappear
+      startedBy:   i.user.id,
+      startedAt:   Date.now(),
+      lastRefresh: Date.now(),
+    };
+    saveSQPanels(panels);
+
+    // ── Confirm to tester (ephemeral) ─────────────────────────
+    return i.editReply({ embeds: [new EmbedBuilder().setColor(0x00C864)
+      .setTitle('✅ Live Queue Panel Started!')
+      .setDescription(
+        `The **${emoji} ${weapon}** CTL-style live panel has been sent in <#${targetCh.id}>!\n\n` +
+        `The panel will update automatically whenever someone joins, leaves, or gets pulled.`
+      )
+      .addFields(
+        { name: `${emoji} Gamemode`, value: weapon,              inline: true },
+        { name: '📢 Channel',        value: `<#${targetCh.id}>`, inline: true },
+        { name: '🌍 Region',         value: region,              inline: true },
+        ...(extraMsg ? [{ name: '💬 Message', value: extraMsg, inline: false }] : []),
+      )
+      .setFooter({ text: BOT_FOOTER })
+      .setTimestamp()] });
+  },
+};
+
+// ════════════════════════════════════════════════════════════
+//  /closequeue — CTL-STYLE QUEUE CLOSED EMBED
+//  Usage: /closequeue gamemode:Sword reason:Last tester left
+// ════════════════════════════════════════════════════════════
+CMDS.closequeue = {
+  data: new SlashCommandBuilder()
+    .setName('closequeue')
+    .setDescription('Close the queue — send a closed-style embed (Testers only)')
+    .addStringOption(o => o
+      .setName('gamemode')
+      .setDescription('Choose a gamemode')
+      .setRequired(true)
+      .addChoices(...WEAPONS.map(w => ({ name: `${WEAPON_EMOJI[w]} ${w}`, value: w })))
+    )
+    .addStringOption(o => o
+      .setName('reason')
+      .setDescription('Reason for closing (default: Last tester left the queue)')
+      .setRequired(false)
+    ),
+
+  async execute(i) {
+    // ── Permission check ──────────────────────────────────────
+    if (!hasQueuePerm(i.member))
+      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('❌ Permission Denied')
+        .setDescription('Only **Testers** or roles with queue permission can use this command.')
+        .setFooter({ text: BOT_FOOTER })] });
+
+    await i.deferReply({ ephemeral: true });
+
+    const weapon = i.options.getString('gamemode');
+    const reason = i.options.getString('reason') || 'Last tester left the queue';
+    const emoji  = WEAPON_EMOJI[weapon] || '<:sword:1517752855577104474>';
+
+    // ── Find waitlist channel ─────────────────────────────────
+    const targetName = `waitlist-${weapon.toLowerCase()}`;
+    let targetCh = null;
+    try {
+      const all = await i.guild.channels.fetch();
+      targetCh = all.find(c => c?.isTextBased?.() && c.name.toLowerCase() === targetName) || null;
+    } catch(_) {}
+    if (!targetCh && CONFIG.QUEUE_ANNOUNCE_CHANNEL_ID) {
+      try { targetCh = await i.client.channels.fetch(CONFIG.QUEUE_ANNOUNCE_CHANNEL_ID).catch(() => null); } catch(_) {}
+    }
+    if (!targetCh) targetCh = i.channel;
+
+    // ── Delete the live panel message if it exists ────────────
+    const sqPanels = loadSQPanels();
+    if (sqPanels[weapon]?.channelId && sqPanels[weapon]?.messageId) {
+      const { channelId, messageId } = sqPanels[weapon];
+      try {
+        const oldCh = await i.client.channels.fetch(channelId, { force: true });
+        if (!oldCh) {
+          console.error(`[CLOSEQUEUE] Could not fetch panel channel ${channelId} for ${weapon}`);
+        } else {
+          const oldMsg = await oldCh.messages.fetch({ message: messageId, force: true }).catch(err => {
+            console.error(`[CLOSEQUEUE] Could not fetch panel message ${messageId} for ${weapon}:`, err.message);
+            return null;
+          });
+          if (oldMsg) {
+            await oldMsg.delete().catch(err =>
+              console.error(`[CLOSEQUEUE] Could not delete panel message ${messageId} for ${weapon}:`, err.message)
+            );
+          }
+        }
+      } catch(err) {
+        console.error(`[CLOSEQUEUE] Panel cleanup error for ${weapon}:`, err.message);
+      }
+      // Clear panel record
+      delete sqPanels[weapon];
+      saveSQPanels(sqPanels);
+    }
+
+    // Also clear old live panel if exists
+    const livePanels = loadLivePanels();
+    if (livePanels[weapon]?.channelId && livePanels[weapon]?.messageId) {
+      const { channelId, messageId } = livePanels[weapon];
+      try {
+        const oldCh = await i.client.channels.fetch(channelId, { force: true });
+        if (!oldCh) {
+          console.error(`[CLOSEQUEUE] Could not fetch live panel channel ${channelId} for ${weapon}`);
+        } else {
+          const oldMsg = await oldCh.messages.fetch({ message: messageId, force: true }).catch(err => {
+            console.error(`[CLOSEQUEUE] Could not fetch live panel message ${messageId} for ${weapon}:`, err.message);
+            return null;
+          });
+          if (oldMsg) {
+            await oldMsg.delete().catch(err =>
+              console.error(`[CLOSEQUEUE] Could not delete live panel message ${messageId} for ${weapon}:`, err.message)
+            );
+          }
+        }
+      } catch(err) {
+        console.error(`[CLOSEQUEUE] Live panel cleanup error for ${weapon}:`, err.message);
+      }
+      delete livePanels[weapon];
+      saveLivePanels(livePanels);
+    }
+
+    // ── Clear the queue for this weapon ──────────────────────
+    LDB.leaveAllQ && (() => {
+      const db = JSON.parse(fs.existsSync(QF) ? fs.readFileSync(QF,'utf8') : '{}');
+      db[weapon] = [];
+      fs.writeFileSync(QF, JSON.stringify(db, null, 2));
+      MEM.queues[weapon] = [];
+    })();
+    broadcast({ type: 'queue_updated', queues: MEM.queues });
+
+    // ── Build CTL-style "Queue Closed" embed ──────────────────
+    const now = new Date();
+    const sessionTime = now.toLocaleDateString('en-PK', {
+      day: '2-digit', month: 'long', year: 'numeric',
+    }) + ' at ' + now.toLocaleTimeString('en-PK', {
+      hour: '2-digit', minute: '2-digit', hour12: true,
+    });
+
+    const closedEmbed = new EmbedBuilder()
+      .setColor(0xFF4444)
+      .setTitle(`🔒  ${weapon} Queue Closed`)
+      .setDescription(
+        `This testing session has ended. You will be notified here when a new queue opens.`
+      )
+      .addFields(
+        { name: '📋  Reason',       value: reason,      inline: false },
+        { name: '🕐  Session Ended', value: sessionTime, inline: false },
+      )
+      .setFooter({ text: 'Thank you for testing!' });
+
+    // ── Send closed embed to waitlist channel ─────────────────
+    let sent = false;
+    try {
+      const closedMsg = await targetCh.send({ embeds: [closedEmbed] });
+      sent = true;
+      // Save closed message ID — reload fresh so no key is missed
+      const freshPanels = loadSQPanels();
+      freshPanels[`closed_${weapon}`] = { channelId: targetCh.id, messageId: closedMsg.id };
+      saveSQPanels(freshPanels);
+      console.log(`[CLOSEQUEUE] Saved closed_${weapon} messageId: ${closedMsg.id}`);
+    } catch(err) {
+      console.error('[CLOSEQUEUE SEND ERROR]', err.message);
+    }
+
+    // ── Confirm to tester ─────────────────────────────────────
+    return i.editReply({ embeds: [new EmbedBuilder()
+      .setColor(sent ? 0xFF4444 : 0xFF9933)
+      .setTitle(sent ? `🔒 ${weapon} Queue Closed!` : '⚠️ Failed to Send')
+      .setDescription(sent
+        ? `**${emoji} ${weapon}** queue has been closed.\nClosed embed sent in <#${targetCh.id}>.\nQueue cleared.`
+        : `Failed to send the closed embed. Check bot permissions.`
+      )
+      .addFields(
+        { name: `${emoji} Gamemode`, value: weapon,              inline: true },
+        { name: '📢 Channel',        value: `<#${targetCh.id}>`, inline: true },
+        { name: '📋 Reason',         value: reason,              inline: true },
+      )
+      .setFooter({ text: BOT_FOOTER })
+      .setTimestamp()] });
+  },
+};
+
+// ════════════════════════════════════════════════════════════
+//  /synclogs — Add old tiers to logs
+//  syncs all existing tiers from players.json
+// ════════════════════════════════════════════════════════════
+CMDS.synclogs = {
+  data: new SlashCommandBuilder()
+    .setName('synclogs')
+    .setDescription('Sync all old tiers into tier_logs (Admin only)'),
+
+  async execute(i) {
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isAdmin)
+      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Only **Admin** can use this command.')] });
+
+    await i.deferReply({ ephemeral: true });
+
+    const allPlayers = LDB.all();
+    const existing   = loadTierLogs();
+
+    // Mark already-synced entries in existing logs (avoid duplicates)
+    const alreadySynced = new Set(
+      existing.filter(l => l.synced).map(l => `${l.playerId}_${l.weapon}`)
+    );
+
+    let added = 0;
+    const newEntries = [];
+
+    for (const player of Object.values(allPlayers)) {
+      for (const [weapon, tier] of Object.entries(player.tiers || {})) {
+        const key = `${player.discordId}_${weapon}`;
+        if (alreadySynced.has(key)) continue;
+
+        newEntries.push({
+          tieredBy:    'SYNC',
+          tieredByTag: 'synced-from-db',
+          playerId:    player.discordId,
+          playerIGN:   player.ign,
+          weapon,
+          tier,
+          oldTier:     null,
+          timestamp:   player.registeredAt || Date.now(),
+          synced:      true,  // flag — this is a manually synced entry
+        });
+        added++;
+      }
+    }
+
+    // Save all new entries
+    if (newEntries.length) {
+      const merged = [...existing, ...newEntries];
+      try {
+        fs.writeFileSync(TIER_LOG_FILE, JSON.stringify(merged, null, 2));
+        broadcast({ type:'testers_updated' });
+      } catch(err) {
+        return i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF4444)
+          .setDescription(`❌ File save error: ${err.message}`)] });
+      }
+    }
+
+    return i.editReply({ embeds: [new EmbedBuilder()
+      .setColor(BRAND_COLOR)
+      .setTitle('✅ Logs Sync Ho Gaye!')
+      .addFields(
+        { name: '👥 Players Scanned', value: `**${Object.keys(allPlayers).length}**`, inline: true },
+        { name: '📋 Entries Added',   value: `**${added}**`,                          inline: true },
+        { name: '⏭️ Already Synced',  value: `**${alreadySynced.size}**`,             inline: true },
+      )
+      .setDescription(added > 0
+        ? `${added} tier entries have been synced. Now use \`/logs\` to view any tester's logs.`
+        : `All entries are already synced. No new entries were found.`
+      )
+      .setFooter({ text: BOT_FOOTER })
+      .setTimestamp()] });
+  },
+};
+
+
+//  Usage: /logs user:<discord_user>
+//         /logs username:"XYZ"
+// ════════════════════════════════════════════════════════════
+CMDS.logs = {
+  data: new SlashCommandBuilder()
+    .setName('logs')
+    .setDescription("View a tester's tier logs for today (Tierer/Admin only)")
+    .addUserOption(o => o
+      .setName('user')
+      .setDescription('Tester ka Discord mention')
+      .setRequired(false)
+    )
+    .addStringOption(o => o
+      .setName('username')
+      .setDescription("Tester's Discord username (if you can't mention them)")
+      .setRequired(false)
+    )
+    .addStringOption(o => o
+      .setName('date')
+      .setDescription('Choose a day: today / yesterday / all (default: today)')
+      .setRequired(false)
+      .addChoices(
+        { name: 'Today (Aaj)',        value: 'today'     },
+        { name: 'Yesterday (Kal)',    value: 'yesterday' },
+        { name: 'All Time',   value: 'all'       },
+      )
+    ),
+
+  async execute(i) {
+    // ── Permission check ─────────────────────────────────────
+    const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasTierer = hasTiererPerm(i.member);
+    if (!isAdmin && !hasTierer)
+      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ You need the **Tierer** or **Admin** role to use this command.')] });
+
+    await i.deferReply();
+
+    const targetUser     = i.options.getUser('user');
+    const targetUsername = i.options.getString('username');
+    const dateFilter     = i.options.getString('date') || 'today';
+
+    // ── Load all logs ─────────────────────────────────────────
+    const allLogs = loadTierLogs();
+
+    if (!allLogs.length)
+      return i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF9933)
+        .setTitle('📋 Tier Logs')
+        .setDescription('⚠️ No tier logs yet. Logs are created only when `/tier set` is used.')
+        .setFooter({ text: BOT_FOOTER })] });
+
+    // ── Filter by tester ──────────────────────────────────────
+    let filtered = allLogs;
+    let labelName = 'All Testers';
+    let searchedByPlayer = false;
+
+    if (targetUser) {
+      // Discord mention — match by ID, exclude synced entries
+      filtered  = allLogs.filter(l => l.tieredBy === targetUser.id && !l.synced);
+      labelName = targetUser.username;
+    } else if (targetUsername) {
+      const q = targetUsername.toLowerCase();
+      // First search by tester username (non-synced)
+      const byTester = allLogs.filter(l =>
+        !l.synced && (l.tieredByTag || '').toLowerCase().includes(q)
+      );
+      if (byTester.length > 0) {
+        filtered  = byTester;
+        labelName = targetUsername;
+      } else {
+        // Tester not found — try by player IGN (synced data)
+        filtered  = allLogs.filter(l => (l.playerIGN || '').toLowerCase().includes(q));
+        labelName = targetUsername;
+        searchedByPlayer = filtered.length > 0;
+      }
+    }
+
+    // ── Filter by date ────────────────────────────────────────
+    const now       = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const yestStart  = todayStart - 86400000;
+
+    if (dateFilter === 'today') {
+      filtered = filtered.filter(l => l.timestamp >= todayStart);
+    } else if (dateFilter === 'yesterday') {
+      filtered = filtered.filter(l => l.timestamp >= yestStart && l.timestamp < todayStart);
+    }
+    // 'all' = no date filter
+
+    // ── No results ────────────────────────────────────────────
+    if (!filtered.length) {
+      const dateLabel = dateFilter === 'today' ? 'today' : dateFilter === 'yesterday' ? 'yesterday' : 'all time';
+      return i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF9933)
+        .setTitle(`📋 Logs — ${labelName}`)
+        .setDescription(
+          `⚠️ No logs found for **${labelName}**.\n\n` +
+          `• If they are a tester: try \`/logs user:@mention\`\n` +
+          `• For older data: use the \`date:all\` option`
+        )
+        .setFooter({ text: BOT_FOOTER })] });
+    }
+
+    // ── Build stats ───────────────────────────────────────────
+    const totalTests = filtered.length;
+
+    // Per-weapon breakdown
+    const weaponCount = {};
+    for (const l of filtered) {
+      weaponCount[l.weapon] = (weaponCount[l.weapon] || 0) + 1;
+    }
+    const weaponLines = Object.entries(weaponCount)
+      .sort((a, b) => b[1] - a[1])
+      .map(([w, c]) => `${WEAPON_EMOJI[w] || '<:sword:1517752855577104474>'} **${w}** — ${c} test${c > 1 ? 's' : ''}`)
+      .join('\n');
+
+    // Per-tier breakdown
+    const tierCount = {};
+    for (const l of filtered) {
+      tierCount[l.tier] = (tierCount[l.tier] || 0) + 1;
+    }
+    const tierLines = Object.entries(tierCount)
+      .sort((a, b) => (TIER_PTS[b[0]] || 0) - (TIER_PTS[a[0]] || 0))
+      .map(([t, c]) => `\`${t}\` — ${c}x`)
+      .join('  ');
+
+    // Recent 10 entries (latest first)
+    const recent = [...filtered].reverse().slice(0, 10);
+    const recentLines = recent.map(l => {
+      const time = new Date(l.timestamp).toLocaleTimeString('en-PK', {
+        hour: '2-digit', minute: '2-digit', hour12: true,
+      });
+      const arrow = l.oldTier ? `~~${l.oldTier}~~ → ` : '';
+      return `• \`${time}\` **${l.playerIGN}** — ${WEAPON_EMOJI[l.weapon] || '<:sword:1517752855577104474>'} ${l.weapon} ${arrow}**${l.tier}**`;
+    }).join('\n');
+
+    // Date label for embed title
+    const dateLabelMap = { today: 'Aaj', yesterday: 'Kal', all: 'All Time' };
+    const syncNotice = searchedByPlayer
+      ? '\n⚠️ *This is old synced data — tester name was not available.*'
+      : '';
+
+    const embed = new EmbedBuilder()
+      .setColor(BRAND_COLOR)
+      .setTitle(`📊 Tier Logs — ${labelName} (${dateLabelMap[dateFilter]})`)
+      .setDescription(syncNotice || null)
+      .addFields(
+        { name: '🔢 Total Tests', value: `**${totalTests}**`, inline: true },
+        { name: '⚔️ Weapons',    value: weaponLines || '*N/A*', inline: false },
+        { name: '🏅 Tiers Given', value: tierLines  || '*N/A*', inline: false },
+        { name: `📋 Recent ${Math.min(10, filtered.length)} Entries`, value: recentLines, inline: false },
+      )
+      .setFooter({ text: `${BOT_FOOTER} · /logs` })
+      .setTimestamp();
+
+    return i.editReply({ embeds: [embed] });
+  },
+};
+
+// ════════════════════════════════════════════════════════════
+//  INTERACTION HANDLER — Registration Flow (Select Menus)
+// ════════════════════════════════════════════════════════════
+
+// Temporary storage for multi-step registration
+const regState = new Map(); // userId -> { platform, accountType, region, step }
+
+async function handleSelectMenu(i) {
+  if (isBlacklisted(i.user.id)) {
+    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setTitle('🚫 Blacklisted')
+      .setDescription(`Your EclipseTiers account is blacklisted. You cannot use registration/profile actions or queue/test features.${blacklistReason(i.user.id)}`)
+      .setFooter({ text: BOT_FOOTER })] });
+  }
+  const [prefix, step, uid] = i.customId.split('_');
+
+  // ── Panel: gamemode waitlist role select ──────────────────
+  if (i.customId === 'panel_waitlist_select') {
+    const weapon = i.values[0];
+    const player = LDB.get(i.user.id);
+
+    if (!player)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ First click **Register / Update Profile** and register.')] });
+
+    // Cooldown check — reuse tier cooldown per weapon for waitlist
+    const WAITLIST_COOLDOWN_MS = CONFIG.TIER_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
+    const wlCDKey = `wl_${i.user.id}_${weapon}`;
+    const wlCDStore = global._wlCooldowns || (global._wlCooldowns = {});
+    if (wlCDStore[wlCDKey]) {
+      const remaining = WAITLIST_COOLDOWN_MS - (Date.now() - wlCDStore[wlCDKey]);
+      if (remaining > 0) {
+        const h = Math.floor(remaining/3600000), m = Math.floor((remaining%3600000)/60000);
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setTitle(`⏳ ${weapon} Waitlist — Cooldown Active`)
+          .setDescription(`**${weapon}** You can apply for the waitlist role again in **${h}h ${m}m**.`)] });
+      }
+    }
+
+    // Assign Waitlist-<weapon> role
+    try {
+      const role = await ensureWaitlistRole(i.guild, weapon);
+      if (role) {
+        const member = await i.guild.members.fetch(i.user.id).catch(()=>null);
+        if (member) await member.roles.add(role).catch(()=>{});
+      }
+      wlCDStore[wlCDKey] = Date.now();
+
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x7FFF00)
+        .setTitle(`✅ Waitlist Role Granted — ${WEAPON_EMOJI[weapon]} ${weapon}`)
+        .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
+        .setDescription(
+          `You have received the **Waitlist-${weapon}** role!
+
+` +
+          `When the **${weapon}** queue opens, you will be pinged.
+` +
+          `To join, click the **Join** button in the queue channel.`
+        )
+        .addFields(
+          { name:'🎮 IGN',      value:`**${player.ign}**`,           inline:true },
+          { name:'💻 Platform', value:player.platform||'Java',        inline:true },
+          { name:'🌍 Region',   value:formatRegion(player.region),           inline:true },
+        )
+        .setFooter({ text:'EclipseTiers · Global Minecraft Community' })
+        .setTimestamp()] });
+    } catch(err) {
+      console.error('[PANEL WAITLIST ROLE]', err);
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Error assigning role: ${err.message}`)] });
+    }
+  }
+
+  // ── Application Panel: type select ────────────────────────
+  if (i.customId === 'app_apply_select') {
+    const appType = i.values[0];
+    const label = APPLICATION_TYPE_LABELS[appType] || 'EclipseTiers Application';
+
+    await i.deferReply({ ephemeral: true });
+
+    const member = await i.guild.members.fetch(i.user.id).catch(() => null);
+    if (!member) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Failed to fetch member, please try again.')] });
+    }
+
+    const ticketChannel = await createApplicationTicket(i.client, i.guild, member, appType);
+    if (!ticketChannel) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Application ticket could not be created. Please inform staff.')] });
+    }
+
+    return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+      .setTitle(`✅ ${label} Submitted!`)
+      .setDescription(`Your application ticket is open: <#${ticketChannel.id}>`)] });
+  }
+
+  if (prefix !== 'reg') return;
+  if (uid !== i.user.id) {
+    return i.reply({ ephemeral:true, content:'❌ This is not your menu.' });
+  }
+
+  const selected = i.values[0];
+
+  if (step === 'platform') {
+    // Save platform, move to account type
+    regState.set(i.user.id, { platform: selected });
+
+    const accRow = new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`reg_account_${i.user.id}`)
+        .setPlaceholder('🔑 Choose your account type...')
+        .addOptions(ACCOUNT_TYPES.map(a => ({ label:a, value:a }))),
+    );
+
+    return i.update({
+      embeds: [new EmbedBuilder().setColor(BRAND_COLOR)
+        .setTitle('📋 EclipseTiers Registration — Step 1/2')
+        .setDescription(`✅ Platform: **${selected}**\n\nNow choose your **account type**:`)
+        .addFields(
+          { name:'💎 Premium (Paid)', value:'Original bought Minecraft account', inline:false },
+          { name:'🏴‍☠️ Cracked (Free)', value:'TLauncher or another cracked launcher', inline:false },
+        )
+        .setFooter({ text:'Only you can see this | EclipseTiers' })],
+      components: [accRow],
+    });
+  }
+
+  if (step === 'account') {
+    const state = regState.get(i.user.id) || {};
+    state.accountType = selected;
+    regState.set(i.user.id, state);
+
+    const regionRow = new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`reg_region_${i.user.id}`)
+        .setPlaceholder('🌍 Choose your region...')
+        .addOptions(REGIONS_LIST.map(r => ({ label:r, value:r }))),
+    );
+
+    return i.update({
+      embeds: [new EmbedBuilder().setColor(BRAND_COLOR)
+        .setTitle('📋 EclipseTiers Registration — Step 2/2')
+        .setDescription(`✅ Platform: **${state.platform}**\n✅ Account: **${selected}**\n\nNow choose your **region**:`)
+        .setFooter({ text:'Only you can see this | EclipseTiers' })],
+      components: [regionRow],
+    });
+  }
+
+  if (step === 'region') {
+    const state = regState.get(i.user.id) || {};
+    state.region = selected;
+    regState.set(i.user.id, state);
+
+    // Now ask for IGN via modal button
+    const ignRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`reg_ignbtn_${i.user.id}`)
+        .setLabel('✏️ Enter IGN')
+        .setStyle(ButtonStyle.Primary),
+    );
+
+    return i.update({
+      embeds: [new EmbedBuilder().setColor(BRAND_COLOR)
+        .setTitle('📋 EclipseTiers Registration — IGN')
+        .setDescription(`✅ Platform: **${state.platform}**\n✅ Account: **${state.accountType}**\n✅ Region: **${selected}**\n\n⬇️ Now click the button below and enter your **Minecraft IGN**:`)
+        .setFooter({ text:'Only you can see this | EclipseTiers' })],
+      components: [ignRow],
+    });
+  }
+}
+
+async function handleButtonClick(i) {
+  const parts = i.customId.split('_');
+
+  // ── Staff List: 🔄 Refresh button ─────────────────────────
+  if (i.customId === 'staff_list_refresh') {
+    await i.deferUpdate();
+    try {
+      return await i.editReply({
+        embeds: [buildStaffListEmbed(i.guild)],
+        components: [buildStaffListButtons()],
+      });
+    } catch(err) {
+      console.error('[STAFF LIST] refresh error:', err);
+      return i.editReply({
+        embeds: [new EmbedBuilder().setColor(0xFF4444).setDescription(`⚠️ Could not refresh the staff list: ${err.message}`)],
+        components: [buildStaffListButtons()],
+      });
+    }
+  }
+
+  // ── Tester Panel: 🔄 Refresh button ───────────────────────
+  if (i.customId === 'tester_pnl_refresh') {
+    await i.deferUpdate();
+    return i.editReply({
+      embeds: [buildTesterPnlEmbed()],
+      components: [buildTesterPnlButtons()],
+    });
+  }
+
+  // ── Panel: Register / Update Profile button ──────────────
+  if (i.customId === 'panel_register') {
+    if (isBlacklisted(i.user.id)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setTitle('🚫 Blacklisted')
+        .setDescription(`You cannot register or update your profile while blacklisted.${blacklistReason(i.user.id)}`)
+        .setFooter({ text: BOT_FOOTER })] });
+    }
+    // Check if already registered
+    const existing = LDB.get(i.user.id);
+
+    if (CONFIG.REGISTER_CHANNEL_ID && i.channelId !== CONFIG.REGISTER_CHANNEL_ID) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Please use <#${CONFIG.REGISTER_CHANNEL_ID}> for registration.`)] });
+    }
+
+    // Start registration/update flow — existing players can re-register (IGN update + tier transfer)
+    if (existing) {
+      // Store flag: this is an UPDATE, not fresh register
+      regState.set(i.user.id, { platform: existing.platform || 'Java Edition', isUpdate: true, oldIgn: existing.ign });
+    } else {
+      regState.set(i.user.id, { platform: 'Java Edition', isUpdate: false });
+    }
+
+    const accRow = new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`reg_account_${i.user.id}`)
+        .setPlaceholder('🔑 Choose your account type...')
+        .addOptions(ACCOUNT_TYPES.map(a => ({ label:a, value:a }))),
+    );
+
+    const titleTxt = existing ? '📋 EclipseTiers — Update Profile (Step 1/2)' : '📋 EclipseTiers Registration — Step 1/2';
+    const descTxt  = existing
+      ? `♻️ **Updating profile for ${existing.ign}**\n\nChoose your **account type**:`
+      : '🖥️ **Platform: Java Edition**\n\nChoose your **account type**:';
+
+    return i.reply({
+      ephemeral:true,
+      embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+        .setTitle(titleTxt)
+        .setDescription(descTxt)
+        .addFields(
+          { name:'💎 Premium (Paid)', value:'Original bought Minecraft account', inline:false },
+          { name:'🏴‍☠️ Cracked (Free)', value:'TLauncher or another cracked launcher', inline:false },
+        )
+        .setFooter({ text:'Only you can see this | EclipseTiers' })],
+      components:[accRow],
+    });
+  }
+
+  // Close ticket button
+  if (i.customId.startsWith('close_ticket_')) {
+    const targetId = i.customId.replace('close_ticket_','');
+    const ticket   = LDB.getTicket(targetId);
+    const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasStaff  = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
+    const hasTierer = hasTiererPerm(i.member);
+    const isOwner   = i.user.id === targetId;
+    const isPuller  = ticket?.testerId && ticket.testerId === i.user.id;
+    if (!isAdmin && !hasStaff && !hasTierer && !isOwner && !isPuller)
+      return i.reply({ ephemeral:true, content:'❌ You do not have permission to close this ticket.' });
+    await i.reply({ ephemeral:true, content:'🔒 Closing ticket...' });
+    return closeTicket(i.client, i.guild, targetId, i.user.id);
+  }
+
+  // Close GROUP ticket button (one channel shared by several members)
+  if (i.customId.startsWith('close_group_ticket_')) {
+    const channelId = i.customId.replace('close_group_ticket_','');
+    const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasStaff  = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
+    const hasTierer = hasTiererPerm(i.member);
+    if (!isAdmin && !hasStaff && !hasTierer)
+      return i.reply({ ephemeral:true, content:'❌ You do not have permission to close this ticket.' });
+    await i.reply({ ephemeral:true, content:'🔒 Closing ticket...' });
+    try {
+      const ch = await i.client.channels.fetch(channelId).catch(() => null);
+      if (ch) {
+        await ch.send({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription(`🔒 Ticket closed by <@${i.user.id}>. This channel will be deleted in 5 seconds.`)] });
+        setTimeout(() => ch.delete().catch(() => {}), 5000);
+      }
+      // Remove any per-member ticket records pointing at this channel
+      const db = rDB(TF);
+      for (const [discordId, ticket] of Object.entries(db)) {
+        const cid = ticket?.channelId || ticket;
+        if (cid === channelId) LDB.delTicket(discordId);
+      }
+    } catch(err) {
+      console.error('[GROUP TICKET CLOSE ERROR]', err);
+    }
+    return;
+  }
+
+  // Close application ticket button
+  if (i.customId.startsWith('close_apptkt_')) {
+    const targetId = i.customId.replace('close_apptkt_','');
+    const isAdmin  = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasStaff = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
+    const isOwner  = i.user.id === targetId;
+    if (!isAdmin && !hasStaff && !isOwner)
+      return i.reply({ ephemeral:true, content:'❌ You do not have permission to close this application.' });
+    await i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setDescription(`🔒 Application closed by <@${i.user.id}>. Channel will be deleted in 5 seconds.`)] });
+    return setTimeout(() => i.channel.delete().catch(()=>{}), 5000);
+  }
+
+  // ── Support Panel: "Open a ticket!" button ────────────────
+  if (i.customId === 'support_open_ticket') {
+    await i.deferReply({ ephemeral: true });
+
+    const member = await i.guild.members.fetch(i.user.id).catch(() => null);
+    if (!member) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Failed to fetch member, please try again.')] });
+    }
+
+    const ticketChannel = await createSupportTicket(i.client, i.guild, member);
+    if (!ticketChannel) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Support ticket could not be created. Please inform staff.')] });
+    }
+
+    return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+      .setDescription(`✅ Your support ticket is open: <#${ticketChannel.id}>`)] });
+  }
+
+  // Close support ticket button
+  if (i.customId.startsWith('close_supporttkt_')) {
+    const targetId = i.customId.replace('close_supporttkt_','');
+    const isAdmin  = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const hasStaff = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
+    const isOwner  = i.user.id === targetId;
+    if (!isAdmin && !hasStaff && !isOwner)
+      return i.reply({ ephemeral:true, content:'❌ You do not have permission to close this ticket.' });
+    await i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setDescription(`🔒 Ticket closed by <@${i.user.id}>. Channel will be deleted in 5 seconds.`)] });
+    return setTimeout(() => i.channel.delete().catch(()=>{}), 5000);
+  }
+
+  // ── WAITLIST QUEUE BUTTONS (from /startqueue announce) ────────────────────
+  // wl_join_<weapon>  — join queue
+  // wl_leave_<weapon> — leave queue
+  // wl_pull_<weapon>  — tester pulls first waiting player and opens ticket
+  if (i.customId.startsWith('wl_')) {
+    const [, action, weapon] = i.customId.split('_');
+    const player = LDB.get(i.user.id);
+
+    // ── JOIN ──────────────────────────────────────────────────
+    if (action === 'join') {
+      if (isBlacklisted(i.user.id))
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setTitle('🚫 Blacklisted')
+          .setDescription(`You cannot join the **${weapon}** queue while blacklisted.${blacklistReason(i.user.id)}`)] });
+      if (!player)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription('❌ Please use `/register` first.')] });
+
+      const access = await hasQueueAccess(i.guild, i.user.id, player, weapon);
+      if (!access.allowed)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setTitle('❌ Access Denied')
+          .setDescription(
+            `You cannot join the **${weapon}** queue.\n\n` +
+            `**2 ways are available:**\n` +
+            `• Get your tier from a **Tierer**, **OR**\n` +
+            `• Select **${weapon}** in the panel — get the waitlist role`
+          )] });
+
+      const cd = isOnCooldown(i.user.id, weapon);
+      if (cd.onCooldown)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription(`⏳ **${weapon}** cooldown is active — ${cd.hours}h ${cd.mins}m remaining.`)] });
+
+      const result = LDB.joinQ(i.user.id, weapon);
+      if (!result.ok && result.reason === 'dupe')
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+          .setDescription(`⚠️ You are already in the **${weapon}** queue.`)] });
+
+      broadcast({ type:'queue_updated', queues:MEM.queues });
+      refreshLivePanel(i.client, weapon).catch(() => {});
+      const q   = LDB.getQ(weapon);
+      const pos = q.findIndex(e=>e.discordId===i.user.id)+1;
+
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+        .setTitle(`${WEAPON_EMOJI[weapon]} Queue Joined — ${weapon}`)
+        .addFields(
+          { name:'Player',    value:`**${player.ign}**`,           inline:true },
+          { name:'Your Tier', value:`\`${player.tiers?.[weapon] || 'Waitlist'}\``, inline:true },
+          { name:'Position',  value:`**#${pos}** in queue`,        inline:true },
+          { name:'⏳ Status',  value:'Wait for a tester to pull you…', inline:false },
+        )
+        .setFooter({ text:'Use the Leave Queue button to exit the queue · EclipseTiers' })
+        .setTimestamp()] });
+    }
+
+    // ── LEAVE ─────────────────────────────────────────────────
+    if (action === 'leave') {
+      if (!player)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription('❌ You are not registered.')] });
+
+      LDB.leaveQ(i.user.id, weapon);
+      broadcast({ type:'queue_updated', queues:MEM.queues });
+      refreshLivePanel(i.client, weapon).catch(() => {});
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription(`👋 You left the **${weapon}** queue.`)] });
+    }
+
+    // ── PULL (Testers only) ───────────────────────────────────
+    if (action === 'pull') {
+      if (!hasQueuePerm(i.member))
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription('❌ Only **Testers** or roles with queue permission can use this button.')] });
+
+      const q = LDB.getQ(weapon);
+      if (!q.length)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+          .setDescription(`📭 **${weapon}** queue is currently empty — no players are waiting.`)] });
+
+      // Pull = remove first player from queue
+      const entry  = q[0];
+      const target = LDB.get(entry.discordId);
+
+      if (!target)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription('❌ Queue entry found but player data was not found.')] });
+
+      // Remove player from queue
+      LDB.leaveQ(entry.discordId, weapon);
+      broadcast({ type:'queue_updated', queues:MEM.queues });
+
+      // Update active tester
+      const pnls = loadLivePanels();
+      if (pnls[weapon]) {
+        if (!pnls[weapon].activeTesters) pnls[weapon].activeTesters = [];
+        if (!pnls[weapon].activeTesters.includes(i.user.id))
+          pnls[weapon].activeTesters.push(i.user.id);
+        pnls[weapon].currentTest = `<@${i.user.id}> is testing <@${entry.discordId}>`;
+        pnls[weapon].currentTestAt = Date.now();
+        pnls[weapon].currentTesterId = i.user.id;
+        pnls[weapon].currentPlayerId = entry.discordId;
+        saveLivePanels(pnls);
+      }
+      refreshLivePanel(i.client, weapon).catch(() => {});
+
+
+      // Open ticket for pulled player
+      let ticketChannel = null;
+      if (i.guild) {
+        ticketChannel = await createQueueTicket(i.client, i.guild, target, weapon, entry.discordId, i.user.id).catch(()=>null);
+      } else {
+        console.warn('[PULL] Guild unavailable — ticket will not be created.');
+      }
+
+      const joinedAt = entry.joinedAt
+        ? `<t:${Math.floor(entry.joinedAt/1000)}:R>`
+        : 'Unknown';
+
+      // Rich embed shown to tester (ephemeral)
+      const pullEmbed = new EmbedBuilder()
+        .setColor(BRAND_COLOR)
+        .setTitle(`🎫 Player Pulled — ${WEAPON_EMOJI[weapon]} ${weapon}`)
+        .setThumbnail(`https://mc-heads.net/avatar/${target.ign}/128`)
+        .setDescription(
+          `Next player in **${weapon}** queue pulled.\n` +
+          (ticketChannel ? `Ticket: <#${ticketChannel.id}>` : 'Ticket already existed or could not be created.')
+        )
+        .addFields(
+          { name:'1. 🎮 IGN',         value:`**${target.ign}**`,                                        inline:true },
+          { name:'2. 👤 Discord',      value:`<@${entry.discordId}>`,                                    inline:true },
+          { name:'🧪 Testing',        value:`<@${i.user.id}> is testing <@${entry.discordId}>`,       inline:false },
+          { name:'3. 💻 Platform',     value:target.platform    || 'Java Edition',                       inline:true },
+          { name:'4. 🔑 Account',      value:target.accountType || 'Premium',                            inline:true },
+          { name:'5. 🌍 Region',       value:target.region      || 'PK',                                 inline:true },
+          { name:`6. ${WEAPON_EMOJI[weapon]} Tier`, value:`\`${target.tiers?.[weapon] || 'N/A'}\``,      inline:true },
+          { name:'7. ⏱️ Joined Queue', value:joinedAt,                                                   inline:true },
+          { name:'8. 📅 Registered',   value:`<t:${Math.floor(target.registeredAt/1000)}:D>`,            inline:true },
+        )
+        .setFooter({ text:`Pulled by ${i.user.username} · EclipseTiers` })
+        .setTimestamp();
+
+      // Notify inside ticket channel OR DM player as fallback
+      if (ticketChannel) {
+        try {
+          await ticketChannel.send({
+            content:`📢 <@${entry.discordId}> — A tester pulled you! Get ready for the test.`,
+            embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+              .setTitle('🎫 Pulled by Tester')
+              .setDescription(`<@${i.user.id}> (**${i.user.username}**) pulled you from the **${weapon}** queue.\nGet ready for your test!`)
+              .setFooter({ text:BOT_FOOTER })
+              .setTimestamp()],
+          });
+        } catch(_) {}
+      } else {
+        // Ticket creation failed — DM the player
+        try {
+          const pulledMember = await i.guild.members.fetch(entry.discordId).catch(()=>null);
+          if (pulledMember) {
+            await pulledMember.send({
+              embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+                .setTitle(`🎫 ${weapon} Queue — Pulled!`)
+                .setDescription(`**${i.user.username}** (Tester) pulled you from the **${weapon}** queue!\nCome to the server and get ready for the test. 🇵🇰`)
+                .setFooter({ text:BOT_FOOTER })
+                .setTimestamp()],
+            }).catch(()=>{});
+          }
+        } catch(_) {}
+      }
+
+      return i.reply({ ephemeral:true, embeds:[pullEmbed] });
+    }
+
+    return; // unknown wl_ sub-action
+  }
+
+  // ── /startqueue BUTTONS: sq_join_ / sq_leave_ / sq_pull_ ──────────────────
+  if (i.customId.startsWith('sq_')) {
+    // customId format: sq_join_Axe / sq_leave_Axe / sq_pull_Axe
+    const withoutPrefix = i.customId.slice(3);           // "join_Axe"
+    const underIdx      = withoutPrefix.indexOf('_');
+    const action        = withoutPrefix.slice(0, underIdx);   // "join"
+    const weapon        = withoutPrefix.slice(underIdx + 1);  // "Axe"
+
+    const player = LDB.get(i.user.id);
+
+    // ── SQ JOIN ───────────────────────────────────────────────
+    if (action === 'join') {
+      if (isBlacklisted(i.user.id))
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setTitle('🚫 Blacklisted')
+          .setDescription(`You cannot join the **${weapon}** queue while blacklisted.${blacklistReason(i.user.id)}`)] });
+      if (!player)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setTitle('❌ Not Registered')
+          .setDescription('To join the queue, first use `/register` or click the **Register / Update Profile** button.')
+          .setFooter({ text: BOT_FOOTER })] });
+
+      const access = await hasQueueAccess(i.guild, i.user.id, player, weapon);
+      if (!access.allowed)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setTitle('❌ Access Denied')
+          .setDescription(
+            `You cannot join the **${weapon}** queue.\n\n` +
+            `**2 ways to join the queue:**\n` +
+            `• Get your ${weapon} tier from a **Tierer**\n` +
+            `• Select **${weapon}** in the panel — get the waitlist role`
+          )
+          .setFooter({ text: BOT_FOOTER })] });
+
+      const cd = isOnCooldown(i.user.id, weapon);
+      if (cd.onCooldown)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setTitle(`⏳ Cooldown Active — ${weapon}`)
+          .setDescription(`Your **${weapon}** cooldown is still active.\nTry again in **${cd.hours}h ${cd.mins}m**.`)
+          .setFooter({ text: BOT_FOOTER })] });
+
+      const result = addToSQQueue(i.user.id, weapon, player.ign);
+      if (!result.ok && result.reason === 'dupe')
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+          .setDescription(`⚠️ You are already in the **${weapon}** queue.`)] });
+      if (!result.ok && result.reason === 'full')
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setTitle('❌ Queue Full')
+          .setDescription(`The **${weapon}** queue is full. A maximum of **${SQ_QUEUE_LIMIT}** players can join at a time.`)
+          .setFooter({ text: BOT_FOOTER })] });
+
+      broadcast({ type:'queue_updated', queues:MEM.queues });
+      refreshSQPanel(i.client, weapon).catch(() => {});
+
+      const q   = LDB.getQ(weapon);
+      const pos = q.findIndex(e => e.discordId === i.user.id) + 1;
+
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x57F287)
+        .setTitle(`${WEAPON_EMOJI[weapon]} Queue Joined — ${weapon}`)
+        .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
+        .addFields(
+          { name:'🎮 Player',    value:`**${player.ign}**`,                               inline:true },
+          { name:'⚔️ Tier',     value:`\`${player.tiers?.[weapon] || 'Waitlist'}\``,      inline:true },
+          { name:'📋 Position', value:`**#${pos}** in queue`,                             inline:true },
+          { name:'⏳ Status',   value:'Wait for a tester to pull you…',               inline:false },
+        )
+        .setFooter({ text:'Use the Leave button to exit the queue · EclipseTiers' })
+        .setTimestamp()] });
+    }
+
+    // ── SQ LEAVE ──────────────────────────────────────────────
+    if (action === 'leave') {
+      if (!player)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription('❌ You are not registered.')] });
+
+      const q = LDB.getQ(weapon);
+      const inQ = q.find(e => e.discordId === i.user.id);
+      if (!inQ)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+          .setDescription(`⚠️ You are not in the **${weapon}** queue.`)] });
+
+      LDB.leaveQ(i.user.id, weapon);
+      broadcast({ type:'queue_updated', queues:MEM.queues });
+      refreshSQPanel(i.client, weapon).catch(() => {});
+
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setTitle(`👋 Queue Chod Di — ${weapon}`)
+        .setDescription(`**${player.ign}** left the **${weapon}** queue.`)
+        .setFooter({ text: BOT_FOOTER })] });
+    }
+
+    // ── SQ PULL (Testers only) ────────────────────────────────
+    if (action === 'pull') {
+      if (!hasQueuePerm(i.member))
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setTitle('❌ Permission Denied')
+          .setDescription('Only **Testers** or roles with queue permission can use this button.')
+          .setFooter({ text: BOT_FOOTER })] });
+
+      const q = LDB.getQ(weapon);
+      if (!q.length)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+          .setTitle(`📭 Queue Empty — ${weapon}`)
+          .setDescription(`**${weapon}** there are currently no players in the queue.`)] });
+
+      // Pull first player
+      const entry  = q[0];
+      const target = LDB.get(entry.discordId);
+
+      if (!target)
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription('❌ Queue entry found but player data was not found.')] });
+
+      LDB.leaveQ(entry.discordId, weapon);
+      broadcast({ type:'queue_updated', queues:MEM.queues });
+
+      // Update active testers list in SQ panel
+      const sqPanels = loadSQPanels();
+      if (sqPanels[weapon]) {
+        if (!sqPanels[weapon].testers) sqPanels[weapon].testers = [];
+        if (!sqPanels[weapon].testers.includes(i.user.id))
+          sqPanels[weapon].testers.push(i.user.id);
+        sqPanels[weapon].currentTest = `<@${i.user.id}> is testing <@${entry.discordId}>`;
+        sqPanels[weapon].currentTestAt = Date.now();
+        sqPanels[weapon].currentTesterId = i.user.id;
+        sqPanels[weapon].currentPlayerId = entry.discordId;
+        saveSQPanels(sqPanels);
+      }
+      refreshSQPanel(i.client, weapon).catch(() => {});
+
+      // Create / fetch ticket
+      let ticketChannel = null;
+      if (i.guild) {
+        ticketChannel = await createQueueTicket(i.client, i.guild, target, weapon, entry.discordId, i.user.id).catch(() => null);
+      }
+
+      const joinedAt = entry.joinedAt ? `<t:${Math.floor(entry.joinedAt/1000)}:R>` : 'Unknown';
+
+      const pullEmbed = new EmbedBuilder()
+        .setColor(BRAND_COLOR)
+        .setTitle(`🎫 Player Pulled — ${WEAPON_EMOJI[weapon]} ${weapon}`)
+        .setThumbnail(`https://mc-heads.net/avatar/${target.ign}/128`)
+        .setDescription(
+          `The next player in the **${weapon}** queue has been pulled.\n` +
+          (ticketChannel ? `Ticket: <#${ticketChannel.id}>` : '⚠️ Ticket creation failed — DM sent to player instead.')
+        )
+        .addFields(
+          { name:'1. 🎮 IGN',         value:`**${target.ign}**`,                                         inline:true },
+          { name:'2. 👤 Discord',      value:`<@${entry.discordId}>`,                                     inline:true },
+          { name:'3. 💻 Platform',     value:target.platform    || 'Java Edition',                        inline:true },
+          { name:'4. 🔑 Account',      value:target.accountType || 'Premium',                             inline:true },
+          { name:'5. 🌍 Region',       value:target.region      || 'PK',                                  inline:true },
+          { name:`6. ${WEAPON_EMOJI[weapon]} Tier`, value:`\`${target.tiers?.[weapon] || 'N/A'}\``,       inline:true },
+          { name:'7. ⏱️ Joined Queue', value:joinedAt,                                                    inline:true },
+          { name:'8. 📅 Registered',   value:`<t:${Math.floor(target.registeredAt/1000)}:D>`,             inline:true },
+        )
+        .setFooter({ text:`Pulled by ${i.user.username} · EclipseTiers` })
+        .setTimestamp();
+
+      // Notify in ticket OR DM
+      if (ticketChannel) {
+        try {
+          await ticketChannel.send({
+            content: `📢 <@${entry.discordId}> <@${i.user.id}> — <@${i.user.id}> pulled you! Get ready for the test.`,
+            embeds:  [new EmbedBuilder().setColor(0x57F287)
+              .setTitle('🎫 Pulled!')
+              .setDescription(`**${i.user.username}** (Tester) pulled you from the **${weapon}** queue!\nCome to the server and get ready. 🇵🇰`)
+              .setFooter({ text: BOT_FOOTER })
+              .setTimestamp()],
+          });
+        } catch(_) {}
+      } else {
+        try {
+          const pulledMember = await i.guild.members.fetch(entry.discordId).catch(() => null);
+          if (pulledMember) {
+            await pulledMember.send({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+              .setTitle(`🎫 ${weapon} Queue — Pulled!`)
+              .setDescription(`**${i.user.username}** (Tester) pulled you from the **${weapon}** queue!\nCome to the server and get ready for the test. 🇵🇰`)
+              .setFooter({ text: BOT_FOOTER })
+              .setTimestamp()] }).catch(() => {});
+          }
+        } catch(_) {}
+      }
+
+      return i.reply({ ephemeral:true, embeds:[pullEmbed] });
+    }
+
+    return; // unknown sq_ sub-action
+  }
+  if (i.customId.startsWith('reg_ignbtn_')) {
+    const uid = i.customId.replace('reg_ignbtn_','');
+    if (uid !== i.user.id)
+      return i.reply({ ephemeral:true, content:'❌ This is not your button.' });
+
+    const { ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+    const modal = new ModalBuilder()
+      .setCustomId(`reg_modal_${i.user.id}`)
+      .setTitle('Enter your Minecraft IGN');
+
+    const ignInput = new TextInputBuilder()
+      .setCustomId('ign_input')
+      .setLabel('Minecraft Java IGN')
+      .setStyle(TextInputStyle.Short)
+      .setMinLength(3)
+      .setMaxLength(16)
+      .setPlaceholder('e.g. CTLTierlist')
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(ignInput));
+    return i.showModal(modal);
+  }
+}
+
+async function handleModal(i) {
+  if (!i.customId.startsWith('reg_modal_')) return;
+  const uid = i.customId.replace('reg_modal_','');
+  if (isBlacklisted(i.user.id)) {
+    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setTitle('🚫 Blacklisted')
+      .setDescription(`You cannot register or update your profile while blacklisted.${blacklistReason(i.user.id)}`)
+      .setFooter({ text: BOT_FOOTER })] });
+  }
+  if (uid !== i.user.id)
+    return i.reply({ ephemeral:true, content:'❌ This is not your form.' });
+
+  const ign   = i.fields.getTextInputValue('ign_input').trim();
+  const state = regState.get(i.user.id) || {};
+
+  if (!/^[a-zA-Z0-9_]+$/.test(ign))
+    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setDescription('❌ Invalid IGN. Only letters, numbers, and underscores are allowed.')] });
+
+  // ── CRACKED IMPERSONATION GUARD ────────────────────────────
+  // A "Cracked (Free)" registrant must not be able to use a name
+  // that belongs to a real premium Minecraft account (name-squatting
+  // / impersonation of a known premium player). If it's genuinely
+  // unclaimed on Mojang, generate the standard offline-mode UUID for it.
+  // (Premium-side ownership verification is a separate, follow-up piece.)
+  const accountType = state.accountType || 'Premium (Paid)';
+  let uuid = null;
+  let verified = false;
+
+  if (accountType === 'Cracked (Free)') {
+    const lookup = await lookupMojangName(ign);
+    if (lookup.exists === true) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ **${ign}** belongs to an existing **premium** Minecraft account.\nCracked/offline players can't register a name that's already claimed by a real premium account. Please pick a different IGN.`)] });
+    }
+    // lookup.exists === false -> genuinely unclaimed, safe to use
+    // lookup.exists === null  -> Mojang lookup failed (down/rate-limited); don't hard-block, just proceed unverified
+    uuid = offlineUUID(ign);
+    verified = false;
+  }
+
+  // ── UPDATE flow (existing player re-registering) ──────────
+  if (state.isUpdate) {
+    const existing = LDB.get(i.user.id);
+    if (!existing) {
+      regState.delete(i.user.id);
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Player data not found. Please register first.')] });
+    }
+
+    // Check if new IGN already taken by someone else
+    const taken = LDB.findIGN(ign);
+    if (taken && taken.discordId !== i.user.id)
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ **${ign}** is already registered to someone else.`)] });
+
+    const oldIgn   = existing.ign;
+    const oldTiers = { ...existing.tiers };
+
+    // Update player record — keep tiers intact
+    const db = JSON.parse(fs.readFileSync(PF,'utf8'));
+    db[i.user.id] = {
+      ...db[i.user.id],
+      ign,
+      platform:    state.platform    || existing.platform,
+      accountType: accountType,
+      region:      state.region      || existing.region,
+      uuid:        accountType === 'Cracked (Free)' ? uuid : (db[i.user.id].uuid || null),
+      verified:    accountType === 'Cracked (Free)' ? verified : (db[i.user.id].verified || false),
+      updatedAt:   Date.now(),
+    };
+    fs.writeFileSync(PF, JSON.stringify(db, null, 2));
+    if (MEM.players[i.user.id]) Object.assign(MEM.players[i.user.id], db[i.user.id]);
+
+    regState.delete(i.user.id);
+    broadcast({ type:'player_updated', player: db[i.user.id] });
+    await sendRegistrationLog(i.client, db[i.user.id]);
+
+    // Assign verified role
+    if (CONFIG.VERIFIED_ROLE_ID) {
+      try {
+        const member = await i.guild.members.fetch(i.user.id).catch(()=>null);
+        if (member) {
+          const role = i.guild.roles.cache.get(CONFIG.VERIFIED_ROLE_ID);
+          if (role) await member.roles.add(role).catch(()=>{});
+        }
+      } catch(_) {}
+    }
+
+    const tierEntries = Object.entries(oldTiers);
+    const tierSummary = tierEntries.length
+      ? tierEntries.map(([w,t])=>`${WEAPON_EMOJI[w]||'•'} **${w}** — \`${t}\``).join('\n')
+      : '*No tiers yet*';
+
+    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+      .setTitle('✅ Profile Updated! 🎉')
+      .setDescription(`Profile updated, **${ign}**! 🇵🇰\nAll previous tiers have been transferred.`)
+      .setThumbnail(`https://mc-heads.net/avatar/${ign}/128`)
+      .addFields(
+        { name:'🔄 Old IGN',    value:`\`${oldIgn}\``,            inline:true },
+        { name:'✅ New IGN',    value:`\`${ign}\``,               inline:true },
+        { name:'💻 Platform',   value:state.platform||'?',        inline:true },
+        { name:'🔑 Account',    value:accountType,                inline:true },
+        { name:'🌍 Region',     value:state.region||'?',          inline:true },
+        { name:'🆔 UUID',       value:`\`${db[i.user.id].uuid||'—'}\`${accountType==='Cracked (Free)' ? ' (Offline/Cracked)' : ''}`, inline:true },
+        { name:'⚔️ Tiers Transferred', value: tierSummary,        inline:false },
+      )
+      .setFooter({ text:BOT_FOOTER })
+      .setTimestamp()] });
+  }
+
+  // ── FRESH REGISTRATION flow ───────────────────────────────
+  // Check IGN already taken
+  const taken = LDB.findIGN(ign);
+  if (taken)
+    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setDescription(`❌ **${ign}** is already registered. Please double-check your IGN.`)] });
+
+  const result = LDB.register(i.user.id, ign, state.platform, accountType, state.region, uuid, verified);
+  if (!result) {
+    const ex = LDB.get(i.user.id);
+    // Player already exists — treat as update
+    regState.set(i.user.id, { ...state, isUpdate: true, oldIgn: ex.ign });
+    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+      .setDescription(`⚠️ You are already registered as **${ex.ign}**.\nClick the button again to update your profile.`)] });
+  }
+
+  regState.delete(i.user.id);
+  broadcast({ type:'player_registered', player:MEM.players[i.user.id] });
+  await sendRegistrationLog(i.client, MEM.players[i.user.id]);
+
+  // Assign verified role
+  if (CONFIG.VERIFIED_ROLE_ID) {
+    try {
+      const member = await i.guild.members.fetch(i.user.id).catch(()=>null);
+      if (member) {
+        const role = i.guild.roles.cache.get(CONFIG.VERIFIED_ROLE_ID);
+        if (role) await member.roles.add(role).catch(()=>{});
+      }
+    } catch(_) {}
+  }
+
+  await i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+    .setTitle('✅ Registration Complete! 🎉')
+    .setDescription(`Welcome to **EclipseTiers**, **${ign}**! 🇵🇰`)
+    .setThumbnail(`https://mc-heads.net/avatar/${ign}/128`)
+    .addFields(
+      { name:'🎮 IGN',         value:`\`${ign}\``,           inline:true },
+      { name:'💻 Platform',    value:state.platform||'?',    inline:true },
+      { name:'🔑 Account',     value:accountType,            inline:true },
+      { name:'🌍 Region',      value:state.region||'?',      inline:true },
+      { name:'🆔 UUID',        value:`\`${MEM.players[i.user.id].uuid||'—'}\`${accountType==='Cracked (Free)' ? ' (Offline/Cracked)' : ''}`, inline:true },
+      { name:'🔰 Season',      value:'Season 1',             inline:true },
+      { name:'📋 Next Steps',  value:'1. Get evaluated by a Tierer\n2. use queue access to find a match\n3. View your card with `/profile`', inline:false },
+    )
+    .setFooter({ text:BOT_FOOTER })
+    .setTimestamp()] });
+
+}
+
+// ════════════════════════════════════════════════════════════
+//  DEPLOY + START
+// ════════════════════════════════════════════════════════════
+async function deployCommands() {
+  const rest = new REST({ version:'10' }).setToken(CONFIG.BOT_TOKEN);
+  await rest.put(Routes.applicationGuildCommands(CONFIG.CLIENT_ID, CONFIG.GUILD_ID),
+    { body: Object.values(CMDS).map(c=>c.data.toJSON()) });
+  console.log(`✅ Deployed ${Object.keys(CMDS).length} slash commands`);
+}
+
+const client = new Client({ intents:[
+  GatewayIntentBits.Guilds,
+  GatewayIntentBits.GuildMessages,
+  GatewayIntentBits.GuildMembers,
+  GatewayIntentBits.GuildPresences,
+  GatewayIntentBits.MessageContent,
+]});
+
+client.once('ready', async () => {
+  console.log(`🤖 Bot online as ${client.user.tag}`);
+  client.user.setPresence({ activities:[{ name:'⚔️ •EclipseTiers · EclipseTiers', type:0 }], status:'online' });
+  try { await deployCommands(); } catch(e) { console.error('Deploy error:', e); }
+
+  // Backfill uuid/verified for players registered before UUID tracking existed
+  try {
+    console.log('[UUID BACKFILL] Checking for players missing a uuid...');
+    const { fixed, total } = await backfillMissingUUIDs();
+    console.log(`[UUID BACKFILL] Done — ${fixed}/${total} players backfilled.`);
+  } catch(e) { console.error('[UUID BACKFILL]', e); }
+
+  // Auto-create all HT1-LT5 roles for every gamemode
+  // Then sync existing players' roles
+  try {
+    const guild = await client.guilds.fetch(CONFIG.GUILD_ID);
+    await guild.roles.fetch(); // populate cache
+
+    // Step 1: ensure all 100 roles exist
+    await ensureAllRoles(guild);
+
+    // Step 2: sync every registered player's roles on startup
+    console.log('[ROLE SYNC] Syncing existing players on startup...');
+    const allPlayers = Object.values(LDB.all()).filter(p => Object.keys(p.tiers||{}).length > 0);
+    for (const player of allPlayers) {
+      try {
+        const member = await guild.members.fetch(player.discordId).catch(() => null);
+        if (!member) continue;
+        for (const [weapon, tier] of Object.entries(player.tiers || {})) {
+          const role = await ensureRole(guild, weapon, tier);
+          if (role) await member.roles.add(role).catch(() => {});
+        }
+        await new Promise(r => setTimeout(r, 200));
+      } catch(_) {}
+    }
+    console.log(`[ROLE SYNC] Done — ${allPlayers.length} players processed.`);
+  } catch(e) { console.error('[ROLE INIT]', e); }
+});
+
+client.on('interactionCreate', async i => {
+  try {
+    if (i.isChatInputCommand()) {
+      const cmd = CMDS[i.commandName]; if (!cmd) return;
+      await cmd.execute(i);
+    } else if (i.isStringSelectMenu()) {
+      await handleSelectMenu(i);
+    } else if (i.isButton()) {
+      await handleButtonClick(i);
+    } else if (i.isModalSubmit()) {
+      await handleModal(i);
+    }
+  } catch(err) {
+    console.error(`[ERROR] interaction:`, err);
+    const e = new EmbedBuilder().setColor(0xFF4444).setDescription('❌ Something went wrong.');
+    try {
+      if (i.replied || i.deferred) await i.followUp({ embeds:[e], ephemeral:true }).catch(()=>{});
+      else await i.reply({ embeds:[e], ephemeral:true }).catch(()=>{});
+    } catch(_) {}
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+//  START
+// ════════════════════════════════════════════════════════════
+syncToMem();
+
+server.listen(CONFIG.PORT, () => {
+  console.log(`🌐 Server running on port ${CONFIG.PORT}`);
+  console.log(`📡 WebSocket ready`);
+  console.log(`🔑 Secret: ${CONFIG.API_SECRET==='eclipsetiers-secret-change-me' ? '⚠️  DEFAULT' : 'Set ✓'}`);
+});
+
+if (CONFIG.BOT_TOKEN) {
+  client.login(CONFIG.BOT_TOKEN);
+} else {
+  console.warn('⚠️  BOT_TOKEN not set — bot will not start. Add it to Railway Variables.');
+}
