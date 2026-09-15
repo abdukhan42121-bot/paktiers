@@ -5991,7 +5991,22 @@ CMDS.play = {
         adapterCreator: i.guild.voiceAdapterCreator,
         selfDeaf: false,
       });
-      await entersState(connection, VoiceConnectionStatus.Ready, 15_000);
+
+      // ── Debug logging: pinpoints exactly where a failed connection
+      // breaks down (voice websocket vs UDP) — check Railway logs.
+      connection.on('stateChange', (oldState, newState) => {
+        console.log(`[VOICE] state: ${oldState.status} -> ${newState.status}`);
+      });
+      connection.on('debug', msg => console.log('[VOICE DEBUG]', msg));
+
+      try {
+        await entersState(connection, VoiceConnectionStatus.Ready, 15_000);
+      } catch (joinErr) {
+        console.error('[VOICE JOIN FAILED]', joinErr);
+        try { connection.destroy(); } catch(_) {}
+        return i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF4444)
+          .setDescription('❌ Bot voice channel se connect nahi ho paya (15s ke andar). Yeh network-level issue ho sakta hai (server host voice UDP block kar raha ho). Railway logs mein `[VOICE]`/`[VOICE DEBUG]` lines check karo aur mujhe bhejo.')] });
+      }
 
       const player = createAudioPlayer();
       connection.subscribe(player);
