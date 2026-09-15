@@ -26,32 +26,13 @@ const {
 
 // ── VOICE (for /play — owner-only naat/song command) ────────
 // npm i @discordjs/voice play-dl @discordjs/opus libsodium-wrappers ffmpeg-static
-// Voice is loaded defensively so a bad/stale Railway dependency cache cannot
-// take the entire Discord bot offline. /play will show a clear error instead.
-let voice = null;
-try {
-  voice = require('@discordjs/voice');
-  console.log('[VOICE] @discordjs/voice loaded successfully');
-} catch (err) {
-  console.error('[VOICE] @discordjs/voice is unavailable:', err.message);
-}
-
 const {
-  joinVoiceChannel,
-  createAudioPlayer,
-  createAudioResource,
-  AudioPlayerStatus,
-  VoiceConnectionStatus,
-  entersState,
+  joinVoiceChannel, createAudioPlayer, createAudioResource,
+  AudioPlayerStatus, VoiceConnectionStatus, entersState,
   getVoiceConnection,
-} = voice || {};
-
+} = require('@discordjs/voice');
 let playdl = null;
-try {
-  playdl = require('play-dl');
-} catch(_) {
-  console.warn('[VOICE] play-dl not installed — custom YouTube links in /play will not work until you run: npm i play-dl');
-}
+try { playdl = require('play-dl'); } catch(_) { console.warn('[VOICE] play-dl not installed — custom YouTube links in /play will not work until you run: npm i play-dl'); }
 
 // ════════════════════════════════════════════════════════════
 //  CONFIG — Set these env vars on Railway
@@ -5946,13 +5927,6 @@ CMDS.play = {
     if (i.guild.ownerId !== i.user.id) {
       return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Yeh command sirf **server ke owner/creator** hi use kar sakte hain — Admin role kaafi nahi.')] });
-    }
-
-    // Do not let an optional voice feature prevent the whole bot from
-    // starting when Railway has a stale/missing voice dependency.
-    if (!voice) {
-      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
-        .setDescription('❌ Voice module is not installed on the server. Railway redeploy/rebuild required.')] });
     }
 
     const naatChoice = i.options.getString('naat');
