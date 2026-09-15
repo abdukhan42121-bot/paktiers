@@ -73,10 +73,10 @@ const CONFIG = {
   TIER_COOLDOWN_DAYS: 2,
 
   // ── GitHub Backup (/backup create, /backup load) ──
-  GITHUB_TOKEN:      process.env.GITHUB_TOKEN      || '',            // GitHub Personal Access Token (repo scope)
-  GITHUB_REPO:       process.env.GITHUB_REPO       || '',            // format: username/repo
-  GITHUB_BRANCH:     process.env.GITHUB_BRANCH     || 'main',
-  GITHUB_BACKUP_DIR: process.env.GITHUB_BACKUP_DIR || 'eclipsetiers-backups', // folder inside repo
+  GITHUB_TOKEN:      (process.env.GITHUB_TOKEN      || '').trim(),   // GitHub Personal Access Token (repo scope)
+  GITHUB_REPO:       (process.env.GITHUB_REPO       || '').trim(),   // format: username/repo
+  GITHUB_BRANCH:     (process.env.GITHUB_BRANCH     || 'main').trim(),
+  GITHUB_BACKUP_DIR: (process.env.GITHUB_BACKUP_DIR || 'eclipsetiers-backups').trim(), // folder inside repo
 };
 
 // ════════════════════════════════════════════════════════════
@@ -1141,7 +1141,8 @@ function githubRequest(method, urlPath, bodyObj) {
 }
 
 async function githubGetFileSha(repoPath) {
-  const res = await githubRequest('GET', `/repos/${CONFIG.GITHUB_REPO}/contents/${encodeURI(repoPath)}?ref=${CONFIG.GITHUB_BRANCH}`);
+  const repoSlug = CONFIG.GITHUB_REPO.split('/').map(encodeURIComponent).join('/');
+  const res = await githubRequest('GET', `/repos/${repoSlug}/contents/${encodeURI(repoPath)}?ref=${encodeURIComponent(CONFIG.GITHUB_BRANCH)}`);
   if (res.status === 200 && res.body && res.body.sha) return res.body.sha;
   return null;
 }
@@ -1154,7 +1155,8 @@ async function githubPutFile(repoPath, contentStr, message) {
     branch:  CONFIG.GITHUB_BRANCH,
   };
   if (sha) body.sha = sha;
-  const res = await githubRequest('PUT', `/repos/${CONFIG.GITHUB_REPO}/contents/${encodeURI(repoPath)}`, body);
+  const repoSlug = CONFIG.GITHUB_REPO.split('/').map(encodeURIComponent).join('/');
+  const res = await githubRequest('PUT', `/repos/${repoSlug}/contents/${encodeURI(repoPath)}`, body);
   if (res.status !== 200 && res.status !== 201) {
     throw new Error(`GitHub PUT failed (${res.status}): ${res.body?.message || 'unknown error'}`);
   }
@@ -1162,7 +1164,8 @@ async function githubPutFile(repoPath, contentStr, message) {
 }
 
 async function githubGetFile(repoPath) {
-  const res = await githubRequest('GET', `/repos/${CONFIG.GITHUB_REPO}/contents/${encodeURI(repoPath)}?ref=${CONFIG.GITHUB_BRANCH}`);
+  const repoSlug = CONFIG.GITHUB_REPO.split('/').map(encodeURIComponent).join('/');
+  const res = await githubRequest('GET', `/repos/${repoSlug}/contents/${encodeURI(repoPath)}?ref=${encodeURIComponent(CONFIG.GITHUB_BRANCH)}`);
   if (res.status !== 200 || !res.body || !res.body.content) {
     throw new Error(`GitHub GET failed (${res.status}): ${res.body?.message || 'file not found'}`);
   }
