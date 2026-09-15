@@ -607,9 +607,9 @@ app.get('/api/testers', async (req, res) => {
 const WEAPONS = ['Mace','Crystal','Sword','Axe','Netherite','UHC','Pot','SMP','DiaSMP','SpearMace','Cart'];
 const TIERS   = ['HT1','LT1','HT2','LT2','HT3','LT3','HT4','LT4','HT5','LT5'];
 const WEAPON_EMOJI = {
-  Mace:'<:Mace:1513965730968637681>', Crystal:'<:vanilla:1540732140579323935>', Sword:'<:sword:1517752855577104474>', Axe:'<:Axe:1517753158812696646>', Netherite:'<:nethop:1522172951502258176>',
-  UHC:'<:UHC:1517753244288552972>', Pot:'<:diapot:1520829962385494076>', SMP:'<:SMP:1520830247606423652>', DiaSMP:'<:Diasmp:1520830093981913192>',
-  SpearMace:'<:spear:1517753301700182197>', Cart:'<:TNT_CART:1517759608117137459>',
+  Mace:'<:Mace:1549471999053799565>', Crystal:'<:vanilla:1549471953100734564>', Sword:'<:sword:1549472174119854302>', Axe:'<:axe:1549472110173229159>', Netherite:'<:nethpot:1549472666967081084>',
+  UHC:'<:UHC:1504782927693746247>', Pot:'<:diapot:1549472728845656196>', SMP:'<:vanilla:1549471953100734564>', DiaSMP:'<:diasmp:1549472527066341498>',
+  SpearMace:'<:Spear:1549472421625467013>', Cart:'<:tnt_minecart:1549472458443325440>',
 };
 const WEAPON_TO_MCTIERS = {
   Mace:'mace', Crystal:'crystal', Sword:'sword', Axe:'axe', Netherite:'netherite',
@@ -3178,7 +3178,7 @@ CMDS.submitresult = {
         .setTitle('🚫 Player Blacklisted')
         .setDescription(`**${target.username}** is blacklisted and cannot receive a tier test result.${blacklistReason(target.id)}`)] });
 
-    const emoji     = WEAPON_EMOJI[weapon] || '<:sword:1517752855577104474>';
+    const emoji     = WEAPON_EMOJI[weapon] || '<:sword:1549472174119854302>';
     const oldTier   = player.tiers?.[weapon];
     const passed    = result === 'Passed';
 
@@ -4759,7 +4759,7 @@ function buildSQEmbed(weapon, region, testerIds) {
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
   });
 
-  const gmEmoji = WEAPON_EMOJI[weapon] || '<:sword:1517752855577104474>';
+  const gmEmoji = WEAPON_EMOJI[weapon] || '<:sword:1549472174119854302>';
 
   return new EmbedBuilder()
     .setColor(0x57F287)  // CTL green
@@ -5151,7 +5151,7 @@ function buildStaffListEmbed(guild) {
       return (roleB?.position ?? 0) - (roleA?.position ?? 0);
     });
 
-    const bullet = '<a:Purple_dot:1540434035594109148>';
+    const bullet = '•';
     let fields = [];
     for (const rid of sortedRoleIds) {
       const role = guild.roles.cache.get(rid);
@@ -5256,7 +5256,7 @@ function buildTesterPnlEmbed() {
     }
   }
 
-  const bullet = '<a:Purple_dot:1540434035594109148>';
+  const bullet = '•';
   const fields = WEAPONS
     .filter(w => gamemodeGroups[w] && gamemodeGroups[w].length)
     .map(w => {
@@ -5349,7 +5349,7 @@ CMDS.startqueue = {
     const weapon = i.options.getString('gamemode');
     const region = i.options.getString('region') || 'AS/AU';
     const extraMsg = i.options.getString('message') || null;
-    const emoji  = WEAPON_EMOJI[weapon] || '<:sword:1517752855577104474>';
+    const emoji  = WEAPON_EMOJI[weapon] || '<:sword:1549472174119854302>';
 
     // ── Find target channel: waitlist-<weapon> ────────────────
     const targetName = `waitlist-${weapon.toLowerCase()}`;
@@ -5515,7 +5515,7 @@ CMDS.closequeue = {
 
     const weapon = i.options.getString('gamemode');
     const reason = i.options.getString('reason') || 'Last tester left the queue';
-    const emoji  = WEAPON_EMOJI[weapon] || '<:sword:1517752855577104474>';
+    const emoji  = WEAPON_EMOJI[weapon] || '<:sword:1549472174119854302>';
 
     // ── Find waitlist channel ─────────────────────────────────
     const targetName = `waitlist-${weapon.toLowerCase()}`;
@@ -5833,7 +5833,7 @@ CMDS.logs = {
     }
     const weaponLines = Object.entries(weaponCount)
       .sort((a, b) => b[1] - a[1])
-      .map(([w, c]) => `${WEAPON_EMOJI[w] || '<:sword:1517752855577104474>'} **${w}** — ${c} test${c > 1 ? 's' : ''}`)
+      .map(([w, c]) => `${WEAPON_EMOJI[w] || '<:sword:1549472174119854302>'} **${w}** — ${c} test${c > 1 ? 's' : ''}`)
       .join('\n');
 
     // Per-tier breakdown
@@ -5853,7 +5853,7 @@ CMDS.logs = {
         hour: '2-digit', minute: '2-digit', hour12: true,
       });
       const arrow = l.oldTier ? `~~${l.oldTier}~~ → ` : '';
-      return `• \`${time}\` **${l.playerIGN}** — ${WEAPON_EMOJI[l.weapon] || '<:sword:1517752855577104474>'} ${l.weapon} ${arrow}**${l.tier}**`;
+      return `• \`${time}\` **${l.playerIGN}** — ${WEAPON_EMOJI[l.weapon] || '<:sword:1549472174119854302>'} ${l.weapon} ${arrow}**${l.tier}**`;
     }).join('\n');
 
     // Date label for embed title
