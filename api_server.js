@@ -32,7 +32,7 @@ const {
   getVoiceConnection,
 } = require('@discordjs/voice');
 let playdl = null;
-try { playdl = require('play-dl'); } catch(_) { console.warn('[VOICE] play-dl not installed — custom YouTube links in /play will not work until you run: npm i play-dl'); }
+try { playdl = require('@iamtraction/play-dl'); } catch(_) { console.warn('[VOICE] @iamtraction/play-dl not installed — custom YouTube links in /play will not work until you run: npm i @iamtraction/play-dl'); }
 
 // ════════════════════════════════════════════════════════════
 //  CONFIG — Set these env vars on Railway
@@ -5883,6 +5883,15 @@ CMDS.logs = {
 // Administrator permission is deliberately NOT enough.
 const guildAudio = new Map(); // guildId -> { player, connection, source:{type,value,title}, looping }
 
+// Prevents any single playdl call from hanging forever ("thinking..." stuck).
+// Rejects with a clear error if the promise doesn't settle within ms.
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms)),
+  ]);
+}
+
 // Builds a fresh AudioResource from a stored source. YouTube streams
 // can't be replayed, so for 'url' sources we re-fetch the stream each loop.
 async function buildResourceFromSource(source) {
@@ -5890,7 +5899,7 @@ async function buildResourceFromSource(source) {
     return createAudioResource(source.value);
   }
   // type === 'url'
-  const stream = await playdl.stream(source.value);
+  const stream = await withTimeout(playdl.stream(source.value), 20_000, 'YouTube stream fetch');
   return createAudioResource(stream.stream, { inputType: stream.type });
 }
 
@@ -5953,12 +5962,12 @@ CMDS.play = {
           return i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF4444)
             .setDescription('❌ YouTube link ke liye `play-dl` package missing hai. Server pe run karo: `npm i play-dl`')] });
         }
-        const valid = await playdl.validate(customUrl).catch(() => false);
+        const valid = await withTimeout(playdl.validate(customUrl), 10_000, 'Link validation').catch(() => false);
         if (!valid || !String(valid).startsWith('yt_video')) {
           return i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF4444)
             .setDescription('❌ Yeh valid YouTube video link nahi hai.')] });
         }
-        const info = await playdl.video_basic_info(customUrl);
+        const info = await withTimeout(playdl.video_basic_info(customUrl), 15_000, 'Video info fetch');
         title = info?.video_details?.title || customUrl;
         source = { type: 'url', value: customUrl, title };
       } else {
@@ -6013,8 +6022,10 @@ CMDS.play = {
     } catch (err) {
       console.error('[PLAY ERROR]', err);
       guildAudio.delete(i.guild.id);
+      const existing2 = getVoiceConnection(i.guild.id);
+      if (existing2) { try { existing2.destroy(); } catch(_) {} }
       await i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF4444)
-        .setDescription('❌ Audio play karte waqt error aa gaya. Railway logs check karo.')] });
+        .setDescription(`❌ Audio play karte waqt error aa gaya:\n\`${(err && err.message) || err}\``)] });
     }
   },
 };
