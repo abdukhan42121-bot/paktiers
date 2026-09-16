@@ -80,6 +80,17 @@ const CONFIG = {
 };
 
 // ════════════════════════════════════════════════════════════
+//  HIDDEN USERS — excluded from every public leaderboard, queue
+//  display, staff list, and tester dashboard (website + Discord).
+//  They can still register/queue/be tiered normally — they just
+//  never appear in list-type output shown to others.
+// ════════════════════════════════════════════════════════════
+const HIDDEN_USER_IDS = new Set([
+  '1121362942106017832',
+]);
+const isHiddenUser = id => HIDDEN_USER_IDS.has(String(id));
+
+// ════════════════════════════════════════════════════════════
 //  /play — NAAT / SONG PRESETS  (owner-only voice command)
 // ════════════════════════════════════════════════════════════
 // Drop your .mp3 files inside the "naats" folder (next to this file) and
@@ -429,7 +440,7 @@ app.get('/api/stats', (req,res) => {
 
 app.get('/api/leaderboard', (req,res) => {
   const weapon = req.query.weapon||'all';
-  let players  = Object.values(MEM.players).filter(p=>Object.keys(p.tiers).length>0);
+  let players  = Object.values(MEM.players).filter(p=>Object.keys(p.tiers).length>0 && !isHiddenUser(p.discordId));
   if (weapon!=='all') {
     players=players.filter(p=>p.tiers[weapon])
       .sort((a,b)=>(TIER_PTS[b.tiers[weapon]]||0)-(TIER_PTS[a.tiers[weapon]]||0));
@@ -453,7 +464,7 @@ app.get('/api/player/:ign', (req,res) => {
 app.get('/api/queue', (req,res) => {
   const queues={};
   for (const [w,q] of Object.entries(MEM.queues))
-    queues[w]=q.map(e=>{
+    queues[w]=q.filter(e=>!isHiddenUser(e.discordId)).map(e=>{
       const p = MEM.players[e.discordId];
       return { ...e, avatar:`https://mc-heads.net/avatar/${p?skinName(p):e.ign}/32` };
     });
@@ -608,7 +619,7 @@ const WEAPONS = ['Mace','Crystal','Sword','Axe','Netherite','UHC','Pot','SMP','D
 const TIERS   = ['HT1','LT1','HT2','LT2','HT3','LT3','HT4','LT4','HT5','LT5'];
 const WEAPON_EMOJI = {
   Mace:'<:Mace:1549471999053799565>', Crystal:'<:vanilla:1549471953100734564>', Sword:'<:sword:1549472174119854302>', Axe:'<:axe:1549472110173229159>', Netherite:'<:nethpot:1549472666967081084>',
-  UHC:'<:UHC:1504782927693746247>', Pot:'<:diapot:1549472728845656196>', SMP:'<:vanilla:1549471953100734564>', DiaSMP:'<:diasmp:1549472527066341498>',
+  UHC:'<:UHC:1504782927693746247>', Pot:'<:diapot:1549472728845656196>', SMP:'<:smp:1549472545114427583>', DiaSMP:'<:diasmp:1549472527066341498>',
   SpearMace:'<:Spear:1549472421625467013>', Cart:'<:tnt_minecart:1549472458443325440>',
 };
 const WEAPON_TO_MCTIERS = {
@@ -868,6 +879,7 @@ function buildTesterDashboard(guild) {
   if (guild) {
     guild.members.cache.forEach(member => {
       if (!member || member.user?.bot) return;
+      if (isHiddenUser(member.id)) return;
       const hasRole = [...roleIds].some(rid => member.roles.cache.has(rid));
       if (!hasRole && !memberIds.has(member.id)) return;
 
@@ -1701,6 +1713,22 @@ const APPLICATION_TYPE_LABELS = {
   media:        'EclipseTiers Media Application',
 };
 
+// Sends the real failure reason to STAFF_LOGS_CHANNEL_ID (if configured) so
+// staff can actually diagnose a failed ticket instead of only seeing the
+// generic "could not be created" message the player gets.
+async function reportTicketError(client, guild, kind, reason) {
+  try {
+    if (!CONFIG.STAFF_LOGS_CHANNEL_ID) return;
+    const ch = await client.channels.fetch(CONFIG.STAFF_LOGS_CHANNEL_ID).catch(() => null);
+    if (!ch) return;
+    await ch.send({ embeds: [new EmbedBuilder().setColor(0xFF4444)
+      .setTitle(`⚠️ ${kind} Ticket Creation Failed`)
+      .setDescription(`\`\`\`${String(reason).slice(0, 1000)}\`\`\``)
+      .setFooter({ text: 'EclipseTiers — check bot role permissions (Manage Channels) and that configured staff/manager roles still exist.' })
+      .setTimestamp()] }).catch(() => {});
+  } catch(_) {}
+}
+
 async function resolveApplicationCategory(guild) {
   if (!guild) return null;
 
@@ -1730,8 +1758,21 @@ async function createApplicationTicket(client, guild, member, appType) {
   const label = APPLICATION_TYPE_LABELS[appType] || 'EclipseTiers Application';
 
   try {
+    // Preflight: bot needs Manage Channels to create ticket channels at all.
+    if (guild.members.me && !guild.members.me.permissions.has(PermissionFlagsBits.ManageChannels)) {
+      const err = new Error('Bot is missing the "Manage Channels" permission in this server.');
+      console.error('[APPLICATION TICKET ERROR]', err.message);
+      await reportTicketError(client, guild, 'Application', err.message);
+      return null;
+    }
+
     const category = await resolveApplicationCategory(guild);
-    if (!category) return null;
+    if (!category) {
+      const err = 'Could not resolve or create the application ticket category (check bot permissions / Manage Channels).';
+      console.error('[APPLICATION TICKET ERROR]', err);
+      await reportTicketError(client, guild, 'Application', err);
+      return null;
+    }
 
     const safeName   = (member.user?.username || member.id).replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const channelName = `app-${appType}-${safeName}`;
@@ -1750,15 +1791,24 @@ async function createApplicationTicket(client, guild, member, appType) {
       },
     ];
 
-    if (CONFIG.TICKET_STAFF_ROLE_ID) {
+    // Only add a role overwrite if that role still exists — a stale/deleted
+    // role ID in permissionOverwrites makes Discord reject the WHOLE channel
+    // creation (this was the main cause of tickets silently failing).
+    if (CONFIG.TICKET_STAFF_ROLE_ID && guild.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID)) {
       permOverwrites.push({
         id: CONFIG.TICKET_STAFF_ROLE_ID,
         allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
       });
+    } else if (CONFIG.TICKET_STAFF_ROLE_ID) {
+      console.warn(`[APPLICATION TICKET] TICKET_STAFF_ROLE_ID (${CONFIG.TICKET_STAFF_ROLE_ID}) no longer exists in this guild — skipping that overwrite.`);
     }
 
     const { roles: appMgrRoles, users: appMgrUsers } = LDB.getManagers('app');
     for (const rid of appMgrRoles) {
+      if (!guild.roles.cache.has(rid)) {
+        console.warn(`[APPLICATION TICKET] app manager role (${rid}) no longer exists — skipping.`);
+        continue;
+      }
       permOverwrites.push({
         id: rid,
         allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
@@ -1804,6 +1854,7 @@ async function createApplicationTicket(client, guild, member, appType) {
     return ticketChannel;
   } catch(err) {
     console.error('[APPLICATION TICKET ERROR]', err);
+    await reportTicketError(client, guild, 'Application', err.message || String(err));
     return null;
   }
 }
@@ -1890,8 +1941,21 @@ async function createSupportTicket(client, guild, member) {
   if (!guild || !member) return null;
 
   try {
+    // Preflight: bot needs Manage Channels to create ticket channels at all.
+    if (guild.members.me && !guild.members.me.permissions.has(PermissionFlagsBits.ManageChannels)) {
+      const err = new Error('Bot is missing the "Manage Channels" permission in this server.');
+      console.error('[SUPPORT TICKET ERROR]', err.message);
+      await reportTicketError(client, guild, 'Support', err.message);
+      return null;
+    }
+
     const category = await resolveSupportCategory(guild);
-    if (!category) return null;
+    if (!category) {
+      const err = 'Could not resolve or create the support ticket category (check bot permissions / Manage Channels).';
+      console.error('[SUPPORT TICKET ERROR]', err);
+      await reportTicketError(client, guild, 'Support', err);
+      return null;
+    }
 
     const safeName    = (member.user?.username || member.id).replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const channelName = `support-${safeName}`;
@@ -1910,15 +1974,24 @@ async function createSupportTicket(client, guild, member) {
       },
     ];
 
-    if (CONFIG.TICKET_STAFF_ROLE_ID) {
+    // Only add a role overwrite if that role still exists — a stale/deleted
+    // role ID in permissionOverwrites makes Discord reject the WHOLE channel
+    // creation (this was the main cause of tickets silently failing).
+    if (CONFIG.TICKET_STAFF_ROLE_ID && guild.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID)) {
       permOverwrites.push({
         id: CONFIG.TICKET_STAFF_ROLE_ID,
         allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
       });
+    } else if (CONFIG.TICKET_STAFF_ROLE_ID) {
+      console.warn(`[SUPPORT TICKET] TICKET_STAFF_ROLE_ID (${CONFIG.TICKET_STAFF_ROLE_ID}) no longer exists in this guild — skipping that overwrite.`);
     }
 
     const { roles: supMgrRoles, users: supMgrUsers } = LDB.getManagers('sup');
     for (const rid of supMgrRoles) {
+      if (!guild.roles.cache.has(rid)) {
+        console.warn(`[SUPPORT TICKET] support manager role (${rid}) no longer exists — skipping.`);
+        continue;
+      }
       permOverwrites.push({
         id: rid,
         allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
@@ -1961,6 +2034,7 @@ async function createSupportTicket(client, guild, member) {
     return ticketChannel;
   } catch(err) {
     console.error('[SUPPORT TICKET ERROR]', err);
+    await reportTicketError(client, guild, 'Support', err.message || String(err));
     return null;
   }
 }
@@ -2046,9 +2120,9 @@ function saveLivePanels(data) {
 }
 
 function buildLivePanelEmbed(weapon) {
-  const q       = LDB.getQ(weapon);
+  const q       = LDB.getQ(weapon).filter(e => !isHiddenUser(e.discordId));
   const panels  = loadLivePanels();
-  const testers = panels[weapon]?.activeTesters || [];
+  const testers = (panels[weapon]?.activeTesters || []).filter(id => !isHiddenUser(id));
   const currentTest = panels[weapon]?.currentTest || '*No active test*';
 
   const queueTxt  = q.length
@@ -2778,7 +2852,7 @@ CMDS.profile = {
         }).join('\n')+'\n```';
 
     const ranked = Object.values(LDB.all())
-      .filter(p=>Object.keys(p.tiers||{}).length>0)
+      .filter(p=>Object.keys(p.tiers||{}).length>0 && (!isHiddenUser(p.discordId) || p.discordId===player.discordId))
       .map(p=>({ ...p, pts:Object.values(p.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0) }))
       .sort((a,b)=>b.pts-a.pts);
     const pos = ranked.findIndex(p=>p.discordId===player.discordId)+1;
@@ -3571,14 +3645,14 @@ CMDS.queue = {
     if (sub==='status') {
       const queues=LDB.allQ(), all=LDB.all();
       const fields=WEAPONS.map(w=>{
-        const q=queues[w]||[];
+        const q=(queues[w]||[]).filter(e=>!isHiddenUser(e.discordId));
         return { name:`${WEAPON_EMOJI[w]} ${w} — ${q.length}/2`,
           value:q.length ? q.map((e,idx)=>`${idx+1}. **${all[e.discordId]?.ign||e.ign||'Unknown'}** (<@${e.discordId}>)`).join('\n') : '*Empty*',
           inline:false };
       });
       return i.reply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
         .setTitle('🏆 Queue Status')
-        .setDescription(`**${WEAPONS.reduce((s,w)=>s+(queues[w]?.length||0),0)}** players in queue`)
+        .setDescription(`**${WEAPONS.reduce((s,w)=>s+((queues[w]||[]).filter(e=>!isHiddenUser(e.discordId)).length),0)}** players in queue`)
         .addFields(fields).setFooter({text:BOT_FOOTER}).setTimestamp()] });
     }
 
@@ -3595,7 +3669,7 @@ CMDS.leaderboard = {
   async execute(i) {
     await i.deferReply();
     const weapon = i.options.getString('weapon')||'all';
-    let ranked = Object.values(LDB.all()).filter(p=>Object.keys(p.tiers||{}).length>0);
+    let ranked = Object.values(LDB.all()).filter(p=>Object.keys(p.tiers||{}).length>0 && !isHiddenUser(p.discordId));
     if (weapon!=='all') {
       ranked=ranked.filter(p=>p.tiers?.[weapon])
         .sort((a,b)=>(TIER_PTS[b.tiers[weapon]]||0)-(TIER_PTS[a.tiers[weapon]]||0));
@@ -4737,7 +4811,7 @@ function addToSQQueue(discordId, weapon, ign) {
 
 // Build the exact CTL-style embed
 function buildSQEmbed(weapon, region, testerIds) {
-  const q   = LDB.getQ(weapon);
+  const q   = LDB.getQ(weapon).filter(e => !isHiddenUser(e.discordId));
   const reg = region || 'AS/AU';
   const panels = loadSQPanels();
   const currentTest = panels[weapon]?.currentTest || '*No active test*';
@@ -4750,8 +4824,9 @@ function buildSQEmbed(weapon, region, testerIds) {
     : '*No one is in the queue.*';
 
   // Active testers list
-  const testerLines = (testerIds && testerIds.length)
-    ? testerIds.map((id, idx) => `${idx + 1}. <@${id}>`).join('\n')
+  const visibleTesterIds = (testerIds || []).filter(id => !isHiddenUser(id));
+  const testerLines = visibleTesterIds.length
+    ? visibleTesterIds.map((id, idx) => `${idx + 1}. <@${id}>`).join('\n')
     : '*No active tester.*';
 
   const now = new Date().toLocaleTimeString('en-PK', {
@@ -5122,7 +5197,7 @@ function chunkLines(lines, maxLen = 1024) {
 function buildStaffListEmbed(guild) {
   try {
     const staff = loadStaff();
-    const entries = Object.entries(staff || {}).filter(([, rec]) => rec && typeof rec === 'object');
+    const entries = Object.entries(staff || {}).filter(([id, rec]) => rec && typeof rec === 'object' && !isHiddenUser(id));
 
     if (!entries.length) {
       return new EmbedBuilder().setColor(BRAND_COLOR)
