@@ -1829,7 +1829,7 @@ async function archiveTicketChannel(client, channel, closedBy, reason = '') {
     const pending = records.filter(([, ticket]) => isTierTestingTicketRecord(ticket) && !ticket.resultSubmitted);
     if (pending.length) {
       const names = pending.map(([id, ticket]) => ticket.playerIGN ? `**${ticket.playerIGN}** (<@${id}>)` : `<@${id}>`);
-      return { ok: false, error: `A tier-test result must be submitted before this ticket can close. Pending result${pending.length > 1 ? 's' : ''}: ${names.join(', ')}. Use /submitresult in this ticket first.` };
+      return { ok: false, error: `A tier-test result must be submitted before this ticket can close. Pending result${pending.length > 1 ? 's' : ''}: ${names.join(', ')}. Use /tier set in this ticket first.` };
     }
   }
 
@@ -3297,6 +3297,56 @@ CMDS.tier = {
     if (sub==='set') {
       if (!player) return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ **${target.username}** must register first with \`/register\`.`)] });
+      // If this player has an active tier-testing ticket, /tier set must be
+      // performed inside that ticket. The ticket result is archived to /resultlogs,
+      // not announced in the private ticket conversation.
+      let testingResultContext = null;
+      const targetTicket = LDB.getTicket(target.id);
+      if (isTierTestingTicketRecord(targetTicket)) {
+        const targetTicketChannelId = targetTicket?.channelId || (typeof targetTicket === 'string' ? targetTicket : null);
+        if (!targetTicketChannelId || targetTicketChannelId !== i.channelId) {
+          return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+            .setDescription(`❌ **${target.username}** has an active tier-testing ticket. Run \`/tier set\` for this player inside <#${targetTicketChannelId || 'unknown'}>.`)] });
+        }
+
+        const channelRecords = getTicketRecordsForChannel(i.channelId);
+        const currentPlayerTicket = channelRecords.find(([id, ticket]) => id === target.id && isTierTestingTicketRecord(ticket));
+        if (!currentPlayerTicket) {
+          return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+            .setDescription('❌ This player is not recorded as a participant in this tier-testing ticket.') ] });
+        }
+        const ticketData = currentPlayerTicket[1];
+        if (ticketData.weapon && ticketData.weapon !== weapon) {
+          return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+            .setDescription(`❌ This ticket is for **${ticketData.weapon}**. Use that gamemode when running \`/tier set\`.`)] });
+        }
+        if (ticketData.resultSubmitted) {
+          return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+            .setDescription(`⚠️ A result has already been recorded for **${player.ign}** in this ticket.`)] });
+        }
+
+        const settings = loadSettings();
+        if (!settings.resultLogsChannelId) {
+          return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+            .setDescription('❌ Result logs are not configured. An administrator must run `/resultlogs` first.') ] });
+        }
+        const resultChannel = await i.client.channels.fetch(settings.resultLogsChannelId).catch(() => null);
+        if (!resultChannel || !resultChannel.isTextBased?.() || ![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(resultChannel.type)) {
+          return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+            .setDescription('❌ The configured result-log channel is missing or is not a text channel. Ask an administrator to run `/resultlogs` again.') ] });
+        }
+        const botMemberForResults = i.guild.members.me;
+        const resultLogPermissions = botMemberForResults ? resultChannel.permissionsFor(botMemberForResults) : null;
+        if (!resultLogPermissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
+          return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+            .setDescription(`❌ I need View Channel, Send Messages, and Embed Links permissions in <#${resultChannel.id}>.`)] });
+        }
+        testingResultContext = {
+          ticketOwnerId: currentPlayerTicket[0],
+          ticketData,
+          resultChannel,
+        };
+      }
       const oldTier = player.tiers?.[weapon];
       LDB.setTier(target.id, weapon, tier);
       // Set cooldown (with tier info for LT3 = 1 week logic)
@@ -3329,6 +3379,52 @@ CMDS.tier = {
         }
       } catch(_) {}
 
+      if (testingResultContext) {
+        const logEmbed = new EmbedBuilder()
+          .setColor(TIER_COLOR[tier] || BRAND_COLOR)
+          .setTitle('✅ Tier Test Result — Tier Assigned')
+          .setDescription(`<@${target.id}> (**${player.ign}**) has been assigned **${tier}** in **${weapon}**.`)
+          .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
+          .addFields(
+            { name:'Player', value:`**${player.ign}** (<@${target.id}>)`, inline:true },
+            { name:'Gamemode', value:`${WEAPON_EMOJI[weapon]} ${weapon}`, inline:true },
+            { name:'Tier Assigned', value:`${getTierLabel(tier)} (${tier})`, inline:true },
+            { name:'Previous Tier', value:oldTier ? `${getTierLabel(oldTier)} (${oldTier})` : 'Unranked', inline:true },
+            { name:'Result', value:'PASSED — Tier assigned', inline:true },
+            { name:'Tested By', value:`<@${i.user.id}>`, inline:true },
+            { name:'Region', value:formatRegion(player.region), inline:true },
+            { name:'Testing Ticket', value:`<#${i.channelId}>`, inline:true },
+          )
+          .setFooter({ text:BOT_FOOTER })
+          .setTimestamp();
+
+        let resultLogMessage;
+        try {
+          resultLogMessage = await testingResultContext.resultChannel.send({ embeds:[logEmbed], allowedMentions:{ parse:[] } });
+        } catch (err) {
+          console.error('[TIER SET RESULT LOG ERROR]', err);
+          return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+            .setDescription(`❌ The tier was assigned, but the result could not be posted in <#${testingResultContext.resultChannel.id}>. The ticket remains locked. Check channel permissions, then run \`/tier set\` again to retry the result log.`)] });
+        }
+        await autoReact(resultLogMessage);
+        LDB.setTicket(testingResultContext.ticketOwnerId, {
+          ...testingResultContext.ticketData,
+          type:'tier-testing',
+          playerId:target.id,
+          playerIGN:player.ign,
+          weapon,
+          resultSubmitted:true,
+          resultTier:tier,
+          resultStatus:'Passed',
+          resultGamemode:weapon,
+          resultRegion:formatRegion(player.region),
+          resultSubmittedBy:i.user.id,
+          resultSubmittedAt:Date.now(),
+          resultLogChannelId:testingResultContext.resultChannel.id,
+          resultLogMessageId:resultLogMessage.id,
+        });
+      }
+
       // Ephemeral ack — only the tester will see this, so a "used /tier set"
       // indicator will not be visible to anyone else (ephemeral replies are shown only to the invoker).
       await i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
@@ -3351,10 +3447,12 @@ CMDS.tier = {
       // Public message posted as a normal message (not an interaction reply) —
       // this mentions the player and does not show the "used /tier set" text.
       let publicMsg = null;
-      try {
-        publicMsg = await i.channel.send({ content:`<@${target.id}>`, embeds:[tierUpdateEmbed] });
-      } catch (_) {}
-      if (publicMsg) await autoReact(publicMsg);
+      if (!testingResultContext) {
+        try {
+          publicMsg = await i.channel.send({ content:`<@${target.id}>`, embeds:[tierUpdateEmbed] });
+        } catch (_) {}
+        if (publicMsg) await autoReact(publicMsg);
+      }
 
       await syncEmbed(i.client, player, weapon, tier, i.user.id);
 
@@ -3471,23 +3569,6 @@ CMDS.submitresult = {
     const region   = i.options.getString('region');
     const rounds   = i.options.getInteger('rounds');
 
-    const settings = loadSettings();
-    if (!settings.resultLogsChannelId) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription('❌ Result logs are not configured. Ask an administrator to run `/resultlogs` first.')] });
-    }
-    const resultChannel = await i.client.channels.fetch(settings.resultLogsChannelId).catch(() => null);
-    if (!resultChannel || !resultChannel.isTextBased?.() || ![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(resultChannel.type)) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription('❌ The configured result-log channel is missing or is not a text channel. Ask an administrator to run `/resultlogs` again.')] });
-    }
-    const botMemberForResults = i.guild.members.me;
-    const resultLogPermissions = botMemberForResults ? resultChannel.permissionsFor(botMemberForResults) : null;
-    if (!resultLogPermissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription(`❌ I need View Channel, Send Messages, and Embed Links permissions in <#${resultChannel.id}>.`)] });
-    }
-
     const roundData = [1,2,3,4,5].slice(0, rounds).map(n => ({
       opponent: i.options.getUser(`opponent${n}`),
       score:    i.options.getInteger(`score${n}`),
@@ -3508,34 +3589,6 @@ CMDS.submitresult = {
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setTitle('🚫 Player Blacklisted')
         .setDescription(`**${target.username}** is blacklisted and cannot receive a tier test result.${blacklistReason(target.id)}`)] });
-
-    // A result for an active test ticket must be submitted inside that exact ticket
-    // and must match its player/gamemode; this is what unlocks ticket closure.
-    const targetTicket = LDB.getTicket(target.id);
-    const targetTicketChannelId = targetTicket?.channelId || (typeof targetTicket === 'string' ? targetTicket : null);
-    const targetIsTestingTicket = isTierTestingTicketRecord(targetTicket);
-    if (targetIsTestingTicket && targetTicketChannelId !== i.channelId) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription(`❌ Submit this result inside <#${targetTicketChannelId}> so the test ticket can be marked complete.`)] });
-    }
-    const channelTicketRecords = getTicketRecordsForChannel(i.channelId);
-    const currentPlayerTicket = channelTicketRecords.find(([id, ticket]) => id === target.id && (isTierTestingTicketRecord(ticket) || ticket.channelId === i.channelId));
-    if (isTierTestingTicketChannel(i.channel, channelTicketRecords)) {
-      if (!currentPlayerTicket) {
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-          .setDescription('❌ This is a tier-testing ticket, but the selected player is not assigned to this ticket.')] });
-      }
-      if (currentPlayerTicket[1].weapon && currentPlayerTicket[1].weapon !== weapon) {
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
-          .setDescription(`❌ This ticket is for **${currentPlayerTicket[1].weapon}**. Submit a result for that gamemode.`)] });
-      }
-      if (currentPlayerTicket[1].resultSubmitted) {
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
-          .setDescription(`⚠️ A result has already been recorded for **${player.ign}** in this ticket.`)] });
-      }
-    }
-
-    await i.deferReply({ ephemeral:true });
 
     const emoji     = WEAPON_EMOJI[weapon] || '<:sword:1549472174119854302>';
     const oldTier   = player.tiers?.[weapon];
@@ -3581,55 +3634,20 @@ CMDS.submitresult = {
       })
       .join('\n');
 
-    // ── Build a formal result record in the configured result-log channel ──
-    const resultEmbed = new EmbedBuilder()
-      .setColor(passed ? (TIER_COLOR[tier] || BRAND_COLOR) : 0xFF4444)
-      .setTitle(passed ? '✅ Tier Test Passed' : '❌ Tier Test Failed')
-      .setDescription(`<@${target.id}> (**${player.ign}**) ${passed ? 'passed' : 'failed'} the **${tier}** tier test.`)
-      .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
-      .addFields(
-        { name:'Player', value:`**${player.ign}** (<@${target.id}>)`, inline:true },
-        { name:'Gamemode', value:`${emoji} ${weapon}`, inline:true },
-        { name:'Tier Tested', value:tier, inline:true },
-        { name:'Result', value:result.toUpperCase(), inline:true },
-        { name:'Region', value:region, inline:true },
-        { name:'Tested By', value:`<@${i.user.id}>`, inline:true },
-        { name:`Fights (${rounds} round${rounds > 1 ? 's' : ''})`, value:fightLines.slice(0, 1024) || 'No fight data', inline:false },
-      )
-      .setFooter({ text:BOT_FOOTER })
-      .setTimestamp();
+    // ── Ephemeral ack to the tierer ────────────────────────
+    await i.reply({ ephemeral:true, content:`✅ Result submitted for **${player.ign}** — **${result}** their **${tier}** test.` });
 
-    let resultLogMessage;
+    // ── Public announcement — plain message, not an embed ──
+    const resultLine =
+      `<@${target.id}> - **${player.ign}** - Has **${result.toUpperCase()}** Their **${tier}** Test - ${emoji} - **${region}**\n\n` +
+      `**${tier} FIGHTS (${rounds} Round${rounds > 1 ? 's' : ''})**\n${fightLines}\n\n` +
+      `*Tested by ${i.user.username} · ${BOT_FOOTER}*`;
+
+    let publicMsg = null;
     try {
-      resultLogMessage = await resultChannel.send({ embeds:[resultEmbed], allowedMentions:{ parse:[] } });
-    } catch (err) {
-      console.error('[RESULT LOG ERROR]', err);
-      return i.editReply({ content:`❌ The tier result could not be posted in <#${resultChannel.id}>. The result was not marked complete for ticket closure. Check the channel permissions and retry.` });
-    }
-
-    if (resultLogMessage) await autoReact(resultLogMessage);
-
-    if (currentPlayerTicket) {
-      const [ticketOwnerId, ticketData] = currentPlayerTicket;
-      LDB.setTicket(ticketOwnerId, {
-        ...ticketData,
-        type: 'tier-testing',
-        playerId: target.id,
-        playerIGN: player.ign,
-        weapon,
-        resultSubmitted: true,
-        resultTier: tier,
-        resultStatus: result,
-        resultGamemode: weapon,
-        resultRegion: region,
-        resultSubmittedBy: i.user.id,
-        resultSubmittedAt: Date.now(),
-        resultLogChannelId: resultChannel.id,
-        resultLogMessageId: resultLogMessage.id,
-      });
-    }
-
-    return i.editReply({ content:`✅ Result submitted for **${player.ign}** — **${result}** their **${tier}** test. The result was logged in <#${resultChannel.id}>${currentPlayerTicket ? ' and this ticket can now be closed.' : '.'}` });
+      publicMsg = await i.channel.send({ content: resultLine });
+    } catch(_) {}
+    if (publicMsg) await autoReact(publicMsg);
   },
 };
 // ════════════════════════════════════════════════════════════
