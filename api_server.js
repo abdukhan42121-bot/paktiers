@@ -21,7 +21,7 @@ const {
   Client, GatewayIntentBits, REST, Routes,
   SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits,
   ActionRowBuilder, ButtonBuilder, ButtonStyle,
-  StringSelectMenuBuilder, ChannelType, PermissionsBitField,
+  StringSelectMenuBuilder, ChannelType, PermissionsBitField, AttachmentBuilder,
 } = require('discord.js');
 
 // ── VOICE (for /play — owner-only naat/song command) ────────
@@ -926,7 +926,7 @@ initF(PF, {});
 initF(QF, { Mace:[], Crystal:[], Sword:[], Axe:[], Netherite:[], UHC:[], Pot:[], SMP:[], DiaSMP:[], SpearMace:[], Cart:[] });
 initF(MF, []);
 initF(TF, {});
-initF(SF, { regLogsChannelId: '', staffLogsChannelId: '', appManagerRoles: [], appManagerUsers: [], supManagerRoles: [], supManagerUsers: [] });
+initF(SF, { regLogsChannelId: '', staffLogsChannelId: '', resultLogsChannelId: '', testingLogsChannelId: '', supportLogsChannelId: '', applicationLogsChannelId: '', appManagerRoles: [], appManagerUsers: [], supManagerRoles: [], supManagerUsers: [] });
 
 const rDB = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
 const wDB = (f, d) => fs.writeFileSync(f, JSON.stringify(d, null, 2));
@@ -1000,7 +1000,7 @@ async function backfillMissingUUIDs() {
 }
 
 function loadSettings() {
-  try { return rDB(SF); } catch(_) { return { regLogsChannelId: '', staffLogsChannelId: '', appManagerRoles: [], appManagerUsers: [], supManagerRoles: [], supManagerUsers: [] }; }
+  try { return rDB(SF); } catch(_) { return { regLogsChannelId: '', staffLogsChannelId: '', resultLogsChannelId: '', testingLogsChannelId: '', supportLogsChannelId: '', applicationLogsChannelId: '', appManagerRoles: [], appManagerUsers: [], supManagerRoles: [], supManagerUsers: [] }; }
 }
 function saveSettings(data) {
   try { wDB(SF, data); } catch(_) {}
@@ -1553,10 +1553,12 @@ async function createQueueTicket(client, guild, player, weapon, discordId, pulle
 
     LDB.setTicket(discordId, {
       channelId: ticketChannel.id,
+      type: 'tier-testing',
       playerId: discordId,
       playerIGN: player.ign,
       weapon,
       testerId: pullerId || null,
+      resultSubmitted: false,
       createdAt: Date.now(),
     });
 
@@ -1633,10 +1635,13 @@ async function createGroupTicket(client, guild, players, weapon, roleName, pulle
     for (const { discordId, player } of players) {
       LDB.setTicket(discordId, {
         channelId: ticketChannel.id,
+        type: 'tier-testing',
+        groupTicket: true,
         playerId:  discordId,
         playerIGN: player.ign,
         weapon,
         testerId:  pullerId || null,
+        resultSubmitted: false,
         createdAt: Date.now(),
       });
     }
@@ -1685,20 +1690,224 @@ async function createGroupTicket(client, guild, players, weapon, roleName, pulle
   }
 }
 
-async function closeTicket(client, guild, discordId, closedBy) {
+// ── Ticket archive/transcript helpers ──────────────────────────────────────
+const TICKET_LOG_SETTINGS = {
+  testing:     { key: 'testingLogsChannelId', command: '/testinglogs', label: 'Tier Testing' },
+  support:     { key: 'supportLogsChannelId', command: '/supplog', label: 'Support' },
+  application: { key: 'applicationLogsChannelId', command: '/applog', label: 'Application' },
+};
+
+function getTicketRecordsForChannel(channelId) {
+  try {
+    const db = rDB(TF);
+    return Object.entries(db).map(([id, raw]) => [
+      id,
+      typeof raw === 'string' ? { channelId: raw } : (raw || {}),
+    ]).filter(([, ticket]) => ticket.channelId === channelId);
+  } catch (_) { return []; }
+}
+
+function isTierTestingTicketRecord(ticket) {
+  if (!ticket) return false;
+  // `weapon` + `createdAt` also recognises tickets created by older bot versions.
+  return ticket.type === 'tier-testing' || Boolean(ticket.weapon && (ticket.createdAt || ticket.testerId || ticket.groupTicket));
+}
+
+function isTierTestingTicketChannel(channel, records = []) {
+  if (records.some(([, ticket]) => isTierTestingTicketRecord(ticket))) return true;
+  const parent = channel?.guild?.channels?.cache?.get(channel.parentId);
+  const parentName = parent?.name || '';
+  const topic = channel?.topic || '';
+  return Boolean(
+    channel?.parentId === CONFIG.TICKET_CATEGORY_ID ||
+    parentName === CONFIG.TICKET_CATEGORY_NAME ||
+    channel?.name?.startsWith('ticket-') ||
+    /Queue Ticket|Group Ticket/i.test(topic)
+  );
+}
+
+function detectTicketKind(channel, records = []) {
+  if (records.some(([, ticket]) => isTierTestingTicketRecord(ticket))) return 'testing';
+  const parent = channel?.guild?.channels?.cache?.get(channel.parentId);
+  const parentName = parent?.name || '';
+  const topic = channel?.topic || '';
+  if (channel?.parentId === CONFIG.APPLICATION_CATEGORY_ID || parentName === APPLICATION_CATEGORY_NAME || channel?.name?.startsWith('app-') || /Application/i.test(topic)) return 'application';
+  if (channel?.parentId === CONFIG.SUPPORT_CATEGORY_ID || parentName === SUPPORT_CATEGORY_NAME || channel?.name?.startsWith('support-') || /Support Ticket/i.test(topic)) return 'support';
+  if (isTierTestingTicketChannel(channel, records)) return 'testing';
+  // /close validates that the channel is under a known ticket category before this is called.
+  return 'testing';
+}
+
+function htmlEscape(value) {
+  return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+async function fetchEntireTicketHistory(channel) {
+  const all = new Map();
+  let before;
+  while (true) {
+    const options = { limit: 100 };
+    if (before) options.before = before;
+    const batch = await channel.messages.fetch(options);
+    if (!batch.size) break;
+    for (const message of batch.values()) all.set(message.id, message);
+    const items = [...batch.values()];
+    const oldest = items.reduce((a, b) => a.createdTimestamp <= b.createdTimestamp ? a : b);
+    if (batch.size < 100 || oldest.id === before) break;
+    before = oldest.id;
+  }
+  return [...all.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+}
+
+function transcriptMessageHTML(message) {
+  const author = message.member?.displayName || message.author?.tag || message.author?.username || 'Unknown user';
+  const avatar = message.author?.displayAvatarURL?.({ extension: 'png', size: 64 }) || '';
+  const timestamp = new Date(message.createdTimestamp).toLocaleString('en-US', {
+    year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
+    timeZone: 'UTC',
+  }) + ' UTC';
+  const body = message.content
+    ? `<div class="content">${htmlEscape(message.content).replace(/\n/g, '<br>')}</div>`
+    : '';
+  const embeds = (message.embeds || []).map(embed => {
+    const fields = (embed.fields || []).map(field => `<div class="field"><b>${htmlEscape(field.name)}</b><div>${htmlEscape(field.value).replace(/\n/g, '<br>')}</div></div>`).join('');
+    const authorLine = embed.author?.name ? `<div class="embed-author">${htmlEscape(embed.author.name)}</div>` : '';
+    const title = embed.title ? `<div class="embed-title">${htmlEscape(embed.title)}</div>` : '';
+    const desc = embed.description ? `<div>${htmlEscape(embed.description).replace(/\n/g, '<br>')}</div>` : '';
+    const url = embed.url ? `<div><a href="${htmlEscape(embed.url)}">Open embed link</a></div>` : '';
+    return `<div class="embed">${authorLine}${title}${desc}${fields}${url}</div>`;
+  }).join('');
+  const attachments = [...(message.attachments?.values?.() || [])].map(a =>
+    `<div class="attachment">📎 <a href="${htmlEscape(a.url)}">${htmlEscape(a.name || 'Attachment')}</a>${a.size ? ` (${Math.ceil(a.size / 1024)} KB)` : ''}</div>`
+  ).join('');
+  const reactions = [...(message.reactions?.cache?.values?.() || [])].map(r => `${r.emoji?.name || 'reaction'} ×${r.count}`).join(' · ');
+  const reactionLine = reactions ? `<div class="reactions">${htmlEscape(reactions)}</div>` : '';
+  const avatarHTML = avatar ? `<img class="avatar" src="${htmlEscape(avatar)}" alt="">` : '<div class="avatar"></div>';
+  const edited = message.editedTimestamp ? ' · edited' : '';
+  return `<article class="message">${avatarHTML}<div class="message-main"><div class="meta"><strong>${htmlEscape(author)}</strong><span>${htmlEscape(timestamp)}${edited}</span></div>${body}${embeds}${attachments}${reactionLine}</div></article>`;
+}
+
+async function buildTicketTranscriptHTML(channel, closedBy, reason, records, kind) {
+  const messages = await fetchEntireTicketHistory(channel);
+  const participants = [...new Set(records.map(([, ticket]) => ticket.playerId).filter(Boolean))];
+  const ownerMentions = participants.length ? participants.map(id => `<@${id}>`).join(', ') : (channel.topic?.match(/<@!?\d+>/g) || []).join(', ') || 'Not recorded';
+  const gameModes = [...new Set(records.map(([, ticket]) => ticket.weapon).filter(Boolean))];
+  const testers = [...new Set(records.map(([, ticket]) => ticket.testerId).filter(Boolean))];
+  const resultSummary = records.map(([, ticket]) => ticket.resultSubmitted
+    ? `${ticket.playerIGN || ticket.playerId || 'Player'} — ${ticket.resultStatus || 'Submitted'} ${ticket.resultTier || ''} (${ticket.resultGamemode || ticket.weapon || 'Unknown gamemode'})`
+    : null).filter(Boolean).join('; ');
+  const details = [
+    ['Ticket type', TICKET_LOG_SETTINGS[kind]?.label || kind],
+    ['Channel', `#${channel.name} (${channel.id})`],
+    ['Opened', new Date(channel.createdTimestamp).toISOString()],
+    ['Participants', ownerMentions],
+    ['Game mode', gameModes.join(', ') || '—'],
+    ['Tester(s)', testers.map(id => `<@${id}>`).join(', ') || '—'],
+    ['Tier result(s)', resultSummary || 'Not recorded'],
+    ['Closed by', `<@${closedBy}>`],
+    ['Close reason', reason || 'No reason provided'],
+    ['Messages archived', String(messages.length)],
+  ];
+  const detailRows = details.map(([k, v]) => `<div class="detail"><span>${htmlEscape(k)}</span><strong>${htmlEscape(v)}</strong></div>`).join('');
+  const messageHTML = messages.map(transcriptMessageHTML).join('\n');
+  const generated = new Date().toISOString();
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Ticket Transcript — ${htmlEscape(channel.name)}</title>
+<style>
+:root{color-scheme:dark;--bg:#111318;--panel:#1a1d24;--line:#2c303a;--muted:#9ba3b4;--text:#eef1f7;--accent:#7fff00}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}.wrap{max-width:1050px;margin:0 auto;padding:28px 18px 60px}.hero{padding:24px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(135deg,#20252e,#15171d);margin-bottom:18px}.brand{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:800}.hero h1{font-size:25px;margin:8px 0}.sub{color:var(--muted)}.details{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px;margin:18px 0 24px}.detail{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 13px;min-width:0}.detail span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em}.detail strong{display:block;overflow-wrap:anywhere;margin-top:3px}.messages{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#15171d}.section-head{padding:12px 16px;background:#20232b;border-bottom:1px solid var(--line);font-weight:750}.message{display:flex;gap:12px;padding:15px 16px;border-bottom:1px solid var(--line)}.message:last-child{border-bottom:0}.avatar{width:38px;height:38px;border-radius:50%;flex:0 0 38px;background:#303542;object-fit:cover}.message-main{min-width:0;flex:1}.meta{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px}.meta span{font-size:11px;color:var(--muted)}.content{white-space:pre-wrap;overflow-wrap:anywhere}.embed{margin-top:8px;padding:10px 12px;border-left:3px solid #64748b;background:#20232b;border-radius:4px;overflow-wrap:anywhere}.embed-title{font-weight:800;margin:2px 0}.embed-author{font-size:11px;color:var(--muted);margin-bottom:4px}.field{margin-top:7px}.field b{display:block}.attachment{margin-top:7px;font-size:12px}.reactions{margin-top:7px;color:var(--muted);font-size:11px}.empty{padding:24px;color:var(--muted)}a{color:#8ab4ff}footer{text-align:center;color:var(--muted);font-size:11px;padding:18px}
+</style></head><body><main class="wrap"><header class="hero"><div class="brand">EclipseTiers · Ticket Archive</div><h1>${htmlEscape(TICKET_LOG_SETTINGS[kind]?.label || 'Ticket')} Transcript</h1><div class="sub">#${htmlEscape(channel.name)} · Channel ID ${htmlEscape(channel.id)}</div></header><section class="details">${detailRows}</section><section class="messages"><div class="section-head">Conversation · ${messages.length} message${messages.length === 1 ? '' : 's'}</div>${messageHTML || '<div class="empty">No messages were found in this ticket.</div>'}</section><footer>Generated ${htmlEscape(generated)} · EclipseTiers archival system</footer></main></body></html>`;
+  return { html, messageCount: messages.length, participants, gameModes, testers };
+}
+
+async function archiveTicketChannel(client, channel, closedBy, reason = '') {
+  if (!channel || !channel.guild) return { ok: false, error: 'This is not a valid ticket channel.' };
+  const records = getTicketRecordsForChannel(channel.id);
+  const kind = detectTicketKind(channel, records);
+
+  if (kind === 'testing') {
+    const pending = records.filter(([, ticket]) => isTierTestingTicketRecord(ticket) && !ticket.resultSubmitted);
+    if (pending.length) {
+      const names = pending.map(([id, ticket]) => ticket.playerIGN ? `**${ticket.playerIGN}** (<@${id}>)` : `<@${id}>`);
+      return { ok: false, error: `A tier-test result must be submitted before this ticket can close. Pending result${pending.length > 1 ? 's' : ''}: ${names.join(', ')}. Use /submitresult in this ticket first.` };
+    }
+  }
+
+  const logConfig = TICKET_LOG_SETTINGS[kind];
+  const settings = loadSettings();
+  const logChannelId = settings[logConfig?.key];
+  if (!logChannelId) {
+    return { ok: false, error: `The ${logConfig?.label || 'ticket'} transcript channel is not configured. An administrator must run ${logConfig?.command || '/testinglogs'} first.` };
+  }
+
+  const logChannel = await client.channels.fetch(logChannelId).catch(() => null);
+  if (!logChannel || !logChannel.isTextBased?.() || ![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(logChannel.type)) {
+    return { ok: false, error: `The configured ${logConfig.label.toLowerCase()} log channel is missing or is not a text channel. Set it again with ${logConfig.command}.` };
+  }
+
+  const botMember = channel.guild.members.me;
+  const permissions = botMember ? logChannel.permissionsFor(botMember) : null;
+  const requiredPermissions = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.AttachFiles];
+  if (!permissions || !permissions.has(requiredPermissions)) {
+    return { ok: false, error: `I need View Channel, Send Messages, Embed Links, and Attach Files permissions in <#${logChannel.id}> to archive this transcript.` };
+  }
+
+  try {
+    await channel.send({ embeds: [new EmbedBuilder().setColor(0xFF4444)
+      .setTitle('🔒 Ticket Closing')
+      .setDescription(`Ticket closure initiated by <@${closedBy}>.${reason ? `\n**Reason:** ${reason}` : ''}\nThe transcript is being archived.`)
+      .setFooter({ text: BOT_FOOTER }).setTimestamp()] }).catch(() => null);
+
+    const transcript = await buildTicketTranscriptHTML(channel, closedBy, reason, records, kind);
+    const summary = new EmbedBuilder()
+      .setColor(kind === 'testing' ? BRAND_COLOR : kind === 'support' ? 0xF5C842 : 0x5865F2)
+      .setTitle(`📁 ${logConfig.label} Ticket Archived`)
+      .setDescription(`The ticket transcript for **#${channel.name}** is attached below.`)
+      .addFields(
+        { name: 'Ticket Channel', value: `#${channel.name}\n\`${channel.id}\``, inline: true },
+        { name: 'Ticket Type', value: logConfig.label, inline: true },
+        { name: 'Closed By', value: `<@${closedBy}>`, inline: true },
+        { name: 'Opened', value: `<t:${Math.floor(channel.createdTimestamp / 1000)}:F>`, inline: true },
+        { name: 'Messages Archived', value: String(transcript.messageCount), inline: true },
+        { name: 'Participants', value: transcript.participants.length ? transcript.participants.map(id => `<@${id}>`).join(', ').slice(0, 1024) : ((channel.topic?.match(/<@!?\d+>/g) || []).join(', ') || 'Not recorded'), inline: false },
+      )
+      .setFooter({ text: `EclipseTiers transcript · ${channel.id}` })
+      .setTimestamp();
+    if (transcript.gameModes.length) summary.addFields({ name: 'Gamemode', value: transcript.gameModes.join(', ').slice(0, 1024), inline: true });
+    if (transcript.testers.length) summary.addFields({ name: 'Tester(s)', value: transcript.testers.map(id => `<@${id}>`).join(', ').slice(0, 1024), inline: true });
+    const tierResults = records.map(([, ticket]) => ticket.resultSubmitted
+      ? `${ticket.playerIGN || ticket.playerId || 'Player'} — ${ticket.resultStatus || 'Submitted'} ${ticket.resultTier || ''} (${ticket.resultGamemode || ticket.weapon || 'Unknown'})`
+      : null).filter(Boolean).join('\n');
+    if (tierResults) summary.addFields({ name: 'Tier Result(s)', value: tierResults.slice(0, 1024), inline: false });
+    if (reason) summary.addFields({ name: 'Close Reason', value: String(reason).slice(0, 1024), inline: false });
+
+    const fileName = `transcript-${channel.name.toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 50) || 'ticket'}.html`;
+    await logChannel.send({
+      embeds: [summary],
+      files: [new AttachmentBuilder(Buffer.from(transcript.html, 'utf8'), { name: fileName })],
+      allowedMentions: { parse: [] },
+    });
+
+    // Clean all per-member records associated with this channel only after a successful archive.
+    for (const [discordId] of records) LDB.delTicket(discordId);
+    setTimeout(() => channel.delete().catch(() => {}), 5000);
+    return { ok: true, kind, logChannelId, messageCount: transcript.messageCount };
+  } catch (err) {
+    console.error(`[TICKET ARCHIVE ERROR] ${channel.id}:`, err);
+    return { ok: false, error: `The transcript could not be sent to <#${logChannelId}>. The ticket was left open. Error: ${String(err.message || err).slice(0, 250)}` };
+  }
+}
+
+async function closeTicket(client, guild, discordId, closedBy, reason = '') {
   const ticket = LDB.getTicket(discordId);
   const channelId = ticket?.channelId || ticket;
-  if (!channelId) return false;
-  try {
-    const ch = await client.channels.fetch(channelId).catch(()=>null);
-    if (ch) {
-      await ch.send({ embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setDescription(`🔒 Ticket closed by <@${closedBy}>. This channel will be deleted in 5 seconds.`)] });
-      setTimeout(() => ch.delete().catch(()=>{}), 5000);
-    }
+  if (!channelId) return { ok: false, error: 'This player has no open ticket.' };
+  const channel = await client.channels.fetch(channelId).catch(() => null);
+  if (!channel) {
     LDB.delTicket(discordId);
-    return true;
-  } catch(_) { return false; }
+    return { ok: false, error: 'The ticket channel no longer exists.' };
+  }
+  return archiveTicketChannel(client, channel, closedBy, reason);
 }
 
 // ════════════════════════════════════════════════════════════
@@ -2471,6 +2680,37 @@ CMDS.embedsend = {
   },
 };
 
+// ── Ticket and result log channel settings ────────────────────────────────
+function makeTicketLogSettingCommand(commandName, description, settingKey, displayName) {
+  return {
+    data: new SlashCommandBuilder()
+      .setName(commandName)
+      .setDescription(description)
+      .addChannelOption(o => o.setName('channel').setDescription(`${displayName} channel`).setRequired(true)),
+    async execute(i) {
+      if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
+          .setDescription('❌ Administrator permission required.')] });
+      }
+      const channel = i.options.getChannel('channel');
+      if (!channel || !channel.isTextBased?.() || ![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(channel.type)) {
+        return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
+          .setDescription('❌ Select a text or announcement channel.')] });
+      }
+      const settings = loadSettings();
+      settings[settingKey] = channel.id;
+      saveSettings(settings);
+      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0x57F287)
+        .setDescription(`✅ **${displayName}** channel set to ${channel}.`)] });
+    },
+  };
+}
+
+CMDS.resultlogs = makeTicketLogSettingCommand('resultlogs', 'Set the channel for tier-test result logs', 'resultLogsChannelId', 'Tier result logs');
+CMDS.testinglogs = makeTicketLogSettingCommand('testinglogs', 'Set the channel for tier-testing transcripts and close logs', 'testingLogsChannelId', 'Tier-testing transcripts');
+CMDS.supplog = makeTicketLogSettingCommand('supplog', 'Set the channel for support-ticket transcripts and close logs', 'supportLogsChannelId', 'Support transcripts');
+CMDS.applog = makeTicketLogSettingCommand('applog', 'Set the channel for application-ticket transcripts and close logs', 'applicationLogsChannelId', 'Application transcripts');
+
 // ── /setreglogschannel ────────────────────────────────────
 CMDS.setreglogschannel = {
   data: new SlashCommandBuilder()
@@ -3231,6 +3471,23 @@ CMDS.submitresult = {
     const region   = i.options.getString('region');
     const rounds   = i.options.getInteger('rounds');
 
+    const settings = loadSettings();
+    if (!settings.resultLogsChannelId) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ Result logs are not configured. Ask an administrator to run `/resultlogs` first.')] });
+    }
+    const resultChannel = await i.client.channels.fetch(settings.resultLogsChannelId).catch(() => null);
+    if (!resultChannel || !resultChannel.isTextBased?.() || ![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(resultChannel.type)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription('❌ The configured result-log channel is missing or is not a text channel. Ask an administrator to run `/resultlogs` again.')] });
+    }
+    const botMemberForResults = i.guild.members.me;
+    const resultLogPermissions = botMemberForResults ? resultChannel.permissionsFor(botMemberForResults) : null;
+    if (!resultLogPermissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ I need View Channel, Send Messages, and Embed Links permissions in <#${resultChannel.id}>.`)] });
+    }
+
     const roundData = [1,2,3,4,5].slice(0, rounds).map(n => ({
       opponent: i.options.getUser(`opponent${n}`),
       score:    i.options.getInteger(`score${n}`),
@@ -3251,6 +3508,34 @@ CMDS.submitresult = {
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setTitle('🚫 Player Blacklisted')
         .setDescription(`**${target.username}** is blacklisted and cannot receive a tier test result.${blacklistReason(target.id)}`)] });
+
+    // A result for an active test ticket must be submitted inside that exact ticket
+    // and must match its player/gamemode; this is what unlocks ticket closure.
+    const targetTicket = LDB.getTicket(target.id);
+    const targetTicketChannelId = targetTicket?.channelId || (typeof targetTicket === 'string' ? targetTicket : null);
+    const targetIsTestingTicket = isTierTestingTicketRecord(targetTicket);
+    if (targetIsTestingTicket && targetTicketChannelId !== i.channelId) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        .setDescription(`❌ Submit this result inside <#${targetTicketChannelId}> so the test ticket can be marked complete.`)] });
+    }
+    const channelTicketRecords = getTicketRecordsForChannel(i.channelId);
+    const currentPlayerTicket = channelTicketRecords.find(([id, ticket]) => id === target.id && (isTierTestingTicketRecord(ticket) || ticket.channelId === i.channelId));
+    if (isTierTestingTicketChannel(i.channel, channelTicketRecords)) {
+      if (!currentPlayerTicket) {
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription('❌ This is a tier-testing ticket, but the selected player is not assigned to this ticket.')] });
+      }
+      if (currentPlayerTicket[1].weapon && currentPlayerTicket[1].weapon !== weapon) {
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          .setDescription(`❌ This ticket is for **${currentPlayerTicket[1].weapon}**. Submit a result for that gamemode.`)] });
+      }
+      if (currentPlayerTicket[1].resultSubmitted) {
+        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+          .setDescription(`⚠️ A result has already been recorded for **${player.ign}** in this ticket.`)] });
+      }
+    }
+
+    await i.deferReply({ ephemeral:true });
 
     const emoji     = WEAPON_EMOJI[weapon] || '<:sword:1549472174119854302>';
     const oldTier   = player.tiers?.[weapon];
@@ -3296,20 +3581,55 @@ CMDS.submitresult = {
       })
       .join('\n');
 
-    // ── Ephemeral ack to the tierer ────────────────────────
-    await i.reply({ ephemeral:true, content:`✅ Result submitted for **${player.ign}** — **${result}** their **${tier}** test.` });
+    // ── Build a formal result record in the configured result-log channel ──
+    const resultEmbed = new EmbedBuilder()
+      .setColor(passed ? (TIER_COLOR[tier] || BRAND_COLOR) : 0xFF4444)
+      .setTitle(passed ? '✅ Tier Test Passed' : '❌ Tier Test Failed')
+      .setDescription(`<@${target.id}> (**${player.ign}**) ${passed ? 'passed' : 'failed'} the **${tier}** tier test.`)
+      .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
+      .addFields(
+        { name:'Player', value:`**${player.ign}** (<@${target.id}>)`, inline:true },
+        { name:'Gamemode', value:`${emoji} ${weapon}`, inline:true },
+        { name:'Tier Tested', value:tier, inline:true },
+        { name:'Result', value:result.toUpperCase(), inline:true },
+        { name:'Region', value:region, inline:true },
+        { name:'Tested By', value:`<@${i.user.id}>`, inline:true },
+        { name:`Fights (${rounds} round${rounds > 1 ? 's' : ''})`, value:fightLines.slice(0, 1024) || 'No fight data', inline:false },
+      )
+      .setFooter({ text:BOT_FOOTER })
+      .setTimestamp();
 
-    // ── Public announcement — plain message, not an embed ──
-    const resultLine =
-      `<@${target.id}> - **${player.ign}** - Has **${result.toUpperCase()}** Their **${tier}** Test - ${emoji} - **${region}**\n\n` +
-      `**${tier} FIGHTS (${rounds} Round${rounds > 1 ? 's' : ''})**\n${fightLines}\n\n` +
-      `*Tested by ${i.user.username} · ${BOT_FOOTER}*`;
-
-    let publicMsg = null;
+    let resultLogMessage;
     try {
-      publicMsg = await i.channel.send({ content: resultLine });
-    } catch(_) {}
-    if (publicMsg) await autoReact(publicMsg);
+      resultLogMessage = await resultChannel.send({ embeds:[resultEmbed], allowedMentions:{ parse:[] } });
+    } catch (err) {
+      console.error('[RESULT LOG ERROR]', err);
+      return i.editReply({ content:`❌ The tier result could not be posted in <#${resultChannel.id}>. The result was not marked complete for ticket closure. Check the channel permissions and retry.` });
+    }
+
+    if (resultLogMessage) await autoReact(resultLogMessage);
+
+    if (currentPlayerTicket) {
+      const [ticketOwnerId, ticketData] = currentPlayerTicket;
+      LDB.setTicket(ticketOwnerId, {
+        ...ticketData,
+        type: 'tier-testing',
+        playerId: target.id,
+        playerIGN: player.ign,
+        weapon,
+        resultSubmitted: true,
+        resultTier: tier,
+        resultStatus: result,
+        resultGamemode: weapon,
+        resultRegion: region,
+        resultSubmittedBy: i.user.id,
+        resultSubmittedAt: Date.now(),
+        resultLogChannelId: resultChannel.id,
+        resultLogMessageId: resultLogMessage.id,
+      });
+    }
+
+    return i.editReply({ content:`✅ Result submitted for **${player.ign}** — **${result}** their **${tier}** test. The result was logged in <#${resultChannel.id}>${currentPlayerTicket ? ' and this ticket can now be closed.' : '.'}` });
   },
 };
 // ════════════════════════════════════════════════════════════
@@ -3735,10 +4055,13 @@ CMDS.closeticket = {
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Staff or Tierer role required.')]});
     const target = i.options.getUser('player');
-    const closed = await closeTicket(i.client, i.guild, target.id, i.user.id);
-    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder()
-      .setColor(closed ? 0x00C864 : 0xFF9933)
-      .setDescription(closed ? `✅ **${target.username}**'s ticket has been closed.` : `⚠️ **${target.username}** has no open ticket.`)] });
+    await i.deferReply({ ephemeral:true });
+    const outcome = await closeTicket(i.client, i.guild, target.id, i.user.id);
+    return i.editReply({ embeds:[new EmbedBuilder()
+      .setColor(outcome.ok ? 0x00C864 : 0xFF9933)
+      .setDescription(outcome.ok
+        ? `✅ **${target.username}**'s ticket has been archived to <#${outcome.logChannelId}> and will be deleted shortly.`
+        : `⚠️ ${outcome.error || `Could not close **${target.username}**'s ticket.`}`)] });
   },
 };
 
@@ -4758,21 +5081,14 @@ CMDS.close = {
         .setDescription('❌ This command can only be used inside a ticket channel.')] });
     }
 
-    await i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
-      .setDescription(`🔒 Ticket closed by <@${i.user.id}>.${reason ? `\n**Reason:** ${reason}` : ''}\nThis channel will be deleted in 5 seconds.`)] });
-
-    // Clean up any per-member ticket records (queue/group tickets) pointing at this channel
-    try {
-      const db = rDB(TF);
-      for (const [discordId, ticket] of Object.entries(db)) {
-        const cid = ticket?.channelId || ticket;
-        if (cid === channel.id) LDB.delTicket(discordId);
-      }
-    } catch(err) {
-      console.error('[CLOSE TICKET] cleanup error:', err.message);
+    await i.deferReply({ ephemeral:true });
+    const outcome = await archiveTicketChannel(i.client, channel, i.user.id, reason || '');
+    if (!outcome.ok) {
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF9933)
+        .setDescription(`⚠️ ${outcome.error}`)] });
     }
-
-    setTimeout(() => channel.delete().catch(() => {}), 5000);
+    return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
+      .setDescription(`✅ Ticket transcript archived in <#${outcome.logChannelId}>. This ticket will be deleted shortly.`)] });
   },
 };
 
@@ -6398,7 +6714,7 @@ async function handleButtonClick(i) {
     });
   }
 
-  // Close ticket button
+  // Close queue/tier-testing ticket button. Result submission is checked by archiveTicketChannel.
   if (i.customId.startsWith('close_ticket_')) {
     const targetId = i.customId.replace('close_ticket_','');
     const ticket   = LDB.getTicket(targetId);
@@ -6409,11 +6725,13 @@ async function handleButtonClick(i) {
     const isPuller  = ticket?.testerId && ticket.testerId === i.user.id;
     if (!isAdmin && !hasStaff && !hasTierer && !isOwner && !isPuller)
       return i.reply({ ephemeral:true, content:'❌ You do not have permission to close this ticket.' });
-    await i.reply({ ephemeral:true, content:'🔒 Closing ticket...' });
-    return closeTicket(i.client, i.guild, targetId, i.user.id);
+    await i.deferReply({ ephemeral:true });
+    const outcome = await closeTicket(i.client, i.guild, targetId, i.user.id);
+    if (!outcome.ok) return i.editReply({ content:`❌ ${outcome.error}` });
+    return i.editReply({ content:`✅ Ticket transcript archived in <#${outcome.logChannelId}>. This ticket will be deleted shortly.` });
   }
 
-  // Close GROUP ticket button (one channel shared by several members)
+  // Close GROUP ticket button (all players must have a submitted result)
   if (i.customId.startsWith('close_group_ticket_')) {
     const channelId = i.customId.replace('close_group_ticket_','');
     const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
@@ -6421,27 +6739,15 @@ async function handleButtonClick(i) {
     const hasTierer = hasTiererPerm(i.member);
     if (!isAdmin && !hasStaff && !hasTierer)
       return i.reply({ ephemeral:true, content:'❌ You do not have permission to close this ticket.' });
-    await i.reply({ ephemeral:true, content:'🔒 Closing ticket...' });
-    try {
-      const ch = await i.client.channels.fetch(channelId).catch(() => null);
-      if (ch) {
-        await ch.send({ embeds:[new EmbedBuilder().setColor(0xFF4444)
-          .setDescription(`🔒 Ticket closed by <@${i.user.id}>. This channel will be deleted in 5 seconds.`)] });
-        setTimeout(() => ch.delete().catch(() => {}), 5000);
-      }
-      // Remove any per-member ticket records pointing at this channel
-      const db = rDB(TF);
-      for (const [discordId, ticket] of Object.entries(db)) {
-        const cid = ticket?.channelId || ticket;
-        if (cid === channelId) LDB.delTicket(discordId);
-      }
-    } catch(err) {
-      console.error('[GROUP TICKET CLOSE ERROR]', err);
-    }
-    return;
+    const channel = await i.client.channels.fetch(channelId).catch(() => null);
+    if (!channel) return i.reply({ ephemeral:true, content:'❌ This ticket channel no longer exists.' });
+    await i.deferReply({ ephemeral:true });
+    const outcome = await archiveTicketChannel(i.client, channel, i.user.id);
+    if (!outcome.ok) return i.editReply({ content:`❌ ${outcome.error}` });
+    return i.editReply({ content:`✅ Group ticket transcript archived in <#${outcome.logChannelId}>. This ticket will be deleted shortly.` });
   }
 
-  // Close application ticket button
+  // Close application ticket button — routed to the application transcript log.
   if (i.customId.startsWith('close_apptkt_')) {
     const targetId = i.customId.replace('close_apptkt_','');
     const isAdmin  = i.member.permissions.has(PermissionFlagsBits.Administrator);
@@ -6449,9 +6755,10 @@ async function handleButtonClick(i) {
     const isOwner  = i.user.id === targetId;
     if (!isAdmin && !hasStaff && !isOwner)
       return i.reply({ ephemeral:true, content:'❌ You do not have permission to close this application.' });
-    await i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
-      .setDescription(`🔒 Application closed by <@${i.user.id}>. Channel will be deleted in 5 seconds.`)] });
-    return setTimeout(() => i.channel.delete().catch(()=>{}), 5000);
+    await i.deferReply({ ephemeral:true });
+    const outcome = await archiveTicketChannel(i.client, i.channel, i.user.id);
+    if (!outcome.ok) return i.editReply({ content:`❌ ${outcome.error}` });
+    return i.editReply({ content:`✅ Application transcript archived in <#${outcome.logChannelId}>. This ticket will be deleted shortly.` });
   }
 
   // ── Support Panel: "Open a ticket!" button ────────────────
@@ -6474,7 +6781,7 @@ async function handleButtonClick(i) {
       .setDescription(`✅ Your support ticket is open: <#${ticketChannel.id}>`)] });
   }
 
-  // Close support ticket button
+  // Close support ticket button — routed to the support transcript log.
   if (i.customId.startsWith('close_supporttkt_')) {
     const targetId = i.customId.replace('close_supporttkt_','');
     const isAdmin  = i.member.permissions.has(PermissionFlagsBits.Administrator);
@@ -6482,9 +6789,10 @@ async function handleButtonClick(i) {
     const isOwner  = i.user.id === targetId;
     if (!isAdmin && !hasStaff && !isOwner)
       return i.reply({ ephemeral:true, content:'❌ You do not have permission to close this ticket.' });
-    await i.reply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
-      .setDescription(`🔒 Ticket closed by <@${i.user.id}>. Channel will be deleted in 5 seconds.`)] });
-    return setTimeout(() => i.channel.delete().catch(()=>{}), 5000);
+    await i.deferReply({ ephemeral:true });
+    const outcome = await archiveTicketChannel(i.client, i.channel, i.user.id);
+    if (!outcome.ok) return i.editReply({ content:`❌ ${outcome.error}` });
+    return i.editReply({ content:`✅ Support transcript archived in <#${outcome.logChannelId}>. This ticket will be deleted shortly.` });
   }
 
   // ── WAITLIST QUEUE BUTTONS (from /startqueue announce) ────────────────────
