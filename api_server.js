@@ -3380,27 +3380,29 @@ CMDS.tier = {
       } catch(_) {}
 
       if (testingResultContext) {
+        // Keep the original /tier set announcement design: one narrow column,
+        // the same title/thumbnail/field order, and no redesigned result card.
         const logEmbed = new EmbedBuilder()
           .setColor(TIER_COLOR[tier] || BRAND_COLOR)
-          .setTitle('✅ Tier Test Result — Tier Assigned')
-          .setDescription(`<@${target.id}> (**${player.ign}**) has been assigned **${tier}** in **${weapon}**.`)
-          .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
+          .setTitle(`${player.ign}'s Tier Update 🏆`)
+          .setThumbnail(`https://mc-heads.net/head/${player.ign}/128`)
           .addFields(
-            { name:'Player', value:`**${player.ign}** (<@${target.id}>)`, inline:true },
-            { name:'Gamemode', value:`${WEAPON_EMOJI[weapon]} ${weapon}`, inline:true },
-            { name:'Tier Assigned', value:`${getTierLabel(tier)} (${tier})`, inline:true },
-            { name:'Previous Tier', value:oldTier ? `${getTierLabel(oldTier)} (${oldTier})` : 'Unranked', inline:true },
-            { name:'Result', value:'PASSED — Tier assigned', inline:true },
-            { name:'Tested By', value:`<@${i.user.id}>`, inline:true },
-            { name:'Region', value:formatRegion(player.region), inline:true },
-            { name:'Testing Ticket', value:`<#${i.channelId}>`, inline:true },
+            { name:'Tester',             value:`<@${i.user.id}>`,                          inline:false },
+            { name:'Minecraft Username', value:`${player.ign}`,                            inline:false },
+            { name:'Game Mode',          value:`${weapon.toUpperCase()}`,                  inline:false },
+            { name:'Previous Rank',      value:oldTier ? getTierLabel(oldTier) : 'Unranked', inline:false },
+            { name:'Rank Earned',        value:getTierLabel(tier),                         inline:false },
+            { name:'Region',             value:formatRegion(player.region),               inline:false },
           )
-          .setFooter({ text:BOT_FOOTER })
           .setTimestamp();
 
         let resultLogMessage;
         try {
-          resultLogMessage = await testingResultContext.resultChannel.send({ embeds:[logEmbed], allowedMentions:{ parse:[] } });
+          resultLogMessage = await testingResultContext.resultChannel.send({
+            content:`<@${target.id}>`,
+            embeds:[logEmbed],
+            allowedMentions:{ users:[target.id] },
+          });
         } catch (err) {
           console.error('[TIER SET RESULT LOG ERROR]', err);
           return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
