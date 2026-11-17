@@ -1,4 +1,4 @@
-# EclipseTiers · Railway MUI website (v2.2.0)
+# EclipseTiers · Railway MUI website (v2.3.0)
 
 A complete dark-only **React + Material UI** rebuild of the EclipseTiers public website, packaged to deploy on Railway. The original `api_server.js` and Discord bot are included unchanged; `railway-gateway.js` starts that backend privately and serves the new MUI website on Railway's public port.
 
@@ -23,7 +23,7 @@ The project ZIP contains the entire deployable source. Important root files:
 - Dark obsidian, crimson, gold and silver Material UI design; responsive mobile and desktop layouts.
 - Homepage hero: “The Standard of Competitive Minecraft.”, real backend statistics, current top-three podium and original gamemode cards.
 - Rankings: horizontal original-icon gamemode tabs, cached instant rendering + background refresh, player search, region/tier filters, sorting, original ranking positions and 100 rows per page.
-- Player rows show the Minecraft skin head and skin name, IGN, region, overall points, and a compact matrix for all 11 gamemodes. Each mode uses its original gamemode logo: assigned modes show a crisp, full-colour logo and clearly highlighted tier badge; unassigned modes keep the logo visible but faded/grayscale with a quiet dash. The same visual treatment appears in player popups and shareable profile pages.
+- Player rows show a larger Minecraft body skin, IGN/skin name, region, compact circular per-gamemode logos with tier codes, and overall points. Each mode uses its original gamemode logo: assigned modes show a crisp, full-colour logo and clearly highlighted tier badge; unassigned modes keep the logo visible but faded/grayscale with a quiet dash. The same visual treatment appears in player popups and shareable profile pages.
 - Global search opens with `/` or `Ctrl+K`; partial and typo-tolerant matching; Enter/click opens a player popup.
 - Player popup and shareable `/player/PlayerIGN` profile pages.
 - Player comparison at `/compare`, including shareable query-string links and per-gamemode tier differences.
@@ -135,3 +135,11 @@ The current player matrix distinguishes the state visually: assigned tiers keep 
 - The original API's per-gamemode response order is preserved for the default view. Frontend filtering does not recalculate tiers or ranking points.
 - Branded eclipse-orbit loading states, animated tier panels, staggered player-row entrances, hover transitions and reduced-motion handling are included. Cached data displays immediately; uncached gamemode switches show the custom loader.
 - Overall rankings remain unchanged and keep their 100-row pagination. The 10-player preview applies to each tier group on individual gamemode views.
+## v2.3.0 — Classic leaderboard player rows
+
+- Rebuilt the overall leaderboard rows using the original EclipseTiers row hierarchy: rank medal, Minecraft body skin, IGN/skin name, region badge, compact gamemode icon slots and total points.
+- Replaced the large per-player gamemode tile matrix in the leaderboard with a compact horizontal 11-mode logo strip. Assigned tiers show a crisp original logo and tier-coloured ring/value; unassigned modes use a muted grayscale logo and dash.
+- Mobile leaderboard cards keep the same information hierarchy and show the 11 modes in a compact 6+5 grid.
+- Dedicated gamemode split now restores the original five tier columns on wide displays and adapts down to three, two and one column at smaller breakpoints.
+- Ranking order, API routes, point calculations, player data and `api_server.js` are not modified by this UI update.
+

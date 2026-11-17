@@ -414,32 +414,53 @@ function RankingsPage({ openPlayer }) {
         openPlayer={openPlayer}
       /> : <>
         <Box className="table-summary"><Typography>{formatNumber(filtered.length)} players found</Typography><Typography>Showing up to 100 per page</Typography></Box>
-        {isMobile ? <Box className="mobile-ranking-list">
-          {(!dataMatchesMode || (loading && !ranked.length)) ? <EclipseLoadingScreen compact label="Loading overall rankings" /> : visible.map(player => <Paper key={player.ign} className="mobile-rank-card" onClick={() => openPlayer({ ...player, overallRank: player.originalRank, selectedMode: mode })}>
-            <Stack direction="row" spacing={1.1} alignItems="center">
-              <Typography className={`rank-number ${player.originalRank <= 3 ? `rank-${player.originalRank}` : ''}`}>{String(player.originalRank).padStart(2, '0')}</Typography>
-              <Tooltip title={`Minecraft skin: ${getSkinName(player)}`}><Avatar src={getAvatar(player)} alt={`${player.ign} Minecraft skin`} variant="rounded" className="table-avatar skin-avatar" /></Tooltip>
-              <Box flex={1} minWidth={0}><Typography className="table-player-name" noWrap>{player.ign}</Typography><Typography className="table-player-caption" noWrap>Skin: {getSkinName(player)} · {getRegion(player)}</Typography></Box>
-              <Box textAlign="right"><Typography className="points-value">{formatNumber(getTotalPoints(player))}</Typography><Typography className="table-player-caption">POINTS</Typography></Box>
-            </Stack>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 1.2, mb: .6 }}><Typography className="mode-grid-heading">ALL GAMEMODES</Typography><Typography className="table-player-caption">{getAssignedModeCount(player)}/{GAMEMODES.length - 1} assigned</Typography></Stack>
-            <ModeTierGrid player={player} activeMode={mode} />
-            <Stack direction="row" justifyContent="flex-end" sx={{ mt: .8 }}><Button size="small" className="view-profile-btn" onClick={(event) => { event.stopPropagation(); openPlayer({ ...player, overallRank: player.originalRank, selectedMode: mode }); }}>View profile <ArrowOutwardRoundedIcon fontSize="inherit" /></Button></Stack>
+        {isMobile ? <Box className="classic-mobile-ranking-list">
+          {(!dataMatchesMode || (loading && !ranked.length)) ? <EclipseLoadingScreen compact label="Loading overall rankings" /> : visible.map(player => <Paper
+            key={player.ign}
+            className="classic-mobile-player-card"
+            onClick={() => openPlayer({ ...player, overallRank: player.originalRank, selectedMode: mode })}
+            role="button"
+            tabIndex={0}
+            onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openPlayer({ ...player, overallRank: player.originalRank, selectedMode: mode }); } }}
+            elevation={0}
+          >
+            <Box className="classic-mobile-player-top">
+              <ClassicRankBadge rank={player.originalRank} />
+              <ClassicPlayerIdentity player={player} compact />
+              <ClassicPointsValue value={getTotalPoints(player)} compact />
+            </Box>
+            <Box className="classic-mobile-player-meta">
+              <ClassicRegionPill region={getRegion(player)} />
+              <Typography>{getAssignedModeCount(player)} / {GAMEMODES.length - 1} tiers</Typography>
+            </Box>
+            <ClassicTierStrip player={player} compact />
           </Paper>)}
           {dataMatchesMode && !loading && !visible.length && <EmptyState title={ranked.length ? 'No players match these filters' : 'No ranked players yet'} detail={ranked.length ? 'Try a different player name, region or tier.' : 'Once players receive a tier, their rankings will appear here.'} />}
-        </Box> : <TableContainer className="leaderboard-table-wrap">
-          <Table size="medium" stickyHeader className="leaderboard-table">
-            <TableHead><TableRow><TableCell width="66">Rank</TableCell><TableCell width="205">Player / Minecraft skin</TableCell><TableCell width="90">Region</TableCell><TableCell width="90" align="right">Points</TableCell><TableCell><Stack direction="row" spacing={1} alignItems="baseline"><Typography component="span" fontSize="inherit" fontWeight={800}>All gamemodes</Typography><Typography component="span" className="table-player-caption">Assigned tiers shown; missing tiers are marked subtly.</Typography></Stack></TableCell><TableCell width="88" align="right">Profile</TableCell></TableRow></TableHead>
+        </Box> : <TableContainer className="leaderboard-table-wrap classic-leaderboard-wrap">
+          <Table size="medium" stickyHeader className="leaderboard-table classic-leaderboard-table">
+            <TableHead><TableRow>
+              <TableCell width="76">#</TableCell>
+              <TableCell width="260">Player</TableCell>
+              <TableCell width="145">Region</TableCell>
+              <TableCell width="520"><Stack direction="row" spacing={1} alignItems="baseline"><Typography component="span" fontSize="inherit" fontWeight={800}>Gamemode tiers</Typography><Typography component="span" className="table-player-caption">All 11 modes</Typography></Stack></TableCell>
+              <TableCell width="116" align="right">Points</TableCell>
+            </TableRow></TableHead>
             <TableBody>
-              {(!dataMatchesMode || (loading && !ranked.length)) ? <TableRow><TableCell colSpan={6}><EclipseLoadingScreen compact label="Loading overall rankings" /></TableCell></TableRow> : visible.map((player) => <TableRow key={player.ign} hover className="player-row" onClick={() => openPlayer({ ...player, overallRank: player.originalRank, selectedMode: mode })}>
-                <TableCell><Typography className={`rank-number ${player.originalRank <= 3 ? `rank-${player.originalRank}` : ''}`}>{String(player.originalRank).padStart(2, '0')}</Typography></TableCell>
-                <TableCell><Stack direction="row" spacing={1.15} alignItems="center"><Tooltip title={`Minecraft skin: ${getSkinName(player)}`}><Avatar src={getAvatar(player)} alt={`${player.ign} Minecraft skin`} variant="rounded" className="table-avatar skin-avatar" /></Tooltip><Box sx={{ minWidth: 0 }}><Typography className="table-player-name" noWrap>{player.ign}</Typography><Typography className="table-player-caption" noWrap>Skin: {getSkinName(player)}</Typography></Box></Stack></TableCell>
-                <TableCell><Typography className="region-label">{getRegion(player)}</Typography></TableCell>
-                <TableCell align="right"><Typography className="points-value">{formatNumber(getTotalPoints(player))}</Typography></TableCell>
-                <TableCell><Stack direction="row" alignItems="center" spacing={1} sx={{ mb: .65 }}><Typography className="table-player-caption">{getAssignedModeCount(player)} of {GAMEMODES.length - 1} assigned</Typography></Stack><ModeTierGrid player={player} activeMode={mode} /></TableCell>
-                <TableCell align="right"><Button size="small" className="view-profile-btn" onClick={(event) => { event.stopPropagation(); openPlayer({ ...player, overallRank: player.originalRank, selectedMode: mode }); }}>Open <ArrowOutwardRoundedIcon fontSize="inherit" /></Button></TableCell>
+              {(!dataMatchesMode || (loading && !ranked.length)) ? <TableRow><TableCell colSpan={5}><EclipseLoadingScreen compact label="Loading overall rankings" /></TableCell></TableRow> : visible.map(player => <TableRow
+                key={player.ign}
+                hover
+                className="player-row classic-player-row"
+                onClick={() => openPlayer({ ...player, overallRank: player.originalRank, selectedMode: mode })}
+                tabIndex={0}
+                onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openPlayer({ ...player, overallRank: player.originalRank, selectedMode: mode }); } }}
+              >
+                <TableCell className="classic-rank-cell"><ClassicRankBadge rank={player.originalRank} /></TableCell>
+                <TableCell className="classic-player-cell"><ClassicPlayerIdentity player={player} /></TableCell>
+                <TableCell className="classic-region-cell"><ClassicRegionPill region={getRegion(player)} /></TableCell>
+                <TableCell className="classic-tiers-cell"><ClassicTierStrip player={player} /></TableCell>
+                <TableCell align="right" className="classic-points-cell"><ClassicPointsValue value={getTotalPoints(player)} /></TableCell>
               </TableRow>)}
-              {dataMatchesMode && !loading && !visible.length && <TableRow><TableCell colSpan={6}><EmptyState title={ranked.length ? 'No players match these filters' : 'No ranked players yet'} detail={ranked.length ? 'Try a different player name, region or tier.' : 'Once players receive a tier, their rankings will appear here.'} /></TableCell></TableRow>}
+              {dataMatchesMode && !loading && !visible.length && <TableRow><TableCell colSpan={5}><EmptyState title={ranked.length ? 'No players match these filters' : 'No ranked players yet'} detail={ranked.length ? 'Try a different player name, region or tier.' : 'Once players receive a tier, their rankings will appear here.'} /></TableCell></TableRow>}
             </TableBody>
           </Table>
         </TableContainer>}
@@ -515,15 +536,20 @@ function GamemodePlayerRow({ player, mode, openPlayer, delay = 0 }) {
     <Avatar src={getAvatar(player)} alt={`${player.ign} Minecraft skin`} variant="rounded" className="gamemode-player-avatar" />
     <Box className="gamemode-player-identity">
       <Typography className="gamemode-player-ign" noWrap>{player.ign}</Typography>
-      <Typography className="gamemode-player-meta" noWrap>Skin: {getSkinName(player)} · {getRegion(player)}</Typography>
+      <Typography className="gamemode-player-meta" noWrap>{getRegion(player)} · {formatNumber(getTotalPoints(player))} pts · Skin {getSkinName(player)}</Typography>
     </Box>
-    <Box className="gamemode-player-points"><Typography>{formatNumber(getTotalPoints(player))}</Typography><span>POINTS</span></Box>
     <Chip className="gamemode-player-tier" size="small" label={cleanTier || 'Unassigned'} sx={{ color: colour, borderColor: alpha(colour, .38), backgroundColor: alpha(colour, .10) }} />
   </Paper>;
 }
 
 function getSkinName(player) {
-  return safeName(player?.skinSource || player?.ign || 'Steve');
+  if (safeName(player?.skinSource)) return safeName(player.skinSource);
+  const avatarUrl = String(player?.avatar || '');
+  const match = avatarUrl.match(/\/(?:avatar|body|head)\/([^/?]+)(?:\/|$)/i);
+  if (match?.[1]) {
+    try { return decodeURIComponent(match[1]); } catch (_) { return match[1]; }
+  }
+  return safeName(player?.ign || 'Steve');
 }
 
 // The legacy API has used a few different casings for gamemode keys over time.
@@ -549,6 +575,85 @@ function getTierForMode(player, mode) {
 
 function getAssignedModeCount(player) {
   return GAMEMODES.filter(mode => mode.key !== 'all' && Boolean(getTierForMode(player, mode))).length;
+}
+
+const REGION_FLAGS = {
+  PK: '🇵🇰', PAKISTAN: '🇵🇰', UAE: '🇦🇪', SA: '🇸🇦', KSA: '🇸🇦',
+  US: '🇺🇸', USA: '🇺🇸', NA: '🌎', EU: '🇪🇺', UK: '🇬🇧', GB: '🇬🇧',
+  IN: '🇮🇳', AS: '🌏', ASIA: '🌏', AU: '🇦🇺', OCE: '🌏', BR: '🇧🇷', TR: '🇹🇷'
+};
+
+function getSkinBody(player) {
+  const skinName = getSkinName(player) || player?.ign;
+  return skinName
+    ? `https://mc-heads.net/body/${encodeURIComponent(String(skinName))}/64`
+    : getAvatar(player);
+}
+
+function ClassicRankBadge({ rank }) {
+  const tone = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : 'neutral';
+  return <Box className={`classic-rank-badge ${tone}`} aria-label={`Rank ${rank}`}>{rank}</Box>;
+}
+
+function ClassicPlayerIdentity({ player, compact = false }) {
+  return <Box className={`classic-player-identity ${compact ? 'compact' : ''}`}>
+    <Box className="classic-skin-frame">
+      <img
+        src={getSkinBody(player)}
+        alt={`${player.ign || 'Player'} Minecraft skin`}
+        loading="lazy"
+        decoding="async"
+        onError={event => {
+          const fallback = getAvatar(player);
+          if (event.currentTarget.dataset.fallback !== 'used' && fallback && event.currentTarget.src !== fallback) {
+            event.currentTarget.dataset.fallback = 'used';
+            event.currentTarget.src = fallback;
+          }
+        }}
+      />
+    </Box>
+    <Box className="classic-player-copy">
+      <Typography className="classic-player-ign" title={player?.ign || 'Unknown'}>{player?.ign || 'Unknown'}</Typography>
+      <Typography className="classic-player-skin" title={`Minecraft skin: ${getSkinName(player)}`}>Skin · {getSkinName(player)}</Typography>
+    </Box>
+  </Box>;
+}
+
+function ClassicRegionPill({ region }) {
+  const raw = String(region || '').trim();
+  const key = raw.toUpperCase();
+  const flag = REGION_FLAGS[key];
+  const label = key === 'PAKISTAN' ? 'Pakistan' : (raw || 'Unknown');
+  return <Box className={`classic-region-pill ${flag ? '' : 'muted'}`} title={label}>
+    {flag && <span className="classic-region-flag">{flag}</span>}
+    <span>{label}</span>
+  </Box>;
+}
+
+function ClassicPointsValue({ value, compact = false }) {
+  return <Box className={`classic-points-value ${compact ? 'compact' : ''}`}>
+    <Typography>{formatNumber(value)}</Typography>
+    <span>POINTS</span>
+  </Box>;
+}
+
+function ClassicTierStrip({ player, compact = false }) {
+  const modes = GAMEMODES.filter(item => item.key !== 'all');
+  return <Box className={`classic-tier-strip ${compact ? 'compact' : ''}`}>
+    {modes.map(mode => {
+      const tier = getTierForMode(player, mode);
+      const cleanTier = String(tier || '').replace(/^R/, '');
+      const colour = TIER_COLOURS[cleanTier] || '#7c818c';
+      return <Tooltip key={mode.key} title={`${mode.label} · ${cleanTier || 'Unassigned'}`} arrow>
+        <Box className={`classic-tier-slot ${tier ? 'assigned' : 'unassigned'}`}>
+          <Box className="classic-tier-circle" style={tier ? { borderColor: alpha(colour, .7), backgroundColor: alpha(colour, .12), boxShadow: `0 0 12px ${alpha(colour, .12)}` } : undefined}>
+            {mode.file && <img src={`/gamemodes/${mode.file}`} alt="" loading="lazy" decoding="async" />}
+          </Box>
+          <Typography className="classic-tier-value" style={tier ? { color: colour } : undefined}>{cleanTier || '—'}</Typography>
+        </Box>
+      </Tooltip>;
+    })}
+  </Box>;
 }
 
 function ModeTierGrid({ player, activeMode = 'all' }) {

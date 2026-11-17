@@ -544,3 +544,272 @@ body { font-size: 14px; line-height: 1.55; -webkit-font-smoothing: antialiased; 
   .gamemode-player-meta { white-space: normal; }
   .mode-tier-cell { min-height: 64px; }
 }
+
+/* --------------------------------------------------------------------------
+   CLASSIC ECLIPSETIERS PLAYER ROWS (v2.3)
+   Rebuilt from the original legacy leaderboard: rank medal, Minecraft skin,
+   region pill, compact circular mode emblems and points. The tier logos remain
+   bright only when a tier is actually assigned.
+   -------------------------------------------------------------------------- */
+.classic-leaderboard-wrap {
+  overflow-x: auto;
+  padding: 0 13px 12px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(214,179,106,.25) transparent;
+}
+.classic-leaderboard-table {
+  width: 100%;
+  min-width: 1110px !important;
+  border-collapse: separate !important;
+  border-spacing: 0 9px !important;
+  table-layout: fixed;
+}
+.classic-leaderboard-table .MuiTableHead-root .MuiTableCell-root {
+  padding: 11px 12px 8px !important;
+  color: #858b97 !important;
+  background: #101218 !important;
+  border-bottom: 1px solid rgba(255,255,255,.075) !important;
+  font-size: 10px !important;
+  font-weight: 850 !important;
+  letter-spacing: .13em !important;
+  white-space: nowrap;
+}
+.classic-leaderboard-table .MuiTableBody-root .MuiTableCell-root {
+  height: 82px;
+  padding: 10px 11px !important;
+  vertical-align: middle;
+  background: linear-gradient(180deg,rgba(19,22,29,.98),rgba(14,17,23,.98)) !important;
+  border-top: 1px solid rgba(255,255,255,.045) !important;
+  border-bottom: 1px solid rgba(255,255,255,.045) !important;
+}
+.classic-leaderboard-table .classic-player-row { cursor: pointer; outline: none; }
+.classic-leaderboard-table .classic-player-row .MuiTableCell-root:first-child {
+  border-left: 1px solid rgba(255,255,255,.055) !important;
+  border-radius: 14px 0 0 14px;
+}
+.classic-leaderboard-table .classic-player-row .MuiTableCell-root:last-child {
+  border-right: 1px solid rgba(255,255,255,.055) !important;
+  border-radius: 0 14px 14px 0;
+}
+.classic-leaderboard-table .classic-player-row:hover .MuiTableCell-root,
+.classic-leaderboard-table .classic-player-row:focus-visible .MuiTableCell-root {
+  background: linear-gradient(90deg,rgba(215,70,79,.075),rgba(255,255,255,.025)) !important;
+  border-top-color: rgba(215,70,79,.2) !important;
+  border-bottom-color: rgba(215,70,79,.13) !important;
+}
+.classic-rank-cell { width: 76px; }
+.classic-rank-badge {
+  width: 47px;
+  height: 43px;
+  display: grid;
+  place-items: center;
+  color: #bdc6d3;
+  background: #202630;
+  border: 1px solid rgba(255,255,255,.055);
+  border-radius: 11px;
+  font: 900 15px/1 "Space Grotesk", "Plus Jakarta Sans", sans-serif;
+  font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+}
+.classic-rank-badge.gold {
+  color: #fff3cf;
+  border-color: rgba(245,202,112,.42);
+  background: linear-gradient(145deg,#aa823e,#6d512a);
+  box-shadow: 0 7px 20px rgba(198,153,68,.18),inset 0 1px 0 rgba(255,255,255,.2);
+}
+.classic-rank-badge.silver {
+  color: #fff;
+  border-color: rgba(204,216,231,.34);
+  background: linear-gradient(145deg,#8996a7,#4d5968);
+  box-shadow: 0 7px 18px rgba(171,187,207,.12),inset 0 1px 0 rgba(255,255,255,.2);
+}
+.classic-rank-badge.bronze {
+  color: #fff0e2;
+  border-color: rgba(216,154,103,.34);
+  background: linear-gradient(145deg,#a96c45,#63402d);
+  box-shadow: 0 7px 18px rgba(176,109,62,.13),inset 0 1px 0 rgba(255,255,255,.16);
+}
+.classic-player-cell { width: 260px; }
+.classic-player-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.classic-skin-frame {
+  position: relative;
+  width: 55px;
+  height: 59px;
+  flex: 0 0 55px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.09);
+  background: radial-gradient(circle at 50% 30%,rgba(214,179,106,.12),rgba(255,255,255,.025) 68%);
+  box-shadow: 0 7px 18px rgba(0,0,0,.23),inset 0 1px 0 rgba(255,255,255,.045);
+}
+.classic-skin-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  image-rendering: pixelated;
+}
+.classic-player-copy { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.classic-player-ign {
+  color: #f4f5f7;
+  font: 800 14px/1.2 "Plus Jakarta Sans",sans-serif !important;
+  letter-spacing: -.015em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.classic-player-skin {
+  color: #838b98;
+  font: 600 10px/1.25 "Plus Jakarta Sans",sans-serif !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.classic-region-cell { width: 145px; }
+.classic-region-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  max-width: 132px;
+  min-height: 32px;
+  padding: 5px 10px;
+  overflow: hidden;
+  border: 1px solid rgba(72,191,132,.22);
+  border-radius: 10px;
+  color: #d5e9dd;
+  background: rgba(47,142,96,.10);
+  font: 800 10px/1 "Plus Jakarta Sans",sans-serif;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.classic-region-pill.muted {
+  color: #858b97;
+  background: rgba(255,255,255,.025);
+  border-color: rgba(255,255,255,.07);
+}
+.classic-region-pill > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.classic-region-flag { font-size: 15px; line-height: 1; }
+.classic-tiers-cell { overflow: visible; }
+.classic-tier-strip {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 7px;
+  width: max-content;
+  min-width: 0;
+  max-width: 100%;
+}
+.classic-tier-slot {
+  width: 31px;
+  flex: 0 0 31px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+}
+.classic-tier-circle {
+  width: 29px;
+  height: 29px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1.5px solid rgba(255,255,255,.07);
+  border-radius: 50%;
+  background: rgba(255,255,255,.025);
+  transition: transform .18s ease,filter .18s ease,box-shadow .18s ease;
+}
+.classic-tier-circle img {
+  display: block;
+  width: 19px;
+  height: 19px;
+  object-fit: contain;
+  background: transparent;
+}
+.classic-tier-slot.assigned .classic-tier-circle { box-shadow: 0 0 12px rgba(255,255,255,.035); }
+.classic-tier-slot.assigned:hover .classic-tier-circle { transform: translateY(-2px) scale(1.06); }
+.classic-tier-slot.unassigned .classic-tier-circle { opacity: .38; filter: grayscale(1) brightness(.75); }
+.classic-tier-value {
+  color: #6d7480;
+  font: 800 8px/1 "Space Grotesk",sans-serif !important;
+  letter-spacing: .015em;
+  font-variant-numeric: tabular-nums;
+}
+.classic-points-cell { width: 116px; }
+.classic-points-value { min-width: 72px; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.classic-points-value .MuiTypography-root {
+  color: #e2c27f;
+  font: 850 15px/1.1 "Space Grotesk",sans-serif !important;
+  font-variant-numeric: tabular-nums;
+}
+.classic-points-value > span { color: #737987; font: 800 8px/1 "Plus Jakarta Sans",sans-serif; letter-spacing: .13em; }
+
+/* Mobile: same hierarchy as desktop, with the 11 mode emblems in a compact 6+5 grid. */
+.classic-mobile-ranking-list { display: grid; gap: 10px; padding: 12px; }
+.classic-mobile-player-card {
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid rgba(255,255,255,.075) !important;
+  border-radius: 15px !important;
+  background: linear-gradient(145deg,rgba(22,25,32,.98),rgba(13,16,22,.98)) !important;
+  cursor: pointer;
+  transition: transform .18s ease,border-color .18s ease,background .18s ease;
+}
+.classic-mobile-player-card:hover,.classic-mobile-player-card:focus-visible {
+  border-color: rgba(214,179,106,.28) !important;
+  transform: translateY(-1px);
+  outline: none;
+}
+.classic-mobile-player-top { display: grid; grid-template-columns: 45px minmax(0,1fr) auto; align-items: center; gap: 11px; }
+.classic-player-identity.compact { gap: 10px; }
+.classic-player-identity.compact .classic-skin-frame { width: 48px; height: 51px; flex-basis: 48px; }
+.classic-player-identity.compact .classic-player-ign { font-size: 13px !important; }
+.classic-player-identity.compact .classic-player-skin { font-size: 9px !important; }
+.classic-points-value.compact .MuiTypography-root { font-size: 14px !important; }
+.classic-mobile-player-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 11px 0 10px; padding-top: 9px; border-top: 1px solid rgba(255,255,255,.055); }
+.classic-mobile-player-meta > .MuiTypography-root { color: #828895; font-size: 9px !important; font-weight: 700; white-space: nowrap; }
+.classic-tier-strip.compact {
+  display: grid;
+  grid-template-columns: repeat(6,minmax(31px,1fr));
+  gap: 7px 5px;
+  width: 100%;
+}
+.classic-tier-strip.compact .classic-tier-slot { width: 100%; min-width: 0; flex-basis: auto; }
+.classic-tier-strip.compact .classic-tier-circle { width: 27px; height: 27px; }
+.classic-tier-strip.compact .classic-tier-circle img { width: 18px; height: 18px; }
+.classic-tier-strip.compact .classic-tier-value { font-size: 8px !important; }
+
+/* Restore the original five-column tier split on wide screens. */
+.gamemode-tier-groups { grid-template-columns: repeat(5,minmax(0,1fr)) !important; gap: 11px !important; }
+.gamemode-tier-group { border-color: rgba(255,255,255,.075) !important; background: linear-gradient(180deg,#141820,#0e1117) !important; }
+.gamemode-player-row { grid-template-columns: 20px 34px minmax(0,1fr) max-content !important; gap: 8px !important; padding: 8px !important; }
+.gamemode-player-avatar { width: 34px !important; height: 34px !important; }
+.gamemode-player-ign { font-size: 11px !important; line-height: 1.35 !important; }
+.gamemode-player-meta { font-size: 9px !important; line-height: 1.4 !important; color: #858c98 !important; }
+.gamemode-player-tier { min-width: 48px !important; height: 22px !important; font-size: 9px !important; }
+@media (max-width: 1280px) { .gamemode-tier-groups { grid-template-columns: repeat(3,minmax(0,1fr)) !important; } }
+@media (max-width: 960px) { .gamemode-tier-groups { grid-template-columns: repeat(2,minmax(0,1fr)) !important; } }
+@media (max-width: 680px) {
+  .classic-mobile-ranking-list { padding: 9px; }
+  .classic-mobile-player-card { padding: 11px; }
+  .classic-mobile-player-top { grid-template-columns: 39px minmax(0,1fr) auto; gap: 8px; }
+  .classic-rank-badge { width: 39px; height: 39px; font-size: 13px; }
+  .classic-player-identity.compact .classic-skin-frame { width: 43px; height: 46px; flex-basis: 43px; }
+  .classic-player-identity.compact .classic-player-ign { font-size: 12px !important; }
+  .classic-player-identity.compact .classic-player-skin { font-size: 8px !important; }
+  .classic-points-value.compact .MuiTypography-root { font-size: 12px !important; }
+  .classic-points-value.compact > span { font-size: 7px; }
+  .classic-region-pill { min-height: 28px; padding: 4px 8px; font-size: 9px; }
+  .classic-region-flag { font-size: 13px; }
+  .gamemode-tier-groups { grid-template-columns: minmax(0,1fr) !important; }
+}
+@media (max-width: 380px) {
+  .classic-tier-strip.compact { grid-template-columns: repeat(6,minmax(27px,1fr)); gap: 6px 3px; }
+  .classic-tier-strip.compact .classic-tier-circle { width: 24px; height: 24px; }
+  .classic-tier-strip.compact .classic-tier-circle img { width: 16px; height: 16px; }
+}

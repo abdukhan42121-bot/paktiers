@@ -1,6 +1,6 @@
 {
   "name": "eclipsetiers-railway-mui",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "private": true,
   "description": "EclipseTiers premium React + Material UI website with the existing EclipseTiers API and Discord bot backend.",
   "main": "railway-gateway.js",
