@@ -77,7 +77,13 @@ const formatDate = (value) => {
   return Number.isNaN(date.getTime()) ? 'Not provided' : date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 };
 const formatDateTime = (value) => {
-  const date = new Date(Number(value) || value);
+  if (value === null || value === undefined || value === '') return 'Date unavailable';
+  let stamp = value;
+  if (typeof value === 'number' || (typeof value === 'string' && /^\d+(?:\.\d+)?$/.test(value))) {
+    stamp = Number(value);
+    if (stamp > 0 && stamp < 100000000000) stamp *= 1000; // accept Unix seconds and milliseconds
+  }
+  const date = new Date(stamp);
   return Number.isNaN(date.getTime()) ? 'Date unavailable' : date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 };
 const formatElapsed = (value, now = Date.now()) => {
@@ -232,13 +238,48 @@ function App() {
       </MenuItem>
     </Menu>
 
-    <Box component="main" className="main-content" key={path}>{content}</Box>
+    <Box component="main" className="main-content">
+      <RouteErrorBoundary key={path} route={parsed.pathname}>{content}</RouteErrorBoundary>
+    </Box>
     <Footer navigate={nav} />
 
     <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} openPlayer={(player) => { setSearchOpen(false); openPlayer(player); }} navigate={nav} />
     <PlayerDialog player={selectedPlayer} onClose={closePlayer} navigate={nav} toast={toast} />
     <Snackbar open={Boolean(snack)} autoHideDuration={2600} onClose={() => setSnack('')} message={snack} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />
   </Box>;
+}
+
+class RouteErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, info) {
+    // Keep the full diagnostic in the browser console without exposing internals
+    // to public visitors. The fallback below preserves access to navigation.
+    console.error(`[EclipseTiers] Failed to render route ${this.props.route}:`, error, info?.componentStack || '');
+  }
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+    return <Container maxWidth="md" className="page-container route-error-container">
+      <Paper className="route-error-panel" elevation={0}>
+        <Box className="route-error-icon"><InfoOutlinedIcon /></Box>
+        <Typography className="eyebrow">SECTION RECOVERY</Typography>
+        <Typography variant="h4" fontWeight={850}>This section hit a display error.</Typography>
+        <Typography color="text.secondary">Your player data has not been changed. Reload this section or return to the homepage.</Typography>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ mt: 2.5 }}>
+          <Button variant="contained" onClick={() => window.location.reload()}>Reload section</Button>
+          <Button variant="outlined" component="a" href="/home">Return home</Button>
+        </Stack>
+      </Paper>
+    </Container>;
+  }
 }
 
 function NavButton({ children, active, onClick }) {
@@ -777,8 +818,8 @@ function PlayerPage({ ign, openPlayer }) {
 function QueuePage() {
   const { data, loading, error, stale, updatedAt } = useApiResource('/api/queue', 12000);
   const { data: activity } = useApiResource('/public-api/activity?limit=12', 45000);
-  const queues = data?.queues || {};
-  const modes = Object.entries(queues);
+  const queues = data?.queues && typeof data.queues === 'object' && !Array.isArray(data.queues) ? data.queues : {};
+  const modes = Object.entries(queues).map(([key, value]) => [key, Array.isArray(value) ? value : []]);
   const total = modes.reduce((sum, [, items]) => sum + (Array.isArray(items) ? items.length : 0), 0);
   const matches = Array.isArray(activity?.matches) ? activity.matches : [];
   const queueEvents = Array.isArray(activity?.queueEvents) ? activity.queueEvents : [];
@@ -803,7 +844,7 @@ function TestersPage({ testerData }) {
   const testers = Array.isArray(source.testers) ? source.testers : [];
   const dashboard = source.dashboard || {};
   const [query, setQuery] = useState('');
-  const visible = testers.filter(t => String(t.displayName || t.username).toLowerCase().includes(query.toLowerCase()));
+  const visible = testers.filter(t => t && typeof t === 'object' && String(t.displayName || t.username || '').toLowerCase().includes(query.toLowerCase()));
   return <Container maxWidth="xl" className="page-container"><PageBanner eyebrow="THE PEOPLE BEHIND THE TIERS" title="Tester directory" subtitle="Meet the community members who help maintain the EclipseTiers ranking system." action={<Button component="a" href={DISCORD_INVITE} target="_blank" startIcon={<ForumRoundedIcon />} variant="contained">Join the community</Button>} /><StatusStrip stale={stale} error={error} updatedAt={updatedAt} />
     <Box className="stats-grid tester-stats"><StatCard label="Active Testers" value={dashboard.activeTesters ?? testers.length} icon={<ShieldRoundedIcon />} note="Visible tester directory" /><StatCard label="Online Now" value={dashboard.onlineNow} icon={<WifiRoundedIcon />} note="Discord presence when available" /><StatCard label="Tier Records This Month" value={dashboard.totalTestsThisMonth} icon={<StarRoundedIcon />} note="Saved tier-log actions" /><StatCard label="Top Contributor" value={dashboard.topContributor?.displayName || dashboard.topContributor?.username || '—'} icon={<MilitaryTechRoundedIcon />} note="By current-month tier records" /></Box>
     <Paper className="directory-panel"><Stack className="directory-toolbar" direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}><Box><Typography variant="h5">Our testers</Typography><Typography color="text.secondary">{formatNumber(testers.length)} public tester profiles</Typography></Box><TextField size="small" placeholder="Search testers..." value={query} onChange={e => setQuery(e.target.value)} sx={{ width: { xs: '100%', sm: 280 } }} InputProps={{ startAdornment: <InputAdornment position="start"><SearchRoundedIcon /></InputAdornment> }} /></Stack>
@@ -822,10 +863,10 @@ function ActivityHistoryPage() {
   const queueEvents = Array.isArray(data?.queueEvents) ? data.queueEvents : [];
   const needle = historySearch.trim().toLocaleLowerCase('en-US');
   const filteredTierAwards = needle ? tierAwards.filter(record => [record.playerIGN, record.weapon, record.tier, record.oldTier, record.tester].some(value => String(value || '').toLocaleLowerCase('en-US').includes(needle))) : tierAwards;
-  const filteredMatches = needle ? matches.filter(match => [match.weapon, match.status, ...(match.participants || []).map(person => person.ign)].some(value => String(value || '').toLocaleLowerCase('en-US').includes(needle))) : matches;
+  const filteredMatches = needle ? matches.filter(match => [match?.weapon, match?.status, ...(Array.isArray(match?.participants) ? match.participants : []).map(person => person?.ign)].some(value => String(value || '').toLocaleLowerCase('en-US').includes(needle))) : matches;
   const filteredQueueEvents = needle ? queueEvents.filter(event => [event.ign, event.weapon, event.action].some(value => String(value || '').toLocaleLowerCase('en-US').includes(needle))) : queueEvents;
-  const queues = queueData?.queues || {};
-  const liveQueue = Object.entries(queues).flatMap(([weapon, entries]) => (entries || []).map((entry, index) => ({ ...entry, weapon, position: index + 1 }))).sort((a,b) => Number(a.joinedAt || 0) - Number(b.joinedAt || 0));
+  const queues = queueData?.queues && typeof queueData.queues === 'object' && !Array.isArray(queueData.queues) ? queueData.queues : {};
+  const liveQueue = Object.entries(queues).flatMap(([weapon, entries]) => (Array.isArray(entries) ? entries : []).filter(entry => entry && typeof entry === 'object').map((entry, index) => ({ ...entry, weapon, position: index + 1 }))).sort((a,b) => Number(a.joinedAt || 0) - Number(b.joinedAt || 0));
   return <Container maxWidth="xl" className="page-container activity-page">
     <PageBanner eyebrow="THE ECLIPSETIERS ARCHIVE" title="History & activity" subtitle="Explore saved test/tier outcomes, available match records, observed queue movement and the live testing waitlist. Entries are sourced from EclipseTiers data files." action={<Chip icon={<HistoryRoundedIcon />} label="Live archive" className="live-chip" />} />
     <StatusStrip stale={stale} error={error} updatedAt={updatedAt} />
@@ -867,14 +908,14 @@ function TierHistoryCard({ record, compact = false }) {
   const colour = TIER_COLOURS[newTier] || '#d6b36a';
   return <Paper className={`tier-history-card motion-tile ${compact ? 'compact' : ''}`} elevation={0}>
     <Box className="history-mode-icon">{mode.file ? <img src={`/gamemodes/${mode.file}`} alt={`${mode.label} logo`} /> : <TimelineRoundedIcon />}</Box>
-    <Box className="history-record-main"><Box className="history-record-title"><Typography fontWeight={850}>{record.playerIGN}</Typography><Chip size="small" label={mode.label} variant="outlined" /></Box><Typography className="history-record-change">{record.oldTier ? `${record.oldTier} → ` : 'New tier · '}<strong style={{ color }}>{record.tier}</strong></Typography><Typography className="history-record-by">Recorded by {record.tester || 'EclipseTiers staff'}</Typography></Box>
+    <Box className="history-record-main"><Box className="history-record-title"><Typography fontWeight={850}>{record.playerIGN}</Typography><Chip size="small" label={mode.label} variant="outlined" /></Box><Typography className="history-record-change">{record.oldTier ? `${record.oldTier} → ` : 'New tier · '}<strong style={{ color: colour }}>{record.tier}</strong></Typography><Typography className="history-record-by">Recorded by {record.tester || 'EclipseTiers staff'}</Typography></Box>
     <Box className="history-record-time"><Typography>{formatDate(record.timestamp)}</Typography><Typography>{new Date(Number(record.timestamp)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Typography></Box>
   </Paper>;
 }
 
 function MatchHistoryCard({ match }) {
   const mode = gamemodeOf(match.weapon);
-  const people = Array.isArray(match.participants) ? match.participants : [];
+  const people = Array.isArray(match.participants) ? match.participants.filter(person => person && typeof person === 'object') : [];
   return <Paper className="match-history-card motion-tile" elevation={0}>
     <Box className="match-history-mode">{mode.file && <img src={`/gamemodes/${mode.file}`} alt="" />}<Typography>{mode.label}</Typography></Box>
     <Box className="match-participants">{people.map((person, index) => <React.Fragment key={`${person.ign}-${index}`}><Box className="match-participant"><Avatar src={`https://mc-heads.net/avatar/${encodeURIComponent(person.ign || 'Steve')}/40`} /><Typography>{person.ign}</Typography></Box>{index < people.length - 1 && <span className="match-versus">VS</span>}</React.Fragment>)}</Box>

@@ -1,5 +1,18 @@
 # EclipseTiers · Railway MUI website (v2.5.0)
 
+## v2.5.1 — Section crash fix
+
+- Fixed a render-time `ReferenceError` in the shared tier-history card (`color` is now correctly read from the `colour` value). This crash could blank the History page and any player profile/dialog displaying tier history.
+- Added a route-level React error boundary. If a future section component fails, the rest of the site remains visible and the visitor gets Reload / Return Home actions instead of a blank black screen. The underlying diagnostic is logged to the browser console.
+- Hardened queue/history/tester rendering against null or unexpected API record shapes.
+- Normalized numeric timestamps in seconds or milliseconds for display.
+- Kept `api_server.js` byte-for-byte unchanged.
+
+### Validation
+
+The gateway and legacy API pass Node syntax checks; React JSX transpilation, CSS parsing, and package JSON parsing pass. The production Vite build still needs to run in Railway because dependencies could not be installed in this workspace.
+
+
 A complete dark-only **React + Material UI** rebuild of the EclipseTiers public website, packaged to deploy on Railway. The original `api_server.js` and Discord bot are included unchanged; `railway-gateway.js` starts that backend privately and serves the new MUI website on Railway's public port.
 
 ## Download and files

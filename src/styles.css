@@ -1171,3 +1171,10 @@ html.reduce-motion .match-history-card {
   transition: none !important;
   animation: none !important;
 }
+
+/* v2.5.1 — section crash recovery and readable fallback surface */
+.route-error-container { min-height: 62vh; display: grid; align-items: center; }
+.route-error-panel { display: grid; justify-items: start; gap: 12px; padding: clamp(22px, 4vw, 38px) !important; border: 1px solid rgba(215,70,79,.2) !important; border-radius: 20px !important; background: linear-gradient(145deg, rgba(24,20,24,.98), rgba(15,17,22,.98)) !important; box-shadow: 0 24px 70px rgba(0,0,0,.28) !important; }
+.route-error-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; color: #e9a0a3; background: rgba(215,70,79,.12); border: 1px solid rgba(215,70,79,.18); }
+.route-error-icon .MuiSvgIcon-root { font-size: 24px; }
+.route-error-panel .MuiTypography-h4 { font-size: clamp(22px, 3vw, 30px) !important; }
