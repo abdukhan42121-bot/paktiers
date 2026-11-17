@@ -94,7 +94,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .mode-avatars .MuiAvatar-root { width: 25px; height: 25px; border: 2px solid #15171d; }
 .mode-link { color: #d5b272; font-size: 11px !important; font-weight: 750 !important; display: flex; justify-content: space-between; align-items: center; }
 .mode-link svg { font-size: 15px; }
-.home-bottom-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; margin-top: 64px; }
+.home-bottom-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 14px; margin-top: 64px; }
 .feature-card { border-radius: 17px !important; background: linear-gradient(145deg,#171920,#111318) !important; }
 .feature-card .MuiCardContent-root { padding: 23px !important; }
 .feature-card h5 { margin-top: 17px; }
@@ -812,4 +812,362 @@ body { font-size: 14px; line-height: 1.55; -webkit-font-smoothing: antialiased; 
   .classic-tier-strip.compact { grid-template-columns: repeat(6,minmax(27px,1fr)); gap: 6px 3px; }
   .classic-tier-strip.compact .classic-tier-circle { width: 24px; height: 24px; }
   .classic-tier-strip.compact .classic-tier-circle img { width: 16px; height: 16px; }
+}
+
+/* v2.4.0 — global interaction motion + activity/history surfaces */
+:root {
+  --motion-ease: cubic-bezier(.2,.75,.25,1);
+  --motion-fast: 160ms;
+  --motion-medium: 260ms;
+}
+.MuiButtonBase-root,
+.MuiButton-root,
+.MuiIconButton-root,
+.MuiChip-root,
+a,
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+.MuiButton-root,
+.MuiIconButton-root,
+.MuiTab-root,
+.nav-button,
+.mode-tab,
+.drawer-link,
+.gamemode-show-all,
+.search-result {
+  transition: color var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease) !important;
+}
+.MuiButtonBase-root:active,
+.MuiButton-root:active,
+.MuiIconButton-root:active,
+.nav-button:active,
+.mode-tab:active,
+.gamemode-show-all:active,
+.search-result:active {
+  transform: scale(.965);
+}
+.motion-tile,
+.stat-card,
+.mode-card,
+.podium-card,
+.feature-card,
+.tester-card,
+.queue-card,
+.classic-mobile-player-card,
+.classic-player-row,
+.gamemode-player-row,
+.gamemode-tier-group,
+.compare-player-card,
+.mode-tier-cell {
+  transform-origin: center;
+  transition: transform var(--motion-medium) var(--motion-ease),
+    border-color var(--motion-medium) var(--motion-ease),
+    background-color var(--motion-medium) var(--motion-ease),
+    box-shadow var(--motion-medium) var(--motion-ease),
+    filter var(--motion-medium) var(--motion-ease) !important;
+}
+.motion-tile:hover,
+.stat-card:hover,
+.mode-card:hover,
+.podium-card:hover,
+.feature-card:hover,
+.tester-card:hover,
+.queue-card:hover,
+.classic-mobile-player-card:hover,
+.classic-player-row:hover,
+.gamemode-player-row:hover,
+.gamemode-tier-group:hover,
+.compare-player-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(214,179,106,.24) !important;
+  box-shadow: 0 16px 40px rgba(0,0,0,.24), 0 0 0 1px rgba(214,179,106,.035) !important;
+}
+.motion-tile:active,
+.stat-card:active,
+.mode-card:active,
+.podium-card:active,
+.feature-card:active,
+.tester-card:active,
+.queue-card:active,
+.classic-mobile-player-card:active,
+.classic-player-row:active,
+.gamemode-player-row:active {
+  transform: translateY(-1px) scale(.988);
+}
+.queue-player,
+.history-mode-icon,
+.classic-tier-circle,
+.mode-tier-cell,
+.search-result,
+.footer-gamemodes .MuiButton-root {
+  transition: transform var(--motion-medium) var(--motion-ease),
+    background-color var(--motion-medium) var(--motion-ease),
+    border-color var(--motion-medium) var(--motion-ease),
+    filter var(--motion-medium) var(--motion-ease);
+}
+.queue-player:hover,
+.history-mode-icon:hover,
+.classic-tier-circle:hover,
+.mode-tier-cell:hover,
+.footer-gamemodes .MuiButton-root:hover {
+  transform: translateY(-2px) scale(1.015);
+}
+.queue-player:active,
+.search-result:active,
+.footer-gamemodes .MuiButton-root:active {
+  transform: scale(.98);
+}
+.mode-tab img,
+.mini-mode-icon img,
+.history-mode-icon img,
+.match-history-mode img {
+  transition: transform var(--motion-medium) var(--motion-ease), filter var(--motion-medium) var(--motion-ease);
+}
+.mode-tab:hover img,
+.mini-mode-icon:hover img,
+.history-mode-icon:hover img,
+.match-history-mode:hover img {
+  transform: rotate(-5deg) scale(1.09);
+  filter: drop-shadow(0 0 9px rgba(214,179,106,.28));
+}
+/* Consistent tactile feedback for every interactive control, including plain anchors. */
+:where(button, a, [role="button"], input, select, textarea, .MuiButtonBase-root) {
+  -webkit-tap-highlight-color: transparent;
+  transition: color var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease),
+    opacity var(--motion-fast) var(--motion-ease);
+}
+:where(button, a, [role="button"], .MuiButtonBase-root):active { transform: scale(.975); }
+:where(button, a, [role="button"], .MuiButtonBase-root):focus-visible {
+  outline: 2px solid rgba(214,179,106,.78);
+  outline-offset: 3px;
+}
+.MuiTouchRipple-root { opacity: .55; }
+.main-content { transform-origin: 50% 0; }
+.main-content > .MuiContainer-root { animation: page-enter .38s var(--motion-ease) both; }
+.MuiDialog-paper { animation: dialog-enter .24s var(--motion-ease) both; }
+.MuiMenu-paper { transform-origin: top right; animation: menu-enter .18s var(--motion-ease) both; }
+.MuiDrawer-paper { animation: drawer-enter .24s var(--motion-ease) both; }
+.MuiTabs-indicator { transition: left .25s var(--motion-ease), width .25s var(--motion-ease); }
+.MuiTextField-root .MuiOutlinedInput-root { transition: border-color var(--motion-fast) var(--motion-ease), box-shadow var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease); }
+.MuiTextField-root .MuiOutlinedInput-root.Mui-focused { box-shadow: 0 0 0 3px rgba(214,179,106,.075); }
+
+/* History page */
+.activity-page { padding-bottom: 34px; }
+.activity-stat-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin: 22px 0; }
+.activity-stat-grid .stat-card { min-width: 0; }
+.activity-panel { padding: 20px; border: 1px solid rgba(255,255,255,.075) !important; border-radius: 17px !important; background: linear-gradient(145deg,rgba(19,22,29,.97),rgba(12,14,19,.98)) !important; }
+.activity-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
+.activity-tabs { min-height: 48px; border-bottom: 1px solid rgba(255,255,255,.075); }
+.activity-tabs .MuiTab-root { min-height: 48px; color: #858b97; font-size: 12px; font-weight: 800; text-transform: none; }
+.activity-tabs .Mui-selected { color: #f0d39a !important; }
+.activity-tabs .MuiTabs-indicator { height: 2px; border-radius: 2px; background: #d6b36a; }
+.activity-tabs .MuiTab-iconWrapper { margin-right: 7px; font-size: 18px; }
+.history-filter-bar { margin-top: 13px; padding-top: 13px; border-top: 1px solid rgba(255,255,255,.055); }
+.history-filter-bar .MuiOutlinedInput-root { min-height: 42px; border-radius: 11px; background: rgba(255,255,255,.018); }
+.history-filter-bar .MuiInputBase-input { font-size: 12px; }
+.activity-record-list { display: grid; gap: 10px; padding-top: 16px; }
+.tier-history-card { display: grid; grid-template-columns: 48px minmax(0,1fr) auto; align-items: center; gap: 13px; min-width: 0; padding: 12px 14px; border: 1px solid rgba(255,255,255,.065) !important; border-radius: 13px !important; background: linear-gradient(105deg,rgba(255,255,255,.035),rgba(255,255,255,.012)) !important; animation: history-row-enter .34s var(--motion-ease) both; }
+.tier-history-card:nth-child(2) { animation-delay: 35ms; }
+.tier-history-card:nth-child(3) { animation-delay: 70ms; }
+.tier-history-card:nth-child(4) { animation-delay: 105ms; }
+.tier-history-card:nth-child(5) { animation-delay: 140ms; }
+.history-mode-icon { display: grid; place-items: center; width: 43px; height: 43px; border: 1px solid rgba(214,179,106,.14); border-radius: 11px; background: rgba(214,179,106,.055); }
+.history-mode-icon img { width: 32px; height: 32px; object-fit: contain; }
+.history-mode-icon .MuiSvgIcon-root { color: #d6b36a; }
+.history-record-main { min-width: 0; }
+.history-record-title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.history-record-title .MuiTypography-root { overflow-wrap: anywhere; }
+.history-record-title .MuiChip-root { height: 21px; color: #b8bdc7; border-color: rgba(255,255,255,.12); font-size: 9px; font-weight: 800; }
+.history-record-change { margin-top: 4px !important; color: #b8bec8; font-size: 12px !important; }
+.history-record-change strong { font-weight: 900; }
+.history-record-by { margin-top: 3px !important; color: #737a86; font-size: 10px !important; overflow-wrap: anywhere; }
+.history-record-time { min-width: 110px; text-align: right; }
+.history-record-time .MuiTypography-root:first-child { color: #c2c6cf; font-size: 10px; font-weight: 750; }
+.history-record-time .MuiTypography-root:last-child { color: #707782; font-size: 9px; margin-top: 3px; }
+.history-source-note { margin-top: 10px; font-size: 11px !important; }
+.history-source-note .MuiAlert-message { line-height: 1.55; }
+.history-match-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 11px; }
+.match-history-card { display: grid; grid-template-columns: 1fr; gap: 12px; min-width: 0; padding: 15px; border: 1px solid rgba(255,255,255,.07) !important; border-radius: 14px !important; background: rgba(255,255,255,.02) !important; animation: history-row-enter .36s var(--motion-ease) both; }
+.match-history-mode { display: flex; align-items: center; gap: 8px; color: #d5c08e; font-size: 11px; font-weight: 850; }
+.match-history-mode img { width: 26px; height: 26px; object-fit: contain; }
+.match-participants { display: flex; align-items: center; justify-content: center; gap: 15px; min-width: 0; padding: 10px 0; }
+.match-participant { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.match-participant .MuiAvatar-root { width: 34px; height: 34px; image-rendering: pixelated; }
+.match-participant .MuiTypography-root { color: #eceef2; font-size: 12px; font-weight: 800; overflow-wrap: anywhere; }
+.match-versus { color: #757c88; font: 900 10px "Space Grotesk",sans-serif; }
+.match-history-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 9px; border-top: 1px solid rgba(255,255,255,.06); }
+.match-history-meta .MuiChip-root { height: 22px; color: #aeb8a9; background: rgba(98,201,142,.08); font-size: 9px; }
+.match-history-meta .MuiTypography-root { color: #79808b; font-size: 10px; text-align: right; }
+.live-queue-history-list { display: grid; gap: 8px; }
+.live-queue-history-card { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 10px 13px; border: 1px solid rgba(255,255,255,.065) !important; border-radius: 12px !important; background: rgba(255,255,255,.02) !important; }
+.live-queue-history-card > .MuiAvatar-root { width: 36px; height: 36px; image-rendering: pixelated; }
+.live-queue-history-card .MuiTypography-root { overflow-wrap: anywhere; }
+.activity-footnote { display: flex; align-items: center; gap: 9px; margin-top: 15px; padding: 12px 14px; color: #7d8591; border: 1px solid rgba(255,255,255,.055); border-radius: 11px; background: rgba(255,255,255,.015); }
+.activity-footnote .MuiSvgIcon-root { color: #d6b36a; font-size: 18px; flex: 0 0 auto; }
+.activity-footnote .MuiTypography-root { font-size: 10px; line-height: 1.5; }
+
+/* Profile history and queue improvements */
+.player-history-panel { margin-top: 26px; padding: 18px; border: 1px solid rgba(255,255,255,.07); border-radius: 15px; background: linear-gradient(145deg,rgba(255,255,255,.025),rgba(255,255,255,.008)); }
+.player-history-panel.compact { margin-top: 20px; padding: 13px; }
+.player-history-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 13px; }
+.player-history-heading .MuiChip-root { color: #b8bdc7; border-color: rgba(255,255,255,.12); font-size: 9px; }
+.player-history-list { display: grid; gap: 8px; }
+.tier-history-card.compact { grid-template-columns: 37px minmax(0,1fr) auto; gap: 9px; padding: 8px 9px; border-radius: 10px !important; }
+.tier-history-card.compact .history-mode-icon { width: 34px; height: 34px; border-radius: 9px; }
+.tier-history-card.compact .history-mode-icon img { width: 25px; height: 25px; }
+.tier-history-card.compact .history-record-time { min-width: 75px; }
+.tier-history-card.compact .history-record-time .MuiTypography-root:first-child { font-size: 9px; }
+.tier-history-card.compact .history-record-time .MuiTypography-root:last-child { display: none; }
+.history-data-caption { display: block; margin-top: 11px !important; color: #747b86; font-size: 9px !important; line-height: 1.5 !important; }
+.queue-section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 24px 0 13px; }
+.queue-section-heading > .MuiTypography-root { flex: 0 0 auto; }
+.queue-event-history-list { display: grid; gap: 9px; }
+.queue-event-card { display: grid; grid-template-columns: 34px 43px minmax(0,1fr) auto; align-items: center; gap: 11px; min-width: 0; padding: 11px 13px; border: 1px solid rgba(255,255,255,.065) !important; border-radius: 12px !important; background: rgba(255,255,255,.02) !important; animation: history-row-enter .32s var(--motion-ease) both; }
+.queue-event-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; }
+.queue-event-mark.joined { color: #78d3a0; background: rgba(98,201,142,.10); }
+.queue-event-mark.removed { color: #a0a6b1; background: rgba(255,255,255,.06); }
+.queue-event-mark .MuiSvgIcon-root { font-size: 17px; }
+.queue-event-main { min-width: 0; }
+.queue-event-main .MuiTypography-root { overflow-wrap: anywhere; }
+.queue-event-card .history-record-time { min-width: 125px; }
+.queue-recent-events { margin-top: 22px; }
+.queue-live-subsection { display: grid; gap: 12px; margin-top: 20px; padding: 15px; border: 1px solid rgba(255,255,255,.06); border-radius: 13px; background: rgba(255,255,255,.015); }
+.queue-history-callout { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 20px; padding: 16px 18px; border: 1px solid rgba(214,179,106,.14); border-radius: 13px; background: linear-gradient(100deg,rgba(214,179,106,.055),rgba(255,255,255,.015)); }
+.queue-history-callout .MuiTypography-root { line-height: 1.55; }
+.queue-history-callout .MuiButton-root { flex: 0 0 auto; }
+.queue-match-heading { margin-top: 31px; }
+.history-feature-card { border-color: rgba(214,179,106,.12) !important; }
+
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(8px); filter: saturate(.94); }
+  to { opacity: 1; transform: translateY(0); filter: saturate(1); }
+}
+@keyframes dialog-enter {
+  from { opacity: 0; transform: translateY(12px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes menu-enter {
+  from { opacity: 0; transform: translateY(-5px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes drawer-enter {
+  from { opacity: .75; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes history-row-enter {
+  from { opacity: 0; transform: translateY(9px) scale(.992); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes tile-tap {
+  0% { transform: scale(1); }
+  45% { transform: scale(.975); }
+  100% { transform: scale(1); }
+}
+@media (max-width: 1100px) {
+  .home-bottom-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .activity-stat-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 800px) {
+  .activity-panel { padding: 14px; }
+  .activity-stat-grid { gap: 9px; }
+  .history-match-grid { grid-template-columns: 1fr; }
+  .queue-history-callout { align-items: flex-start; flex-direction: column; }
+  .queue-history-callout .MuiButton-root { width: 100%; }
+}
+@media (max-width: 560px) {
+  .activity-stat-grid { grid-template-columns: 1fr 1fr; }
+  .activity-stat-grid .stat-value { font-size: 21px !important; }
+  .activity-panel-heading { align-items: flex-start; }
+  .activity-tabs .MuiTab-root { min-width: auto; padding-inline: 10px; font-size: 10px; }
+  .tier-history-card { grid-template-columns: 37px minmax(0,1fr); gap: 9px; padding: 10px; }
+  .history-mode-icon { width: 35px; height: 35px; }
+  .history-mode-icon img { width: 26px; height: 26px; }
+  .history-record-time { grid-column: 2; display: flex; align-items: center; gap: 7px; text-align: left; }
+  .history-record-time .MuiTypography-root:last-child { margin-top: 0; }
+  .player-history-panel { padding: 12px; }
+  .tier-history-card.compact { grid-template-columns: 32px minmax(0,1fr); }
+  .tier-history-card.compact .history-record-time { grid-column: 2; }
+  .queue-event-card { grid-template-columns: 30px 35px minmax(0,1fr); gap: 8px; padding: 10px; }
+  .queue-event-card .history-mode-icon { width: 35px; height: 35px; }
+  .queue-event-card .history-record-time { grid-column: 3; display: flex; align-items: center; flex-wrap: wrap; gap: 7px; text-align: left; min-width: 0; }
+  .queue-event-card .history-record-time .MuiTypography-root:last-child { margin-top: 0; }
+  .live-queue-history-card { flex-wrap: wrap; }
+  .live-queue-history-card > .MuiChip-root { margin-left: 48px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .main-content > .MuiContainer-root,
+  .MuiDialog-paper,
+  .MuiMenu-paper,
+  .MuiDrawer-paper,
+  .queue-player,
+  .history-mode-icon,
+  .classic-tier-circle,
+  .queue-event-card,
+  .live-queue-history-card,
+  .MuiTabs-indicator,
+  .MuiTextField-root .MuiOutlinedInput-root,
+  :where(button, a, [role="button"], input, select, textarea, .MuiButtonBase-root),
+  .main-content > .MuiContainer-root,
+  .motion-tile,
+  .stat-card,
+  .mode-card,
+  .podium-card,
+  .feature-card,
+  .tester-card,
+  .queue-card,
+  .classic-mobile-player-card,
+  .classic-player-row,
+  .gamemode-player-row,
+  .gamemode-tier-group,
+  .compare-player-card,
+  .mode-tier-cell,
+  .tier-history-card,
+  .match-history-card,
+  .MuiButtonBase-root,
+  .MuiButton-root,
+  .MuiIconButton-root,
+  .MuiTab-root {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+  }
+}
+html.reduce-motion :where(button, a, [role="button"], input, select, textarea, .MuiButtonBase-root),
+html.reduce-motion .MuiTabs-indicator,
+html.reduce-motion .MuiTextField-root .MuiOutlinedInput-root,
+html.reduce-motion .main-content > .MuiContainer-root,
+html.reduce-motion .MuiDialog-paper,
+html.reduce-motion .MuiMenu-paper,
+html.reduce-motion .MuiDrawer-paper,
+html.reduce-motion .queue-player,
+html.reduce-motion .history-mode-icon,
+html.reduce-motion .classic-tier-circle,
+html.reduce-motion .queue-event-card,
+html.reduce-motion .live-queue-history-card,
+html.reduce-motion .motion-tile,
+html.reduce-motion .stat-card,
+html.reduce-motion .mode-card,
+html.reduce-motion .podium-card,
+html.reduce-motion .feature-card,
+html.reduce-motion .tester-card,
+html.reduce-motion .queue-card,
+html.reduce-motion .classic-mobile-player-card,
+html.reduce-motion .classic-player-row,
+html.reduce-motion .gamemode-player-row,
+html.reduce-motion .gamemode-tier-group,
+html.reduce-motion .compare-player-card,
+html.reduce-motion .mode-tier-cell,
+html.reduce-motion .tier-history-card,
+html.reduce-motion .match-history-card {
+  transition: none !important;
+  animation: none !important;
 }

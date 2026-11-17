@@ -14,10 +14,11 @@ module.exports = defineConfig({
     host: '0.0.0.0',
     port: 5173,
     proxy: {
-      '/api': { target: 'http://127.0.0.1:3001', changeOrigin: true },
-      '/v2': { target: 'http://127.0.0.1:3001', changeOrigin: true },
-      '/rankings': { target: 'http://127.0.0.1:3001', changeOrigin: true },
-      '/bot': { target: 'http://127.0.0.1:3001', changeOrigin: true }
+      '/api': { target: 'http://127.0.0.1:3101', changeOrigin: true },
+      '/public-api': { target: 'http://127.0.0.1:8080', changeOrigin: true },
+      '/v2': { target: 'http://127.0.0.1:3101', changeOrigin: true },
+      '/rankings/overall': { target: 'http://127.0.0.1:3101', changeOrigin: true },
+      '/bot': { target: 'http://127.0.0.1:3101', changeOrigin: true }
     }
   }
 });

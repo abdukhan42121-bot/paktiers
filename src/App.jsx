@@ -5,7 +5,7 @@ import {
   Divider, Drawer, FormControl, IconButton, InputAdornment, InputLabel,
   LinearProgress, Menu, MenuItem, Pagination, Paper, Select, Skeleton,
   Snackbar, Stack, Table, TableBody, TableCell, TableContainer, TableHead,
-  TableRow, TextField, Toolbar, Tooltip, Typography, useMediaQuery
+  TableRow, Tabs, Tab, TextField, Toolbar, Tooltip, Typography, useMediaQuery
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
@@ -36,6 +36,11 @@ import PersonSearchRoundedIcon from '@mui/icons-material/PersonSearchRounded';
 import ShieldRoundedIcon from '@mui/icons-material/ShieldRounded';
 import StarRoundedIcon from '@mui/icons-material/StarRounded';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
+import TimelineRoundedIcon from '@mui/icons-material/TimelineRounded';
+import SportsScoreRoundedIcon from '@mui/icons-material/SportsScoreRounded';
+import QueryStatsRoundedIcon from '@mui/icons-material/QueryStatsRounded';
+import HourglassBottomRoundedIcon from '@mui/icons-material/HourglassBottomRounded';
 import { apiGet, useApiResource } from './api.js';
 
 const DISCORD_INVITE = 'https://discord.gg/ZRqHVHWfZY';
@@ -70,6 +75,20 @@ const formatDate = (value) => {
   if (!value) return 'Not provided';
   const date = new Date(Number(value) || value);
   return Number.isNaN(date.getTime()) ? 'Not provided' : date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+};
+const formatDateTime = (value) => {
+  const date = new Date(Number(value) || value);
+  return Number.isNaN(date.getTime()) ? 'Date unavailable' : date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+};
+const formatElapsed = (value, now = Date.now()) => {
+  const stamp = Number(value || 0);
+  if (!stamp || !Number.isFinite(stamp)) return 'Time unavailable';
+  const minutes = Math.max(0, Math.floor((now - stamp) / 60000));
+  if (minutes < 1) return 'Just joined';
+  if (minutes < 60) return `${minutes}m waiting`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ${minutes % 60}m waiting`;
+  return `${Math.floor(hours / 24)}d ${hours % 24}h waiting`;
 };
 const gamemodeOf = (key) => GAMEMODES.find((mode) => mode.key === key) || { key, label: key, file: null };
 
@@ -162,6 +181,7 @@ function App() {
   else if (route === '/queue') content = <QueuePage />;
   else if (route === '/compare') content = <ComparePage initialLeft={parsed.search.get('left') || ''} initialRight={parsed.search.get('right') || ''} />;
   else if (route === '/testers') content = <TestersPage testerData={testerData} />;
+  else if (route === '/history') content = <ActivityHistoryPage />;
   else if (route === '/tiertagger') content = <TierTaggerPage />;
   else if (route === 'player') content = <PlayerPage ign={parsed.player} openPlayer={openPlayer} />;
   else content = <NotFound navigate={nav} />;
@@ -179,6 +199,7 @@ function App() {
           <NavButton active={route === '/compare'} onClick={() => nav('/compare')}>Compare</NavButton>
           <NavButton active={route === '/tiertagger'} onClick={() => nav('/tiertagger')}>TierTagger</NavButton>
           <NavButton active={route === '/testers'} onClick={() => nav('/testers')}>Testers</NavButton>
+          <NavButton active={route === '/history'} onClick={() => nav('/history')}>History</NavButton>
         </Box>
         <Stack direction="row" spacing={1} alignItems="center">
           <Button className="search-shortcut" onClick={() => setSearchOpen(true)} startIcon={<SearchRoundedIcon />} endIcon={<Chip size="small" label="/" variant="outlined" />}>Search</Button>
@@ -195,7 +216,7 @@ function App() {
           <Typography fontWeight={850} letterSpacing={1.5}>ECLIPSETIERS</Typography><IconButton onClick={() => setDrawerOpen(false)}><CloseRoundedIcon /></IconButton>
         </Stack>
         {[
-          ['/home', 'Home'], ['/rankings', 'Rankings'], ['/queue', 'Queue'], ['/compare', 'Compare'], ['/tiertagger', 'TierTagger'], ['/testers', 'Testers']
+          ['/home', 'Home'], ['/rankings', 'Rankings'], ['/queue', 'Queue'], ['/compare', 'Compare'], ['/tiertagger', 'TierTagger'], ['/testers', 'Testers'], ['/history', 'History']
         ].map(([to, label]) => <Button key={to} fullWidth className="drawer-link" onClick={() => nav(to)}>{label}</Button>)}
         <Button fullWidth sx={{ mt: 2 }} component="a" href={DISCORD_INVITE} target="_blank" variant="contained">Join Discord</Button>
       </Box>
@@ -311,6 +332,11 @@ function HomePage({ navigate, openPlayer, stats, testerData }) {
           <Box className="feature-icon silver"><CompareArrowsRoundedIcon /></Box><Typography variant="h5">Compare players</Typography>
           <Typography color="text.secondary">Compare overall points, gamemode tiers and each player's current position.</Typography>
           <Button onClick={() => navigate('/compare')} endIcon={<ArrowForwardRoundedIcon />} sx={{ mt: 2 }}>Open comparison</Button>
+        </CardContent></Card>
+        <Card className="feature-card history-feature-card"><CardContent>
+          <Box className="feature-icon gold"><HistoryRoundedIcon /></Box><Typography variant="h5">Follow the history</Typography>
+          <Typography color="text.secondary">Explore recorded tier updates, archived match records and live queue activity.</Typography>
+          <Button onClick={() => navigate('/history')} endIcon={<ArrowForwardRoundedIcon />} sx={{ mt: 2 }}>Open activity history</Button>
         </CardContent></Card>
       </Box>
     </Container>
@@ -719,8 +745,9 @@ function PlayerDialog({ player, onClose, navigate, toast }) {
       <Box className="profile-metrics"><Box><Typography className="stat-label">CURRENT POSITION</Typography><Typography variant="h5">{data?.overallRank ? `#${data.overallRank}` : '—'}</Typography><Typography className="muted-caption">{data?.selectedMode && data.selectedMode !== 'all' ? `${gamemodeOf(data.selectedMode).label} leaderboard` : 'Overall leaderboard'}</Typography></Box><Box><Typography className="stat-label">REGISTERED</Typography><Typography variant="h6">{formatDate(data?.registeredAt)}</Typography></Box></Box>
       <Divider sx={{ my: 2.4 }} /><Stack direction="row" justifyContent="space-between" alignItems="center"><Box><Typography fontWeight={800}>All gamemode tiers</Typography><Typography className="muted-caption">{getAssignedModeCount(data || player)} of {GAMEMODES.length - 1} assigned</Typography></Box>{loading && <CircularProgress size={16} />}</Stack>
       <ModeTierGrid player={data || player} />
+      <PlayerHistoryPanel ign={data?.ign || player.ign} compact />
       <Divider sx={{ my: 2.2 }} /><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><Button fullWidth variant="contained" startIcon={<ShareRoundedIcon />} onClick={copy}>Copy profile link</Button><Button fullWidth variant="outlined" onClick={() => { onClose(); navigate(`/player/${encodeURIComponent(data?.ign || player.ign)}`); }}>Open full profile</Button></Stack>
-      <Typography className="profile-data-note">Historical rank movement and test history are not available in the current API.</Typography>
+      <Typography className="profile-data-note">Only events saved by the existing tier log are shown. Failed test sessions and historical rank snapshots are not stored by the current backend.</Typography>
     </DialogContent>
   </Dialog>;
 }
@@ -741,21 +768,32 @@ function PlayerPage({ ign, openPlayer }) {
       <Box className="profile-page-stats"><Box><Typography className="stat-label">OVERALL POINTS</Typography><Typography variant="h4">{formatNumber(getTotalPoints(data))}</Typography></Box><Box><Typography className="stat-label">CURRENT RANK</Typography><Typography variant="h4">{originalRank > 0 ? `#${originalRank}` : '—'}</Typography></Box><Box><Typography className="stat-label">RANKED GAMEMODES</Typography><Typography variant="h4">{getAssignedModeCount(data)}</Typography></Box></Box>
       <Divider sx={{ my: 3 }} /><SectionHeading eyebrow="CURRENT TIER RECORD" title="All gamemode tiers" subtitle={`${getAssignedModeCount(data)} of ${GAMEMODES.length - 1} gamemodes assigned. Unassigned modes remain visible so the full player record is easy to scan.`} />
       <ModeTierGrid player={data} />
-      <Alert severity="info" className="history-note">Ranking history, testing history and historical tier changes are not currently exposed by the existing API, so they are not shown as fabricated records.</Alert>
+      <PlayerHistoryPanel ign={data?.ign || ign} />
+      <Alert severity="info" className="history-note">The legacy backend stores tier update logs, but not failed test sessions or periodic ranking snapshots. The history section shows only the records it actually saves.</Alert>
     </Paper>
   </Container>;
 }
 
 function QueuePage() {
   const { data, loading, error, stale, updatedAt } = useApiResource('/api/queue', 12000);
+  const { data: activity } = useApiResource('/public-api/activity?limit=12', 45000);
   const queues = data?.queues || {};
   const modes = Object.entries(queues);
   const total = modes.reduce((sum, [, items]) => sum + (Array.isArray(items) ? items.length : 0), 0);
-  return <Container maxWidth="xl" className="page-container"><PageBanner eyebrow="LIVE ACTIVITY" title="Testing queue" subtitle="Current public queue positions by gamemode. The display refreshes automatically; no estimated wait times are invented." action={<Chip icon={<span className="live-dot" />} label="Auto refresh" className="live-chip" />} /><StatusStrip stale={stale} error={error} updatedAt={updatedAt} />
+  const matches = Array.isArray(activity?.matches) ? activity.matches : [];
+  const queueEvents = Array.isArray(activity?.queueEvents) ? activity.queueEvents : [];
+  const [clock, setClock] = useState(Date.now());
+  useEffect(() => { const timer = window.setInterval(() => setClock(Date.now()), 30000); return () => window.clearInterval(timer); }, []);
+  return <Container maxWidth="xl" className="page-container"><PageBanner eyebrow="LIVE ACTIVITY" title="Testing queue" subtitle="See who is waiting, their live queue position and how long they have been queued. The list refreshes automatically." action={<Chip icon={<span className="live-dot" />} label="Live updates" className="live-chip" />} /><StatusStrip stale={stale} error={error} updatedAt={updatedAt} />
     <Box className="queue-overview"><StatCard label="Players queued" value={total} icon={<GroupsRoundedIcon />} note="Across all visible queues" /><StatCard label="Gamemodes active" value={modes.filter(([, list]) => list?.length).length} icon={<SportsEsportsRoundedIcon />} note="Queues with at least one player" /><StatCard label="Refresh interval" value="12s" icon={<RefreshRoundedIcon />} note="Automatic background refresh" /></Box>
-    <Box className="queue-grid">{modes.map(([key, list]) => <Card key={key} className="queue-card"><CardContent><Stack direction="row" alignItems="center" spacing={1.2} sx={{ mb: 2 }}><Box className="mini-mode-icon">{gamemodeOf(key).file && <img src={`/gamemodes/${gamemodeOf(key).file}`} alt="" />}</Box><Box flex={1}><Typography fontWeight={850}>{gamemodeOf(key).label}</Typography><Typography className="muted-caption">Current queue</Typography></Box><Chip size="small" label={list?.length || 0} /></Stack>
-      {loading && !data ? <Skeleton height={65} /> : list?.length ? list.map((entry, index) => <Stack key={`${entry.ign}-${entry.joinedAt}`} direction="row" spacing={1.1} alignItems="center" className="queue-player"><Typography className="queue-position">{String(index + 1).padStart(2, '0')}</Typography><Avatar src={entry.avatar || `https://mc-heads.net/avatar/${entry.ign}/32`} /><Box flex={1} minWidth={0}><Typography fontWeight={750} noWrap>{entry.ign}</Typography><Typography className="muted-caption">{entry.joinedAt ? `Queued ${new Date(entry.joinedAt).toLocaleString()}` : 'Queue time unavailable'}</Typography></Box><Chip size="small" label="Waiting" className="waiting-chip" /></Stack>) : <Typography className="queue-empty">No players currently queued.</Typography>}
+    <Box className="queue-section-heading"><Box><Typography className="eyebrow">CURRENT WAITLIST</Typography><Typography variant="h5">Players waiting for a test</Typography></Box><Chip size="small" label={`${total} waiting`} /></Box>
+    <Box className="queue-grid">{modes.map(([key, list]) => <Card key={key} className="queue-card motion-tile"><CardContent><Stack direction="row" alignItems="center" spacing={1.2} sx={{ mb: 2 }}><Box className="mini-mode-icon">{gamemodeOf(key).file && <img src={`/gamemodes/${gamemodeOf(key).file}`} alt="" />}</Box><Box flex={1}><Typography fontWeight={850}>{gamemodeOf(key).label}</Typography><Typography className="muted-caption">Live queue</Typography></Box><Chip size="small" label={list?.length || 0} /></Stack>
+      {loading && !data ? <Skeleton height={65} /> : list?.length ? list.map((entry, index) => <Stack key={`${entry.ign}-${entry.joinedAt}`} direction="row" spacing={1.1} alignItems="center" className="queue-player"><Typography className="queue-position">{String(index + 1).padStart(2, '0')}</Typography><Avatar src={entry.avatar || `https://mc-heads.net/avatar/${entry.ign}/32`} /><Box flex={1} minWidth={0}><Typography fontWeight={750} noWrap>{entry.ign}</Typography><Typography className="muted-caption">Joined {formatDateTime(entry.joinedAt)}</Typography></Box><Chip size="small" label={formatElapsed(entry.joinedAt, clock)} className="waiting-chip" /></Stack>) : <Typography className="queue-empty">No players currently queued.</Typography>}
       </CardContent></Card>)}</Box>
+    <Box className="queue-history-callout"><Box><Typography fontWeight={850}>Queue archive</Typography><Typography color="text.secondary" fontSize={13}>The gateway records observed changes to the persistent waitlist from this release onward. Short-lived changes may not always be visible to the file observer, and older queue activity cannot be reconstructed.</Typography></Box><Button variant="outlined" onClick={() => { window.history.pushState({}, '', '/history'); window.dispatchEvent(new PopStateEvent('popstate')); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Open all history</Button></Box>
+    {queueEvents.length > 0 && <Box className="queue-recent-events"><Box className="queue-section-heading"><Box><Typography className="eyebrow">LATEST MOVEMENT</Typography><Typography variant="h5">Recent queue activity</Typography></Box><Chip size="small" label={`${queueEvents.length} recorded`} /></Box><Box className="queue-event-history-list">{queueEvents.slice(0, 5).map(event => <QueueEventCard key={event.id} event={event} />)}</Box></Box>}
+    <Box className="queue-section-heading queue-match-heading"><Box><Typography className="eyebrow">RECORDED MATCHES</Typography><Typography variant="h5">Match activity</Typography></Box><Typography color="text.secondary" fontSize={12}>{matches.length} archived records available</Typography></Box>
+    {matches.length ? <Box className="history-match-grid">{matches.map(match => <MatchHistoryCard key={match.id} match={match} />)}</Box> : <EmptyState title="No archived matches available" detail="The current queue flow does not consistently save match records to the persistent match archive. Nothing is being made up here." />}
   </Container>;
 }
 
@@ -767,11 +805,114 @@ function TestersPage({ testerData }) {
   const [query, setQuery] = useState('');
   const visible = testers.filter(t => String(t.displayName || t.username).toLowerCase().includes(query.toLowerCase()));
   return <Container maxWidth="xl" className="page-container"><PageBanner eyebrow="THE PEOPLE BEHIND THE TIERS" title="Tester directory" subtitle="Meet the community members who help maintain the EclipseTiers ranking system." action={<Button component="a" href={DISCORD_INVITE} target="_blank" startIcon={<ForumRoundedIcon />} variant="contained">Join the community</Button>} /><StatusStrip stale={stale} error={error} updatedAt={updatedAt} />
-    <Box className="stats-grid tester-stats"><StatCard label="Active Testers" value={dashboard.activeTesters ?? testers.length} icon={<ShieldRoundedIcon />} note="Visible tester directory" /><StatCard label="Online Now" value={dashboard.onlineNow} icon={<WifiRoundedIcon />} note="Discord presence when available" /><StatCard label="Tests This Month" value={dashboard.totalTestsThisMonth} icon={<StarRoundedIcon />} note="Recorded test log count" /><StatCard label="Top Contributor" value={dashboard.topContributor?.displayName || dashboard.topContributor?.username || '—'} icon={<MilitaryTechRoundedIcon />} note="By current-month tests" /></Box>
+    <Box className="stats-grid tester-stats"><StatCard label="Active Testers" value={dashboard.activeTesters ?? testers.length} icon={<ShieldRoundedIcon />} note="Visible tester directory" /><StatCard label="Online Now" value={dashboard.onlineNow} icon={<WifiRoundedIcon />} note="Discord presence when available" /><StatCard label="Tier Records This Month" value={dashboard.totalTestsThisMonth} icon={<StarRoundedIcon />} note="Saved tier-log actions" /><StatCard label="Top Contributor" value={dashboard.topContributor?.displayName || dashboard.topContributor?.username || '—'} icon={<MilitaryTechRoundedIcon />} note="By current-month tier records" /></Box>
     <Paper className="directory-panel"><Stack className="directory-toolbar" direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}><Box><Typography variant="h5">Our testers</Typography><Typography color="text.secondary">{formatNumber(testers.length)} public tester profiles</Typography></Box><TextField size="small" placeholder="Search testers..." value={query} onChange={e => setQuery(e.target.value)} sx={{ width: { xs: '100%', sm: 280 } }} InputProps={{ startAdornment: <InputAdornment position="start"><SearchRoundedIcon /></InputAdornment> }} /></Stack>
-      {loading && !data && !testerData ? <Box sx={{ p: 3 }}><Skeleton height={90} /><Skeleton height={90} /><Skeleton height={90} /></Box> : visible.length ? <Box className="tester-grid">{visible.map((tester, index) => <Card key={tester.id || tester.username} className="tester-card"><CardContent><Stack direction="row" spacing={1.5} alignItems="center"><Box className="tester-avatar-wrap"><Avatar src={tester.avatar} className="tester-avatar" /><span className={tester.online ? 'online-indicator online' : 'online-indicator'} /></Box><Box flex={1} minWidth={0}><Typography fontWeight={850} noWrap>{tester.displayName || tester.username}</Typography><Typography color="text.secondary" fontSize={12}>@{tester.username}</Typography></Box><Chip size="small" label={tester.online ? 'Online' : 'Offline'} className={tester.online ? 'online-chip' : 'offline-chip'} /></Stack><Divider sx={{ my: 1.7 }} /><Stack direction="row" justifyContent="space-between"><Box><Typography className="stat-label">THIS MONTH</Typography><Typography variant="h5">{formatNumber(tester.testsThisMonth)}</Typography></Box><Box textAlign="right"><Typography className="stat-label">ALL TIME</Typography><Typography variant="h5">{formatNumber(tester.testsAllTime)}</Typography></Box></Stack></CardContent></Card>)}</Box> : <EmptyState title="No testers found" detail={testers.length ? 'Try another search term.' : 'Tester information is not currently available from Discord.'} />}
+      {loading && !data && !testerData ? <Box sx={{ p: 3 }}><Skeleton height={90} /><Skeleton height={90} /><Skeleton height={90} /></Box> : visible.length ? <Box className="tester-grid">{visible.map((tester, index) => <Card key={tester.id || tester.username} className="tester-card"><CardContent><Stack direction="row" spacing={1.5} alignItems="center"><Box className="tester-avatar-wrap"><Avatar src={tester.avatar} className="tester-avatar" /><span className={tester.online ? 'online-indicator online' : 'online-indicator'} /></Box><Box flex={1} minWidth={0}><Typography fontWeight={850} noWrap>{tester.displayName || tester.username}</Typography><Typography color="text.secondary" fontSize={12}>@{tester.username}</Typography></Box><Chip size="small" label={tester.online ? 'Online' : 'Offline'} className={tester.online ? 'online-chip' : 'offline-chip'} /></Stack><Divider sx={{ my: 1.7 }} /><Stack direction="row" justifyContent="space-between"><Box><Typography className="stat-label">MONTHLY RECORDS</Typography><Typography variant="h5">{formatNumber(tester.testsThisMonth)}</Typography></Box><Box textAlign="right"><Typography className="stat-label">ALL-TIME RECORDS</Typography><Typography variant="h5">{formatNumber(tester.testsAllTime)}</Typography></Box></Stack></CardContent></Card>)}</Box> : <EmptyState title="No testers found" detail={testers.length ? 'Try another search term.' : 'Tester information is not currently available from Discord.'} />}
     </Paper>
   </Container>;
+}
+
+function ActivityHistoryPage() {
+  const { data, loading, error, stale, updatedAt } = useApiResource('/public-api/activity?limit=80', 45000);
+  const { data: queueData } = useApiResource('/api/queue', 12000);
+  const [tab, setTab] = useState('tiers');
+  const [historySearch, setHistorySearch] = useState('');
+  const tierAwards = Array.isArray(data?.tierAwards) ? data.tierAwards : [];
+  const matches = Array.isArray(data?.matches) ? data.matches : [];
+  const queueEvents = Array.isArray(data?.queueEvents) ? data.queueEvents : [];
+  const needle = historySearch.trim().toLocaleLowerCase('en-US');
+  const filteredTierAwards = needle ? tierAwards.filter(record => [record.playerIGN, record.weapon, record.tier, record.oldTier, record.tester].some(value => String(value || '').toLocaleLowerCase('en-US').includes(needle))) : tierAwards;
+  const filteredMatches = needle ? matches.filter(match => [match.weapon, match.status, ...(match.participants || []).map(person => person.ign)].some(value => String(value || '').toLocaleLowerCase('en-US').includes(needle))) : matches;
+  const filteredQueueEvents = needle ? queueEvents.filter(event => [event.ign, event.weapon, event.action].some(value => String(value || '').toLocaleLowerCase('en-US').includes(needle))) : queueEvents;
+  const queues = queueData?.queues || {};
+  const liveQueue = Object.entries(queues).flatMap(([weapon, entries]) => (entries || []).map((entry, index) => ({ ...entry, weapon, position: index + 1 }))).sort((a,b) => Number(a.joinedAt || 0) - Number(b.joinedAt || 0));
+  return <Container maxWidth="xl" className="page-container activity-page">
+    <PageBanner eyebrow="THE ECLIPSETIERS ARCHIVE" title="History & activity" subtitle="Explore saved test/tier outcomes, available match records, observed queue movement and the live testing waitlist. Entries are sourced from EclipseTiers data files." action={<Chip icon={<HistoryRoundedIcon />} label="Live archive" className="live-chip" />} />
+    <StatusStrip stale={stale} error={error} updatedAt={updatedAt} />
+    <Box className="activity-stat-grid">
+      <StatCard label="Recorded tier updates" value={data?.counts?.tierChanges ?? '—'} icon={<TimelineRoundedIcon />} note="Saved tier log events" />
+      <StatCard label="Archived matches" value={data?.counts?.matchRecords ?? '—'} icon={<SportsScoreRoundedIcon />} note="Records in matches.json" />
+      <StatCard label="Players waiting" value={liveQueue.length} icon={<HourglassBottomRoundedIcon />} note="Current public waitlist" />
+      <StatCard label="Archive checked" value={data?.generatedAt ? formatDateTime(data.generatedAt) : '—'} icon={<QueryStatsRoundedIcon />} note="Last data-file read" />
+    </Box>
+    <Paper className="activity-panel">
+      <Box className="activity-panel-heading"><Box><Typography className="eyebrow">PUBLIC RECORDS</Typography><Typography variant="h5">Browse activity</Typography></Box><Chip size="small" label="Read-only" variant="outlined" /></Box>
+      <Tabs value={tab} onChange={(_, value) => { setTab(value); setHistorySearch(''); }} className="activity-tabs" variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile>
+        <Tab value="tiers" label={`Test & tier records (${tierAwards.length})`} icon={<TimelineRoundedIcon />} iconPosition="start" />
+        <Tab value="matches" label={`Match records (${matches.length})`} icon={<SportsScoreRoundedIcon />} iconPosition="start" />
+        <Tab value="queue" label={`Queue activity (${queueEvents.length})`} icon={<HourglassBottomRoundedIcon />} iconPosition="start" />
+      </Tabs>
+      <Box className="history-filter-bar"><TextField size="small" fullWidth value={historySearch} onChange={event => setHistorySearch(event.target.value)} placeholder={tab === 'tiers' ? 'Search player, tester, gamemode or tier...' : tab === 'queue' ? 'Search player, gamemode or queue action...' : 'Search player, gamemode or match status...'} InputProps={{ startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" /></InputAdornment>, endAdornment: historySearch ? <InputAdornment position="end"><IconButton size="small" onClick={() => setHistorySearch('')} aria-label="Clear history search"><CloseRoundedIcon fontSize="small" /></IconButton></InputAdornment> : null }} /></Box>
+      {tab === 'tiers' && <Box className="activity-record-list">
+        {loading && !data ? <EclipseLoadingScreen compact label="Loading tier history" /> : filteredTierAwards.length ? filteredTierAwards.map(record => <TierHistoryCard key={record.id} record={record} />) : <EmptyState title={needle && tierAwards.length ? 'No matching tier records' : 'No tier update records yet'} detail={needle && tierAwards.length ? 'Try another player, tester, gamemode or tier.' : data?.sources?.tierLogs === false ? 'The tier log file is not present on the service volume yet.' : 'No public tier update entries are currently available.'} />}
+        <Alert severity="info" className="history-source-note">This archive contains tier records created by passed test submissions and manual tier assignments. The existing bot does not save failed submissions or a separate complete test-session record, so this is not a full audit of every test.</Alert>
+      </Box>}
+      {tab === 'matches' && <Box className="activity-record-list">
+        {filteredMatches.length ? <Box className="history-match-grid">{filteredMatches.map(match => <MatchHistoryCard key={match.id} match={match} />)}</Box> : <EmptyState title={needle && matches.length ? 'No matching matches' : 'No archived matches yet'} detail={needle && matches.length ? 'Try another player, gamemode or status.' : data?.sources?.matchArchive === false ? 'The match archive file is not present on the service volume.' : 'The existing queue flow does not consistently persist match history, so there are no records to display.'} />}
+        <Alert severity="info" className="history-source-note">Only matches actually written to the existing match archive can appear here. Missing records are not reconstructed or invented.</Alert>
+      </Box>}
+      {tab === 'queue' && <Box className="activity-record-list">
+        {filteredQueueEvents.length ? <Box className="queue-event-history-list">{filteredQueueEvents.map(event => <QueueEventCard key={event.id} event={event} />)}</Box> : <EmptyState title={needle && queueEvents.length ? 'No matching queue events' : 'No archived queue events yet'} detail={needle && queueEvents.length ? 'Try another player, gamemode or action.' : 'New join and removal events will appear here after the gateway observes changes to the persistent queue file. Older events are not available.'} />}
+        <Box className="queue-live-subsection"><Typography fontWeight={850}>Current waitlist</Typography>{liveQueue.length ? <Box className="live-queue-history-list">{liveQueue.map(entry => <LiveQueueHistoryCard key={`${entry.weapon}-${entry.ign}-${entry.joinedAt}`} entry={entry} />)}</Box> : <Typography color="text.secondary" fontSize={12}>No players are currently waiting.</Typography>}</Box>
+        <Alert severity="info" className="history-source-note">The gateway records observed changes to the persistent queue file from this release onward. Very short-lived changes may be missed by file observation. The legacy bot does not record whether a removal was a tester pull or a voluntary leave.</Alert>
+      </Box>}
+    </Paper>
+    <Box className="activity-footnote"><ShieldRoundedIcon /><Typography>Private Discord IDs, ticket references and hidden player records are not included in this public activity feed.</Typography></Box>
+  </Container>;
+}
+
+function TierHistoryCard({ record, compact = false }) {
+  const mode = gamemodeOf(record.weapon);
+  const newTier = String(record.tier || '').replace(/^R/, '');
+  const colour = TIER_COLOURS[newTier] || '#d6b36a';
+  return <Paper className={`tier-history-card motion-tile ${compact ? 'compact' : ''}`} elevation={0}>
+    <Box className="history-mode-icon">{mode.file ? <img src={`/gamemodes/${mode.file}`} alt={`${mode.label} logo`} /> : <TimelineRoundedIcon />}</Box>
+    <Box className="history-record-main"><Box className="history-record-title"><Typography fontWeight={850}>{record.playerIGN}</Typography><Chip size="small" label={mode.label} variant="outlined" /></Box><Typography className="history-record-change">{record.oldTier ? `${record.oldTier} → ` : 'New tier · '}<strong style={{ color }}>{record.tier}</strong></Typography><Typography className="history-record-by">Recorded by {record.tester || 'EclipseTiers staff'}</Typography></Box>
+    <Box className="history-record-time"><Typography>{formatDate(record.timestamp)}</Typography><Typography>{new Date(Number(record.timestamp)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Typography></Box>
+  </Paper>;
+}
+
+function MatchHistoryCard({ match }) {
+  const mode = gamemodeOf(match.weapon);
+  const people = Array.isArray(match.participants) ? match.participants : [];
+  return <Paper className="match-history-card motion-tile" elevation={0}>
+    <Box className="match-history-mode">{mode.file && <img src={`/gamemodes/${mode.file}`} alt="" />}<Typography>{mode.label}</Typography></Box>
+    <Box className="match-participants">{people.map((person, index) => <React.Fragment key={`${person.ign}-${index}`}><Box className="match-participant"><Avatar src={`https://mc-heads.net/avatar/${encodeURIComponent(person.ign || 'Steve')}/40`} /><Typography>{person.ign}</Typography></Box>{index < people.length - 1 && <span className="match-versus">VS</span>}</React.Fragment>)}</Box>
+    <Box className="match-history-meta"><Chip size="small" label={match.status || 'Recorded'} /><Typography>{formatDateTime(match.createdAt)}</Typography></Box>
+  </Paper>;
+}
+
+
+function QueueEventCard({ event }) {
+  const mode = gamemodeOf(event.weapon);
+  const joined = event.action === 'joined';
+  return <Paper className={`queue-event-card motion-tile ${joined ? 'joined' : 'removed'}`} elevation={0}>
+    <Box className={`queue-event-mark ${joined ? 'joined' : 'removed'}`}>{joined ? <ArrowForwardRoundedIcon /> : <CloseRoundedIcon />}</Box>
+    <Box className="history-mode-icon">{mode.file ? <img src={`/gamemodes/${mode.file}`} alt="" /> : <HourglassBottomRoundedIcon />}</Box>
+    <Box className="queue-event-main"><Typography fontWeight={850}>{event.ign}</Typography><Typography className="muted-caption">{mode.label} · {joined ? `Joined at position ${event.position || '—'}` : 'Removed from waitlist'}</Typography></Box>
+    <Box className="history-record-time"><Typography>{formatDate(event.timestamp)}</Typography><Typography>{new Date(Number(event.timestamp)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Typography>{!joined && event.waitedMs != null && <Typography>Waited {formatElapsed(Number(event.timestamp) - Number(event.waitedMs), Number(event.timestamp)).replace(' waiting','')}</Typography>}</Box>
+  </Paper>;
+}
+
+function LiveQueueHistoryCard({ entry }) {
+  const mode = gamemodeOf(entry.weapon);
+  return <Paper className="live-queue-history-card motion-tile" elevation={0}>
+    <Typography className="queue-position">#{String(entry.position).padStart(2, '0')}</Typography>
+    <Avatar src={entry.avatar || `https://mc-heads.net/avatar/${encodeURIComponent(entry.ign || 'Steve')}/40`} />
+    <Box flex={1} minWidth={0}><Typography fontWeight={850} noWrap>{entry.ign}</Typography><Typography className="muted-caption">{mode.label} · Joined {formatDateTime(entry.joinedAt)}</Typography></Box>
+    <Chip size="small" label="Waiting" className="waiting-chip" />
+  </Paper>;
+}
+
+function PlayerHistoryPanel({ ign, compact = false }) {
+  const key = `/public-api/player-history/${encodeURIComponent(ign || '')}`;
+  const { data, loading, error } = useApiResource(key, 60000);
+  const records = Array.isArray(data?.records) ? data.records : [];
+  return <Box className={`player-history-panel ${compact ? 'compact' : ''}`}>
+    <Box className="player-history-heading"><Box><Typography className="eyebrow">PLAYER TIMELINE</Typography><Typography variant={compact ? 'subtitle1' : 'h5'} fontWeight={850}>Recorded tier updates</Typography></Box><Chip size="small" label={`${records.length} records`} variant="outlined" /></Box>
+    {loading && !data ? <Stack spacing={1}><Skeleton height={58} /><Skeleton height={58} /></Stack> : error && !data ? <Typography color="text.secondary">Player history is temporarily unavailable.</Typography> : records.length ? <Box className="player-history-list">{records.slice(0, compact ? 4 : 30).map(record => <TierHistoryCard key={record.id} record={record} compact />)}</Box> : <EmptyState title="No saved tier changes" detail={data?.available === false ? 'The tier history file is not available on this service.' : 'There are no recorded tier updates for this player yet.'} />}
+    <Typography className="history-data-caption">Only saved tier-update records are shown. The legacy backend does not retain failed-test sessions or periodic rank snapshots.</Typography>
+  </Box>;
 }
 
 function ComparePage({ initialLeft, initialRight }) {
@@ -866,7 +1007,7 @@ function NotFound({ navigate }) {
 }
 
 function Footer({ navigate }) {
-  return <Box component="footer" className="site-footer"><Container maxWidth="xl"><Box className="footer-main"><Box className="footer-brand"><Stack direction="row" spacing={1.2} alignItems="center"><img src="/brand/logo.png" alt="" /><Box><Typography className="brand-name">ECLIPSETIERS</Typography><Typography className="brand-sub">GLOBAL RANKINGS</Typography></Box></Stack><Typography color="text.secondary" sx={{ mt: 2, maxWidth: 330 }}>The Standard of Competitive Minecraft. A community-built home for player tiers, rankings and testing.</Typography></Box><Box><Typography className="footer-label">EXPLORE</Typography><Button onClick={() => navigate('/home')}>Home</Button><Button onClick={() => navigate('/rankings')}>Rankings</Button><Button onClick={() => navigate('/compare')}>Compare</Button><Button onClick={() => navigate('/queue')}>Queue</Button></Box><Box><Typography className="footer-label">COMMUNITY</Typography><Button onClick={() => navigate('/testers')}>Testers</Button><Button onClick={() => navigate('/tiertagger')}>TierTagger</Button><Button component="a" href={DISCORD_INVITE} target="_blank">Discord <ArrowOutwardRoundedIcon fontSize="inherit" /></Button></Box></Box><Box className="footer-gamemodes"><Typography className="footer-label">GAMEMODE SHORTCUTS</Typography><Stack direction="row" flexWrap="wrap" gap={.5}>{GAMEMODES.filter(mode => mode.key !== 'all').map(mode => <Button key={mode.key} onClick={() => navigate(`/rankings?mode=${encodeURIComponent(mode.key)}`)}>{mode.label}</Button>)}</Stack></Box><Divider sx={{ my: 3 }} /><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}><Typography className="footer-copyright">© {new Date().getFullYear()} EclipseTiers. Community project.</Typography><Typography className="footer-copyright">Ranking calculations are provided by the existing EclipseTiers API.</Typography></Stack></Container></Box>;
+  return <Box component="footer" className="site-footer"><Container maxWidth="xl"><Box className="footer-main"><Box className="footer-brand"><Stack direction="row" spacing={1.2} alignItems="center"><img src="/brand/logo.png" alt="" /><Box><Typography className="brand-name">ECLIPSETIERS</Typography><Typography className="brand-sub">GLOBAL RANKINGS</Typography></Box></Stack><Typography color="text.secondary" sx={{ mt: 2, maxWidth: 330 }}>The Standard of Competitive Minecraft. A community-built home for player tiers, rankings and testing.</Typography></Box><Box><Typography className="footer-label">EXPLORE</Typography><Button onClick={() => navigate('/home')}>Home</Button><Button onClick={() => navigate('/rankings')}>Rankings</Button><Button onClick={() => navigate('/compare')}>Compare</Button><Button onClick={() => navigate('/queue')}>Queue</Button></Box><Box><Typography className="footer-label">COMMUNITY</Typography><Button onClick={() => navigate('/testers')}>Testers</Button><Button onClick={() => navigate('/history')}>History</Button><Button onClick={() => navigate('/tiertagger')}>TierTagger</Button><Button component="a" href={DISCORD_INVITE} target="_blank">Discord <ArrowOutwardRoundedIcon fontSize="inherit" /></Button></Box></Box><Box className="footer-gamemodes"><Typography className="footer-label">GAMEMODE SHORTCUTS</Typography><Stack direction="row" flexWrap="wrap" gap={.5}>{GAMEMODES.filter(mode => mode.key !== 'all').map(mode => <Button key={mode.key} onClick={() => navigate(`/rankings?mode=${encodeURIComponent(mode.key)}`)}>{mode.label}</Button>)}</Stack></Box><Divider sx={{ my: 3 }} /><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}><Typography className="footer-copyright">© {new Date().getFullYear()} EclipseTiers. Community project.</Typography><Typography className="footer-copyright">Ranking calculations are provided by the existing EclipseTiers API.</Typography></Stack></Container></Box>;
 }
 
 export default App;
