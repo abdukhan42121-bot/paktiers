@@ -1,4 +1,4 @@
-# EclipseTiers · Railway MUI website
+# EclipseTiers · Railway MUI website (v2.2.0)
 
 A complete dark-only **React + Material UI** rebuild of the EclipseTiers public website, packaged to deploy on Railway. The original `api_server.js` and Discord bot are included unchanged; `railway-gateway.js` starts that backend privately and serves the new MUI website on Railway's public port.
 
@@ -23,7 +23,7 @@ The project ZIP contains the entire deployable source. Important root files:
 - Dark obsidian, crimson, gold and silver Material UI design; responsive mobile and desktop layouts.
 - Homepage hero: “The Standard of Competitive Minecraft.”, real backend statistics, current top-three podium and original gamemode cards.
 - Rankings: horizontal original-icon gamemode tabs, cached instant rendering + background refresh, player search, region/tier filters, sorting, original ranking positions and 100 rows per page.
-- Player rows show points, up to three tier badges and an expandable `+N` for further tiers.
+- Player rows show the Minecraft skin head and skin name, IGN, region, overall points, and a compact matrix for all 11 gamemodes. Each mode uses its original gamemode logo: assigned modes show a crisp, full-colour logo and clearly highlighted tier badge; unassigned modes keep the logo visible but faded/grayscale with a quiet dash. The same visual treatment appears in player popups and shareable profile pages.
 - Global search opens with `/` or `Ctrl+K`; partial and typo-tolerant matching; Enter/click opens a player popup.
 - Player popup and shareable `/player/PlayerIGN` profile pages.
 - Player comparison at `/compare`, including shareable query-string links and per-gamemode tier differences.
@@ -32,6 +32,15 @@ The project ZIP contains the entire deployable source. Important root files:
 - TierTagger page with the real supplied `1.3.0` JAR and compatibility details copied from the former site.
 - Optional subtle UI sound toggle (off by default), keyboard accessibility and reduced-motion CSS support.
 - Cached-data fallback and clear stale/offline messaging.
+
+### v2.2.0 visual repair
+
+- Refreshed typography to **Plus Jakarta Sans** for interface text and **Space Grotesk** for display headings.
+- Added global overflow and min-width safeguards to MUI cards, grids, chips, buttons, alerts and table cells.
+- Increased previously tiny labels inside gamemode tier cards and player rows for readability.
+- Reworked tablet and phone breakpoints for gamemode division cards, compare cards, profile actions, tester cards and queue cards.
+- Added narrow-screen player-row fallbacks so skin, IGN, points and tier chips do not collide or clip.
+- Preserved all API contracts, tier calculations, and the original `api_server.js`.
 
 ## Existing API and data safety
 
@@ -99,3 +108,30 @@ The gateway serves the built site on `PORT` (defaults to `8080`) and starts `api
 - TierTagger compatibility on the download page follows the provided previous site: Minecraft `1.21.1–1.21.11`, Fabric Loader `0.16.0+`, Fabric API, ModMenu `11.0.3+`, Java `21+`.
 - The homepage uses the actual supplied logo artwork as a visual image and the exact original mode images extracted from the supplied legacy HTML.
 - No `api_server.js` changes, DB migrations or ranking formula changes are part of this frontend rebuild.
+
+
+## Player row update
+
+The leaderboard now presents the Minecraft skin head, IGN, skin source name, region, points, and every supported gamemode for each public ranked player. Gamemode cells use the original gamemode logos. Assigned modes show a crisp logo and tier-coloured badge; unassigned modes show a muted grayscale/faded logo with a subtle dash. Profiles and quick-view dialogs use the same complete 11-mode grid. The assignment count is derived from the live tier object; the tier calculations and API are unchanged.
+
+
+## Gamemode logo clarity update
+
+- All 11 original gamemode icons are shown in the player tier matrix.
+- If the player has a tier, its gamemode icon is full opacity and the assigned tier appears in a tier-coloured pill.
+- If no tier is assigned, that gamemode icon is grayscale and faded, with a quiet dash instead of a prominent placeholder.
+- This is shared across leaderboard cards, desktop rows, quick-view profiles and dedicated player profile pages.
+
+## Assigned / unassigned gamemode logo behavior
+
+The current player matrix distinguishes the state visually: assigned tiers keep their original logo crisp, saturated and lightly highlighted, with the tier shown in its own color; modes without a current tier keep the logo visible but grayscale and softened, with only a muted dash. The mode-tier resolver accepts the API's legacy `DiaSMP` / `Diasmp` casing variants (and case variants for the other modes), preventing a real assigned tier from being shown as unassigned. No stored values or ranking calculations are changed.
+
+
+## Dedicated gamemode leaderboard update
+
+- Selecting an individual gamemode now opens the classic dedicated view, with players grouped into the five tier divisions, matching the previous site's per-gamemode layout.
+- Each tier division shows its first 10 players by default and has its own **Show all N players** / **Show less** control. Empty divisions remain visible with a quiet empty message.
+- Player rows show their mode-rank position, Minecraft skin head, IGN, skin source, region, overall points and their assigned tier in that gamemode.
+- The original API's per-gamemode response order is preserved for the default view. Frontend filtering does not recalculate tiers or ranking points.
+- Branded eclipse-orbit loading states, animated tier panels, staggered player-row entrances, hover transitions and reduced-motion handling are included. Cached data displays immediately; uncached gamemode switches show the custom loader.
+- Overall rankings remain unchanged and keep their 100-row pagination. The 10-player preview applies to each tier group on individual gamemode views.

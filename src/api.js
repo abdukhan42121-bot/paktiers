@@ -39,6 +39,7 @@ export function useApiResource(key, interval = 30000) {
   const [loading, setLoading] = useState(() => !cached);
   const [error, setError] = useState(null);
   const [updatedAt, setUpdatedAt] = useState(() => cached?.savedAt ?? null);
+  const [resourceKey, setResourceKey] = useState(() => cached ? key : null);
 
   useEffect(() => {
     const saved = readCache(key);
@@ -46,6 +47,7 @@ export function useApiResource(key, interval = 30000) {
     setLoading(!saved);
     setError(null);
     setUpdatedAt(saved?.savedAt ?? null);
+    setResourceKey(saved ? key : null);
     let alive = true;
     let controller;
     let timer;
@@ -56,6 +58,7 @@ export function useApiResource(key, interval = 30000) {
         const result = await apiGet(key, { signal: controller.signal });
         if (!alive) return;
         setData(result);
+        setResourceKey(key);
         setError(null);
         setUpdatedAt(Date.now());
         setLoading(false);
@@ -63,6 +66,7 @@ export function useApiResource(key, interval = 30000) {
       } catch (err) {
         if (!alive || err.name === 'AbortError') return;
         setError(err);
+        setResourceKey(key);
         setLoading(false);
       }
     };
@@ -78,5 +82,5 @@ export function useApiResource(key, interval = 30000) {
     };
   }, [key, interval]);
 
-  return { data, loading, error, updatedAt, stale: Boolean(error && data) };
+  return { data, loading, error, updatedAt, resourceKey, stale: Boolean(error && data && resourceKey === key) };
 }

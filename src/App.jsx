@@ -345,25 +345,27 @@ function GamemodeCard({ mode, players, onClick }) {
 
 function RankingsPage({ openPlayer }) {
   const [mode, setMode] = useState(() => new URLSearchParams(window.location.search).get('mode') || 'all');
-  const apiKey = mode === 'all' ? 'all' : mode;
-  const url = `/api/leaderboard?weapon=${encodeURIComponent(apiKey)}`;
-  const { data, loading, error, stale, updatedAt } = useApiResource(url, 20000);
+  const url = `/api/leaderboard?weapon=${encodeURIComponent(mode)}`;
+  const { data, loading, error, stale, updatedAt, resourceKey } = useApiResource(url, 20000);
   const [query, setQuery] = useState('');
   const [region, setRegion] = useState('all');
   const [tier, setTier] = useState('all');
   const [sort, setSort] = useState('rank');
   const [page, setPage] = useState(1);
-  const [expanded, setExpanded] = useState({});
   const isMobile = useMediaQuery('(max-width:800px)');
-  useEffect(() => { setPage(1); setExpanded({}); }, [mode, query, region, tier, sort]);
-  const rawPlayers = Array.isArray(data?.players) ? data.players : [];
+  useEffect(() => { setPage(1); }, [mode, query, region, tier, sort]);
+
+  const dataMatchesMode = resourceKey === url;
+  const rawPlayers = dataMatchesMode && Array.isArray(data?.players) ? data.players : [];
+  // The API already returns the authoritative order for each requested mode.
+  // Keep this order as originalRank and never re-calculate tier ranking values here.
   const ranked = rawPlayers.map((player, index) => ({ ...player, originalRank: index + 1 }));
   const filtered = useMemo(() => {
     let items = ranked.filter(player => {
       const matchesName = !query || String(player.ign || '').toLowerCase().includes(query.trim().toLowerCase());
       const matchesRegion = region === 'all' || String(player.region || '').toLowerCase() === region.toLowerCase();
       const tiers = getTiers(player);
-      const activeTier = mode === 'all' ? Object.values(tiers) : [tiers[mode]];
+      const activeTier = (mode === 'all' ? Object.values(tiers) : [getTierForMode(player, gamemodeOf(mode))]).map(value => String(value || '').replace(/^R/, ''));
       const matchesTier = tier === 'all' || activeTier.includes(tier);
       return matchesName && matchesRegion && matchesTier;
     });
@@ -371,10 +373,20 @@ function RankingsPage({ openPlayer }) {
     if (sort === 'name') items = [...items].sort((a, b) => String(a.ign).localeCompare(String(b.ign)));
     return items;
   }, [ranked, query, region, tier, sort, mode]);
+
   const pageSize = 100;
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const visible = filtered.slice((page - 1) * pageSize, page * pageSize);
   const regions = [...new Set(ranked.map(player => player.region).filter(Boolean))].sort();
+  const activeMode = gamemodeOf(mode);
+
+  const selectMode = (item) => {
+    setMode(item.key);
+    const next = new URL(window.location.href);
+    if (item.key === 'all') next.searchParams.delete('mode');
+    else next.searchParams.set('mode', item.key);
+    window.history.replaceState({}, '', next);
+  };
 
   return <Container maxWidth="xl" className="page-container">
     <PageBanner eyebrow="THE GLOBAL LADDER" title="Player rankings" subtitle="Explore the current EclipseTiers leaderboard, filter by region and tier, or open a player profile." />
@@ -382,7 +394,7 @@ function RankingsPage({ openPlayer }) {
     <Paper className="ranking-panel">
       <Box className="mode-tabs-wrap">
         <Box className="mode-tabs">
-          {GAMEMODES.map(item => <Button key={item.key} className={`mode-tab ${mode === item.key ? 'active' : ''}`} onClick={() => { setMode(item.key); const next = new URL(window.location.href); if (item.key === 'all') next.searchParams.delete('mode'); else next.searchParams.set('mode', item.key); window.history.replaceState({}, '', next); }}>
+          {GAMEMODES.map(item => <Button key={item.key} className={`mode-tab ${mode === item.key ? 'active' : ''}`} onClick={() => selectMode(item)}>
             {item.file && <img src={`/gamemodes/${item.file}`} alt="" />}{item.label}
           </Button>)}
         </Box>
@@ -393,50 +405,182 @@ function RankingsPage({ openPlayer }) {
         <FormControl size="small" className="filter-select"><InputLabel>Tier</InputLabel><Select label="Tier" value={tier} onChange={e => setTier(e.target.value)}><MenuItem value="all">All tiers</MenuItem>{TIER_ORDER.map(item => <MenuItem key={item} value={item}>{item}</MenuItem>)}</Select></FormControl>
         <FormControl size="small" className="filter-select sort-select"><InputLabel>Sort</InputLabel><Select label="Sort" value={sort} onChange={e => setSort(e.target.value)}><MenuItem value="rank">Original rank</MenuItem><MenuItem value="points">Points</MenuItem><MenuItem value="name">Player name</MenuItem></Select></FormControl>
       </Box>
-      <Box className="table-summary"><Typography>{formatNumber(filtered.length)} players found</Typography><Typography>Showing up to 100 per page</Typography></Box>
-      {isMobile ? <Box className="mobile-ranking-list">
-        {loading && !ranked.length ? Array.from({ length: 5 }).map((_, i) => <Paper key={i} className="mobile-rank-card"><Skeleton width="60%" /><Skeleton width="90%" /></Paper>) : visible.map(player => <Paper key={player.ign} className="mobile-rank-card" onClick={() => openPlayer({ ...player, overallRank: player.originalRank, selectedMode: mode })}>
-          <Stack direction="row" spacing={1.2} alignItems="center">
-            <Typography className={`rank-number ${player.originalRank <= 3 ? `rank-${player.originalRank}` : ''}`}>{String(player.originalRank).padStart(2, '0')}</Typography>
-            <Avatar src={getAvatar(player)} className="table-avatar" />
-            <Box flex={1} minWidth={0}><Typography className="table-player-name" noWrap>{player.ign}</Typography><Typography className="table-player-caption">{getRegion(player)} · {Object.keys(getTiers(player)).length} ranked modes</Typography></Box>
-            <Box textAlign="right"><Typography className="points-value">{formatNumber(getTotalPoints(player))}</Typography><Typography className="table-player-caption">POINTS</Typography></Box>
-          </Stack>
-          <Box sx={{ mt: 1.3 }}><TierList player={player} expanded={Boolean(expanded[player.ign])} onExpand={(event) => { event.stopPropagation(); setExpanded(old => ({ ...old, [player.ign]: !old[player.ign] })); }} mode={mode} /></Box>
-        </Paper>)}
-        {!loading && !visible.length && <EmptyState title={ranked.length ? 'No players match these filters' : 'No ranked players yet'} detail={ranked.length ? 'Try a different player name, region or tier.' : 'Once players receive a tier, their rankings will appear here.'} />}
-      </Box> : <TableContainer className="leaderboard-table-wrap">
-        <Table size="medium" stickyHeader className="leaderboard-table">
-          <TableHead><TableRow><TableCell width="70">Rank</TableCell><TableCell>Player</TableCell><TableCell>Region</TableCell><TableCell align="right">Points</TableCell><TableCell>Top gamemode tiers</TableCell><TableCell align="center">Ranked modes</TableCell><TableCell align="right">Details</TableCell></TableRow></TableHead>
-          <TableBody>
-            {loading && !ranked.length ? Array.from({ length: 7 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 7 }).map((__, j) => <TableCell key={j}><Skeleton width={j === 1 ? 150 : 50} /></TableCell>)}</TableRow>) : visible.map((player) => <TableRow key={player.ign} hover className="player-row" onClick={() => openPlayer({ ...player, overallRank: player.originalRank, selectedMode: mode })}>
-              <TableCell><Typography className={`rank-number ${player.originalRank <= 3 ? `rank-${player.originalRank}` : ''}`}>{String(player.originalRank).padStart(2, '0')}</Typography></TableCell>
-              <TableCell><Stack direction="row" spacing={1.3} alignItems="center"><Avatar src={getAvatar(player)} className="table-avatar" /><Box><Typography className="table-player-name">{player.ign}</Typography><Typography className="table-player-caption">{player.rankTitle?.label || 'EclipseTiers player'}</Typography></Box></Stack></TableCell>
-              <TableCell><Typography className="region-label">{getRegion(player)}</Typography></TableCell>
-              <TableCell align="right"><Typography className="points-value">{formatNumber(getTotalPoints(player))}</Typography></TableCell>
-              <TableCell><TierList player={player} expanded={Boolean(expanded[player.ign])} onExpand={(event) => { event.stopPropagation(); setExpanded(old => ({ ...old, [player.ign]: !old[player.ign] })); }} mode={mode} /></TableCell>
-              <TableCell align="center"><Chip size="small" className="mode-count-chip" label={Object.keys(getTiers(player)).length} /></TableCell>
-              <TableCell align="right"><Button size="small" className="view-profile-btn" onClick={(event) => { event.stopPropagation(); openPlayer({ ...player, overallRank: player.originalRank, selectedMode: mode }); }}>Profile <ArrowOutwardRoundedIcon fontSize="inherit" /></Button></TableCell>
-            </TableRow>)}
-            {!loading && !visible.length && <TableRow><TableCell colSpan={7}><EmptyState title={ranked.length ? 'No players match these filters' : 'No ranked players yet'} detail={ranked.length ? 'Try a different player name, region or tier.' : 'Once players receive a tier, their rankings will appear here.'} /></TableCell></TableRow>}
-          </TableBody>
-        </Table>
-      </TableContainer>}
-      <Box className="table-pagination"><Typography color="text.secondary">Page {page} of {pages}</Typography><Pagination page={page} count={pages} onChange={(_, value) => setPage(value)} color="primary" shape="rounded" /></Box>
+
+      {mode !== 'all' ? <GamemodeLeaderboardView
+        mode={activeMode}
+        players={filtered}
+        loading={!dataMatchesMode || (loading && !ranked.length)}
+        failed={Boolean(error && dataMatchesMode && !ranked.length)}
+        openPlayer={openPlayer}
+      /> : <>
+        <Box className="table-summary"><Typography>{formatNumber(filtered.length)} players found</Typography><Typography>Showing up to 100 per page</Typography></Box>
+        {isMobile ? <Box className="mobile-ranking-list">
+          {(!dataMatchesMode || (loading && !ranked.length)) ? <EclipseLoadingScreen compact label="Loading overall rankings" /> : visible.map(player => <Paper key={player.ign} className="mobile-rank-card" onClick={() => openPlayer({ ...player, overallRank: player.originalRank, selectedMode: mode })}>
+            <Stack direction="row" spacing={1.1} alignItems="center">
+              <Typography className={`rank-number ${player.originalRank <= 3 ? `rank-${player.originalRank}` : ''}`}>{String(player.originalRank).padStart(2, '0')}</Typography>
+              <Tooltip title={`Minecraft skin: ${getSkinName(player)}`}><Avatar src={getAvatar(player)} alt={`${player.ign} Minecraft skin`} variant="rounded" className="table-avatar skin-avatar" /></Tooltip>
+              <Box flex={1} minWidth={0}><Typography className="table-player-name" noWrap>{player.ign}</Typography><Typography className="table-player-caption" noWrap>Skin: {getSkinName(player)} · {getRegion(player)}</Typography></Box>
+              <Box textAlign="right"><Typography className="points-value">{formatNumber(getTotalPoints(player))}</Typography><Typography className="table-player-caption">POINTS</Typography></Box>
+            </Stack>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 1.2, mb: .6 }}><Typography className="mode-grid-heading">ALL GAMEMODES</Typography><Typography className="table-player-caption">{getAssignedModeCount(player)}/{GAMEMODES.length - 1} assigned</Typography></Stack>
+            <ModeTierGrid player={player} activeMode={mode} />
+            <Stack direction="row" justifyContent="flex-end" sx={{ mt: .8 }}><Button size="small" className="view-profile-btn" onClick={(event) => { event.stopPropagation(); openPlayer({ ...player, overallRank: player.originalRank, selectedMode: mode }); }}>View profile <ArrowOutwardRoundedIcon fontSize="inherit" /></Button></Stack>
+          </Paper>)}
+          {dataMatchesMode && !loading && !visible.length && <EmptyState title={ranked.length ? 'No players match these filters' : 'No ranked players yet'} detail={ranked.length ? 'Try a different player name, region or tier.' : 'Once players receive a tier, their rankings will appear here.'} />}
+        </Box> : <TableContainer className="leaderboard-table-wrap">
+          <Table size="medium" stickyHeader className="leaderboard-table">
+            <TableHead><TableRow><TableCell width="66">Rank</TableCell><TableCell width="205">Player / Minecraft skin</TableCell><TableCell width="90">Region</TableCell><TableCell width="90" align="right">Points</TableCell><TableCell><Stack direction="row" spacing={1} alignItems="baseline"><Typography component="span" fontSize="inherit" fontWeight={800}>All gamemodes</Typography><Typography component="span" className="table-player-caption">Assigned tiers shown; missing tiers are marked subtly.</Typography></Stack></TableCell><TableCell width="88" align="right">Profile</TableCell></TableRow></TableHead>
+            <TableBody>
+              {(!dataMatchesMode || (loading && !ranked.length)) ? <TableRow><TableCell colSpan={6}><EclipseLoadingScreen compact label="Loading overall rankings" /></TableCell></TableRow> : visible.map((player) => <TableRow key={player.ign} hover className="player-row" onClick={() => openPlayer({ ...player, overallRank: player.originalRank, selectedMode: mode })}>
+                <TableCell><Typography className={`rank-number ${player.originalRank <= 3 ? `rank-${player.originalRank}` : ''}`}>{String(player.originalRank).padStart(2, '0')}</Typography></TableCell>
+                <TableCell><Stack direction="row" spacing={1.15} alignItems="center"><Tooltip title={`Minecraft skin: ${getSkinName(player)}`}><Avatar src={getAvatar(player)} alt={`${player.ign} Minecraft skin`} variant="rounded" className="table-avatar skin-avatar" /></Tooltip><Box sx={{ minWidth: 0 }}><Typography className="table-player-name" noWrap>{player.ign}</Typography><Typography className="table-player-caption" noWrap>Skin: {getSkinName(player)}</Typography></Box></Stack></TableCell>
+                <TableCell><Typography className="region-label">{getRegion(player)}</Typography></TableCell>
+                <TableCell align="right"><Typography className="points-value">{formatNumber(getTotalPoints(player))}</Typography></TableCell>
+                <TableCell><Stack direction="row" alignItems="center" spacing={1} sx={{ mb: .65 }}><Typography className="table-player-caption">{getAssignedModeCount(player)} of {GAMEMODES.length - 1} assigned</Typography></Stack><ModeTierGrid player={player} activeMode={mode} /></TableCell>
+                <TableCell align="right"><Button size="small" className="view-profile-btn" onClick={(event) => { event.stopPropagation(); openPlayer({ ...player, overallRank: player.originalRank, selectedMode: mode }); }}>Open <ArrowOutwardRoundedIcon fontSize="inherit" /></Button></TableCell>
+              </TableRow>)}
+              {dataMatchesMode && !loading && !visible.length && <TableRow><TableCell colSpan={6}><EmptyState title={ranked.length ? 'No players match these filters' : 'No ranked players yet'} detail={ranked.length ? 'Try a different player name, region or tier.' : 'Once players receive a tier, their rankings will appear here.'} /></TableCell></TableRow>}
+            </TableBody>
+          </Table>
+        </TableContainer>}
+        <Box className="table-pagination"><Typography color="text.secondary">Page {page} of {pages}</Typography><Pagination page={page} count={pages} onChange={(_, value) => setPage(value)} color="primary" shape="rounded" /></Box>
+      </>}
     </Paper>
   </Container>;
 }
 
-function TierList({ player, expanded, onExpand, mode }) {
+function EclipseLoadingScreen({ label = 'Loading rankings', compact = false }) {
+  return <Box className={`eclipse-loading-screen ${compact ? 'compact' : ''}`} role="status" aria-live="polite">
+    <Box className="eclipse-loader-mark"><span className="eclipse-loader-orbit" /><img src="/brand/logo.png" alt="" /></Box>
+    <Typography className="eclipse-loading-title">{label}</Typography>
+    <Typography className="eclipse-loading-subtitle">Synchronizing the EclipseTiers ladder</Typography>
+    <LinearProgress className="eclipse-loading-progress" />
+    <Box className="eclipse-loading-bars"><span /><span /><span /></Box>
+  </Box>;
+}
+
+function GamemodeLeaderboardView({ mode, players, loading, failed, openPlayer }) {
+  const groups = [1, 2, 3, 4, 5].map(level => ({
+    level,
+    players: players.filter(player => {
+      const assigned = getTierForMode(player, mode);
+      const match = String(assigned || '').match(/[1-5]/);
+      return match ? Number(match[0]) === level : false;
+    })
+  }));
+  const total = players.length;
+
+  if (loading) return <EclipseLoadingScreen label={`Loading ${mode.label} leaderboard`} />;
+  if (failed) return <Box className="mode-detail-empty"><EmptyState title="Rankings are temporarily unavailable" detail="The leaderboard service could not be reached. Cached results will appear as soon as they are available." /></Box>;
+
+  return <Box className="gamemode-detail-view" key={mode.key}>
+    <Box className="gamemode-detail-hero">
+      <Box className="gamemode-detail-icon"><img src={`/gamemodes/${mode.file}`} alt={`${mode.label} logo`} /></Box>
+      <Box className="gamemode-detail-copy"><Typography className="gamemode-detail-kicker">DEDICATED GAMEMODE LEADERBOARD</Typography><Typography className="gamemode-detail-title">{mode.label}</Typography><Typography className="gamemode-detail-subtitle">Players grouped by tier · Showing the top 10 in each tier first</Typography></Box>
+      <Box className="gamemode-detail-total"><Typography className="gamemode-detail-count">{formatNumber(total)}</Typography><Typography className="gamemode-detail-total-label">RANKED PLAYERS</Typography></Box>
+    </Box>
+    {!total ? <EmptyState title={`No ${mode.label} players yet`} detail="Once players receive a tier in this gamemode, the leaderboard will appear here." /> : <Box className="gamemode-tier-groups">
+      {groups.map(group => <GamemodeTierGroup key={`${mode.key}-${group.level}`} group={group} mode={mode} openPlayer={openPlayer} />)}
+    </Box>}
+  </Box>;
+}
+
+function GamemodeTierGroup({ group, mode, openPlayer }) {
+  const [expanded, setExpanded] = useState(false);
+  const preview = group.players.slice(0, 10);
+  const shown = expanded ? group.players : preview;
+  const tierColour = group.level === 1 ? '#e6b96e' : group.level === 2 ? '#d98f67' : group.level === 3 ? '#72bd91' : group.level === 4 ? '#6daaca' : '#9295a0';
+
+  return <Paper className={`gamemode-tier-group tier-group-${group.level}`} style={{ '--tier-accent': tierColour }}>
+    <Box className="gamemode-tier-group-head">
+      <Box className="gamemode-tier-medal"><Typography>{group.level}</Typography></Box>
+      <Box flex={1} minWidth={0}><Typography className="gamemode-tier-group-title">Tier {group.level}</Typography><Typography className="gamemode-tier-group-caption">{group.level === 1 ? 'Highest tier division' : group.level === 5 ? 'Entry tier division' : 'Competitive division'}</Typography></Box>
+      <Chip size="small" className="gamemode-tier-count-chip" label={`${group.players.length} ${group.players.length === 1 ? 'player' : 'players'}`} />
+    </Box>
+    {group.players.length ? <Box className="gamemode-tier-player-list">
+      {shown.map((player, index) => <GamemodePlayerRow key={player.ign} player={player} mode={mode} openPlayer={openPlayer} delay={Math.min(index, 9) * 35} />)}
+    </Box> : <Box className="gamemode-tier-empty"><Typography>No players in this tier yet.</Typography></Box>}
+    {group.players.length > 10 && <Box className="gamemode-show-all-wrap"><Button className="gamemode-show-all" onClick={() => setExpanded(value => !value)} endIcon={<ExpandMoreRoundedIcon className={expanded ? 'show-all-chevron expanded' : 'show-all-chevron'} />}>
+      {expanded ? 'Show less' : `Show all ${formatNumber(group.players.length)} players`}
+    </Button></Box>}
+  </Paper>;
+}
+
+function GamemodePlayerRow({ player, mode, openPlayer, delay = 0 }) {
+  const tier = getTierForMode(player, mode);
+  const cleanTier = String(tier || '').replace(/^R/, '');
+  const colour = TIER_COLOURS[cleanTier] || '#9699a5';
+  return <Paper className="gamemode-player-row" onClick={() => openPlayer({ ...player, overallRank: player.originalRank, selectedMode: mode.key })} style={{ animationDelay: `${delay}ms` }} elevation={0}>
+    <Typography className={`gamemode-player-rank ${player.originalRank <= 3 ? `rank-${player.originalRank}` : ''}`}>{String(player.originalRank).padStart(2, '0')}</Typography>
+    <Avatar src={getAvatar(player)} alt={`${player.ign} Minecraft skin`} variant="rounded" className="gamemode-player-avatar" />
+    <Box className="gamemode-player-identity">
+      <Typography className="gamemode-player-ign" noWrap>{player.ign}</Typography>
+      <Typography className="gamemode-player-meta" noWrap>Skin: {getSkinName(player)} · {getRegion(player)}</Typography>
+    </Box>
+    <Box className="gamemode-player-points"><Typography>{formatNumber(getTotalPoints(player))}</Typography><span>POINTS</span></Box>
+    <Chip className="gamemode-player-tier" size="small" label={cleanTier || 'Unassigned'} sx={{ color: colour, borderColor: alpha(colour, .38), backgroundColor: alpha(colour, .10) }} />
+  </Paper>;
+}
+
+function getSkinName(player) {
+  return safeName(player?.skinSource || player?.ign || 'Steve');
+}
+
+// The legacy API has used a few different casings for gamemode keys over time.
+// Resolve the existing key without changing any stored tier or ranking values.
+const MODE_TIER_ALIASES = {
+  Sword: ['Sword', 'sword'], Axe: ['Axe', 'axe'], Mace: ['Mace', 'mace'],
+  Crystal: ['Crystal', 'crystal'], Netherite: ['Netherite', 'NethOP', 'netherite', 'nethop'],
+  UHC: ['UHC', 'uhc'], Pot: ['Pot', 'pot'], SMP: ['SMP', 'smp'],
+  DiaSMP: ['DiaSMP', 'Diasmp', 'diasmp'], SpearMace: ['SpearMace', 'spearmace'],
+  Cart: ['Cart', 'cart']
+};
+
+function getTierForMode(player, mode) {
   const tiers = getTiers(player);
-  const entries = Object.entries(tiers).filter(([key]) => key !== 'Vanilla');
-  const active = mode === 'all' ? entries : entries.filter(([key]) => key === mode);
-  const shown = expanded ? active : active.slice(0, 3);
-  return <Stack direction="row" alignItems="center" flexWrap="wrap" gap={.6}>
-    {shown.map(([key, tier]) => <TierBadge key={key} tier={tier} label={mode === 'all' ? gamemodeOf(key).label : undefined} />)}
-    {active.length > 3 && <Chip className="more-tier-chip" size="small" label={expanded ? 'Less' : `+${active.length - 3}`} onClick={onExpand} />}
-    {!active.length && <Typography fontSize={12} color="text.secondary">No tier</Typography>}
-  </Stack>;
+  const aliases = MODE_TIER_ALIASES[mode.key] || [mode.key];
+  for (const key of aliases) {
+    if (tiers[key] !== undefined && tiers[key] !== null && String(tiers[key]).trim() !== '') return tiers[key];
+  }
+  const wanted = new Set(aliases.map(key => key.toLowerCase()));
+  const found = Object.entries(tiers).find(([key, value]) => wanted.has(String(key).toLowerCase()) && value !== undefined && value !== null && String(value).trim() !== '');
+  return found?.[1] ?? null;
+}
+
+function getAssignedModeCount(player) {
+  return GAMEMODES.filter(mode => mode.key !== 'all' && Boolean(getTierForMode(player, mode))).length;
+}
+
+function ModeTierGrid({ player, activeMode = 'all' }) {
+  const modes = GAMEMODES.filter(mode => mode.key !== 'all');
+  return <Box className="all-mode-tier-grid">
+    {modes.map(mode => {
+      const tier = getTierForMode(player, mode);
+      const cleanTier = String(tier || '').replace(/^R/, '');
+      const colour = TIER_COLOURS[cleanTier] || '#9699a5';
+      const assigned = Boolean(tier);
+      const retiredTier = player?.retiredTiers?.[mode.key] || player?.retiredTiers?.[mode.key.toLowerCase()];
+      return <Tooltip key={mode.key} title={`${mode.label}: ${tier || (retiredTier ? `Unassigned · previous ${retiredTier}` : 'Unassigned')}`}>
+        <Box
+          className={`mode-tier-cell ${assigned ? 'assigned' : 'unassigned'} ${activeMode === mode.key ? 'selected' : ''}`}
+          aria-label={`${mode.label}: ${tier || 'Unassigned'}`}
+        >
+          <Box className={`mode-tier-logo-wrap ${assigned ? 'logo-active' : 'logo-muted'}`}>
+            {mode.file && <img src={`/gamemodes/${mode.file}`} alt={`${mode.label} logo`} className="mode-tier-icon" loading="lazy" decoding="async" />}
+          </Box>
+          <Typography className={`mode-tier-name ${assigned ? 'mode-tier-name-active' : 'mode-tier-name-muted'}`} noWrap>{mode.label}</Typography>
+          {assigned ? (
+            <Box className="mode-tier-pill" sx={{ color: colour, borderColor: alpha(colour, .42), backgroundColor: alpha(colour, .13), boxShadow: `0 0 16px ${alpha(colour, .10)}` }}>
+              <Typography className="mode-tier-value">{cleanTier}</Typography>
+            </Box>
+          ) : (
+            <Typography className="mode-tier-missing">—</Typography>
+          )}
+          {!assigned && retiredTier && <Typography className="mode-tier-retired">Prev. {retiredTier}</Typography>}
+        </Box>
+      </Tooltip>;
+    })}
+  </Box>;
 }
 
 function TierBadge({ tier, label }) {
@@ -463,14 +607,13 @@ function PlayerDialog({ player, onClose, navigate, toast }) {
   if (!player) return null;
   const profileUrl = `${window.location.origin}/player/${encodeURIComponent(data?.ign || player.ign)}`;
   const copy = async () => { try { await navigator.clipboard.writeText(profileUrl); toast('Profile link copied'); } catch (_) { toast(profileUrl); } };
-  const tierEntries = Object.entries(getTiers(data));
   return <Dialog open={Boolean(player)} onClose={onClose} fullWidth maxWidth="sm" className="profile-dialog">
     <DialogTitle className="dialog-title"><Stack direction="row" justifyContent="space-between" alignItems="center"><Typography className="eyebrow">PLAYER PROFILE</Typography><IconButton onClick={onClose}><CloseRoundedIcon /></IconButton></Stack></DialogTitle>
     <DialogContent className="profile-dialog-content">
-      <Stack direction="row" spacing={2} alignItems="center" className="profile-hero-row"><Avatar src={getAvatar(data || player)} className="profile-large-avatar" /><Box sx={{ minWidth: 0 }}><Typography variant="h4" className="profile-ign">{data?.ign || player.ign}</Typography><Typography color="text.secondary">{getRegion(data || player)} · {data?.platform || 'Java'}</Typography><Stack direction="row" spacing={.8} sx={{ mt: 1 }}><Chip size="small" label={`${formatNumber(getTotalPoints(data || player))} points`} className="profile-points-chip" /><Chip size="small" label={`${tierEntries.length} ranked modes`} variant="outlined" /></Stack></Box></Stack>
+      <Stack direction="row" spacing={2} alignItems="center" className="profile-hero-row"><Avatar src={getAvatar(data || player)} alt={`${data?.ign || player.ign} Minecraft skin`} variant="rounded" className="profile-large-avatar skin-avatar" /><Box sx={{ minWidth: 0 }}><Typography variant="h4" className="profile-ign">{data?.ign || player.ign}</Typography><Typography color="text.secondary">{getRegion(data || player)} · {data?.platform || 'Java'} · Skin: {getSkinName(data || player)}</Typography><Stack direction="row" spacing={.8} sx={{ mt: 1 }}><Chip size="small" label={`${formatNumber(getTotalPoints(data || player))} points`} className="profile-points-chip" /><Chip size="small" label={`${getAssignedModeCount(data || player)} ranked modes`} variant="outlined" /></Stack></Box></Stack>
       <Box className="profile-metrics"><Box><Typography className="stat-label">CURRENT POSITION</Typography><Typography variant="h5">{data?.overallRank ? `#${data.overallRank}` : '—'}</Typography><Typography className="muted-caption">{data?.selectedMode && data.selectedMode !== 'all' ? `${gamemodeOf(data.selectedMode).label} leaderboard` : 'Overall leaderboard'}</Typography></Box><Box><Typography className="stat-label">REGISTERED</Typography><Typography variant="h6">{formatDate(data?.registeredAt)}</Typography></Box></Box>
-      <Divider sx={{ my: 2.4 }} /><Stack direction="row" justifyContent="space-between" alignItems="center"><Typography fontWeight={800}>Gamemode tiers</Typography>{loading && <CircularProgress size={16} />}</Stack>
-      {tierEntries.length ? <Box className="profile-tier-grid">{tierEntries.map(([key, tier]) => <Paper key={key} className="profile-tier-item"><Stack direction="row" alignItems="center" spacing={1}><Box className="mini-mode-icon">{gamemodeOf(key).file && <img src={`/gamemodes/${gamemodeOf(key).file}`} alt="" />}</Box><Typography flex={1} fontWeight={700}>{gamemodeOf(key).label}</Typography><TierBadge tier={tier} /></Stack>{data?.retiredTiers?.[key] && <Typography className="retired-note">Retired tier</Typography>}</Paper>)}</Box> : <EmptyState title="No gamemode tiers" detail="This player does not currently have a public tier recorded." />}
+      <Divider sx={{ my: 2.4 }} /><Stack direction="row" justifyContent="space-between" alignItems="center"><Box><Typography fontWeight={800}>All gamemode tiers</Typography><Typography className="muted-caption">{getAssignedModeCount(data || player)} of {GAMEMODES.length - 1} assigned</Typography></Box>{loading && <CircularProgress size={16} />}</Stack>
+      <ModeTierGrid player={data || player} />
       <Divider sx={{ my: 2.2 }} /><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><Button fullWidth variant="contained" startIcon={<ShareRoundedIcon />} onClick={copy}>Copy profile link</Button><Button fullWidth variant="outlined" onClick={() => { onClose(); navigate(`/player/${encodeURIComponent(data?.ign || player.ign)}`); }}>Open full profile</Button></Stack>
       <Typography className="profile-data-note">Historical rank movement and test history are not available in the current API.</Typography>
     </DialogContent>
@@ -484,16 +627,15 @@ function PlayerPage({ ign, openPlayer }) {
   const originalRank = players.findIndex(p => String(p.ign).toLowerCase() === String(ign).toLowerCase()) + 1;
   if (loading && !data) return <Container maxWidth="lg" className="page-container"><Skeleton height={230} /><Skeleton height={400} /></Container>;
   if (error && !data) return <Container maxWidth="md" className="page-container"><EmptyState title="Player profile unavailable" detail={error.status === 404 ? 'This player is not listed on the public leaderboard.' : 'The player profile could not be loaded from the API.'} actionLabel="Back to rankings" actionHref="/rankings" /></Container>;
-  const tiers = Object.entries(getTiers(data));
   return <Container maxWidth="lg" className="page-container profile-page">
     <Button className="back-link" onClick={() => window.history.back()}>← Back</Button>
     <StatusStrip stale={stale} />
     <Paper className="profile-page-card">
       <Box className="profile-page-banner" />
-      <Box className="profile-page-main"><Avatar src={getAvatar(data)} className="profile-page-avatar" /><Box className="profile-page-heading"><Typography className="eyebrow">ECLIPSETIERS PLAYER</Typography><Typography variant="h2">{data?.ign || ign}</Typography><Typography color="text.secondary">{getRegion(data)} · {data?.accountType || 'Minecraft player'} · Joined {formatDate(data?.registeredAt)}</Typography></Box><Box className="profile-page-actions"><Button startIcon={<ContentCopyRoundedIcon />} variant="outlined" onClick={async () => { try { await navigator.clipboard.writeText(window.location.href); } catch (_) {} }}>Copy link</Button><Button onClick={() => openPlayer(data)} variant="contained">Quick view</Button></Box></Box>
-      <Box className="profile-page-stats"><Box><Typography className="stat-label">OVERALL POINTS</Typography><Typography variant="h4">{formatNumber(getTotalPoints(data))}</Typography></Box><Box><Typography className="stat-label">CURRENT RANK</Typography><Typography variant="h4">{originalRank > 0 ? `#${originalRank}` : '—'}</Typography></Box><Box><Typography className="stat-label">RANKED GAMEMODES</Typography><Typography variant="h4">{tiers.length}</Typography></Box></Box>
-      <Divider sx={{ my: 3 }} /><SectionHeading eyebrow="CURRENT TIER RECORD" title="Gamemode breakdown" subtitle="All current tiers supplied by the EclipseTiers API." />
-      {tiers.length ? <Box className="profile-tier-grid page-tier-grid">{tiers.map(([key, tier]) => <Paper key={key} className="profile-tier-item"><Stack direction="row" alignItems="center" spacing={1.3}><Box className="mini-mode-icon">{gamemodeOf(key).file && <img src={`/gamemodes/${gamemodeOf(key).file}`} alt="" />}</Box><Typography fontWeight={800} flex={1}>{gamemodeOf(key).label}</Typography><TierBadge tier={tier} /></Stack>{data?.retiredTiers?.[key] && <Typography className="retired-note">Retired tier</Typography>}</Paper>)}</Box> : <EmptyState title="No ranked gamemodes" detail="This profile has no current gamemode tiers." />}
+      <Box className="profile-page-main"><Avatar src={getAvatar(data)} alt={`${data?.ign || ign} Minecraft skin`} variant="rounded" className="profile-page-avatar skin-avatar" /><Box className="profile-page-heading"><Typography className="eyebrow">ECLIPSETIERS PLAYER</Typography><Typography variant="h2">{data?.ign || ign}</Typography><Typography color="text.secondary">{getRegion(data)} · {data?.accountType || 'Minecraft player'} · Skin: {getSkinName(data)} · Joined {formatDate(data?.registeredAt)}</Typography></Box><Box className="profile-page-actions"><Button startIcon={<ContentCopyRoundedIcon />} variant="outlined" onClick={async () => { try { await navigator.clipboard.writeText(window.location.href); } catch (_) {} }}>Copy link</Button><Button onClick={() => openPlayer(data)} variant="contained">Quick view</Button></Box></Box>
+      <Box className="profile-page-stats"><Box><Typography className="stat-label">OVERALL POINTS</Typography><Typography variant="h4">{formatNumber(getTotalPoints(data))}</Typography></Box><Box><Typography className="stat-label">CURRENT RANK</Typography><Typography variant="h4">{originalRank > 0 ? `#${originalRank}` : '—'}</Typography></Box><Box><Typography className="stat-label">RANKED GAMEMODES</Typography><Typography variant="h4">{getAssignedModeCount(data)}</Typography></Box></Box>
+      <Divider sx={{ my: 3 }} /><SectionHeading eyebrow="CURRENT TIER RECORD" title="All gamemode tiers" subtitle={`${getAssignedModeCount(data)} of ${GAMEMODES.length - 1} gamemodes assigned. Unassigned modes remain visible so the full player record is easy to scan.`} />
+      <ModeTierGrid player={data} />
       <Alert severity="info" className="history-note">Ranking history, testing history and historical tier changes are not currently exposed by the existing API, so they are not shown as fabricated records.</Alert>
     </Paper>
   </Container>;

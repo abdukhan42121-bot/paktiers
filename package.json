@@ -1,6 +1,6 @@
 {
   "name": "eclipsetiers-railway-mui",
-  "version": "2.0.0",
+  "version": "2.2.0",
   "private": true,
   "description": "EclipseTiers premium React + Material UI website with the existing EclipseTiers API and Discord bot backend.",
   "main": "railway-gateway.js",
@@ -10,7 +10,9 @@
     "start": "node railway-gateway.js",
     "check": "node --check railway-gateway.js && node --check api_server.js"
   },
-  "engines": { "node": ">=22.12.0" },
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "dependencies": {
     "@discordjs/voice": "0.17.0",
     "@emotion/react": "^11.14.0",
