@@ -76,7 +76,7 @@ const normalizeRegion = (value) => {
   const lower = raw.toLowerCase().replace(/[🇵🇰🇮🇳🇦🇪🇸🇦🇬🇧🇺🇸🌏🌎🌍]/gu, '').trim();
   const aliases = {
     'middle east':'ME','mena':'ME','uae':'ME','united arab emirates':'ME','saudi arabia':'ME','ksa':'ME','qatar':'ME','kuwait':'ME','bahrain':'ME','oman':'ME',
-    'asia':'AS','pakistan':'AS','pk':'AS','india':'AS','in':'AS','bangladesh':'AS','nepal':'AS','sri lanka':'AS','china':'AS','japan':'AS','singapore':'AS','as/au':'AS',
+    'asia':'AS','pakistan':'AS','pk':'AS','india':'AS','in':'AS','bangladesh':'AS','nepal':'AS','sri lanka':'AS','china':'AS','japan':'AS','singapore':'AS',
     'oceania':'AU','australia':'AU','new zealand':'AU','europe':'EU','united kingdom':'EU','uk':'EU','gb':'EU',
     'north america':'NA','united states':'NA','usa':'NA','us':'NA','canada':'NA','mexico':'NA',
     'south america':'SA','brazil':'SA','argentina':'SA','chile':'SA','peru':'SA'
@@ -485,7 +485,7 @@ function RankingsPage({ openPlayer }) {
       </Box>
       <Box className="ranking-toolbar">
         <TextField size="small" placeholder="Search player IGN..." value={query} onChange={e => setQuery(e.target.value)} className="ranking-search" InputProps={{ startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" /></InputAdornment> }} />
-        <FormControl size="small" className="filter-select"><InputLabel>Region</InputLabel><Select label="Region" value={region} onChange={e => setRegion(e.target.value)}><MenuItem value="all">All regions</MenuItem>{regions.map(item => <MenuItem key={item} value={item}>{item}</MenuItem>)}</Select></FormControl>
+        <FormControl size="small" className="filter-select"><InputLabel>Region</InputLabel><Select label="Region" value={region} onChange={e => setRegion(e.target.value)}><MenuItem value="all">All regions</MenuItem>{regions.map(item => <MenuItem key={item} value={item}>{item} · {REGION_TITLES[item]}</MenuItem>)}</Select></FormControl>
         <FormControl size="small" className="filter-select"><InputLabel>Tier</InputLabel><Select label="Tier" value={tier} onChange={e => setTier(e.target.value)}><MenuItem value="all">All tiers</MenuItem>{TIER_ORDER.map(item => <MenuItem key={item} value={item}>{item}</MenuItem>)}</Select></FormControl>
         <FormControl size="small" className="filter-select sort-select"><InputLabel>Sort</InputLabel><Select label="Sort" value={sort} onChange={e => setSort(e.target.value)}><MenuItem value="rank">Original rank</MenuItem><MenuItem value="points">Points</MenuItem><MenuItem value="name">Player name</MenuItem></Select></FormControl>
       </Box>
@@ -843,7 +843,7 @@ function QueuePage() {
     <Paper className="ranking-panel regional-queue-region-picker">
       <Typography className="eyebrow">SELECT REGION</Typography>
       <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt:1 }}>
-        {REGION_CODES.map(code => <Button key={code} variant={selectedRegion === code ? 'contained' : 'outlined'} onClick={() => setSelectedRegion(code)} aria-pressed={selectedRegion === code}>{code}</Button>)}
+        {REGION_CODES.map(code => <Button key={code} title={REGION_TITLES[code]} aria-label={`${code} · ${REGION_TITLES[code]}`} variant={selectedRegion === code ? 'contained' : 'outlined'} onClick={() => setSelectedRegion(code)} aria-pressed={selectedRegion === code}>{code}</Button>)}
       </Stack>
       <Typography color="text.secondary" fontSize={12} sx={{ mt:1.2 }}>{REGION_TITLES[selectedRegion]} · Only this region's waitlists are shown below.</Typography>
     </Paper>
