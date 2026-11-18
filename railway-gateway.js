@@ -65,11 +65,12 @@ function publicQueueEvent(event, index) {
   if (!event || HIDDEN_PUBLIC_IDS.has(String(event.discordId || ''))) return null;
   const ign = String(event.ign || '').trim();
   const weapon = String(event.weapon || '').trim();
+  const region = ['ME','AS','AU','EU','NA','SA'].includes(String(event.region || '').toUpperCase()) ? String(event.region).toUpperCase() : null;
   const action = event.action === 'joined' ? 'joined' : event.action === 'removed' ? 'removed' : null;
   const timestamp = Number(event.timestamp || 0);
   if (!ign || !weapon || !action || !Number.isFinite(timestamp) || timestamp <= 0) return null;
   return {
-    id: String(event.id || `${timestamp}-${index}`), ign, weapon, action, timestamp,
+    id: String(event.id || `${timestamp}-${index}`), ign, weapon, region, action, timestamp,
     joinedAt: Number(event.joinedAt || 0) || null,
     position: Number(event.position || 0) || null,
     waitedMs: Number(event.waitedMs || 0) || null
@@ -157,6 +158,64 @@ setTimeout(() => {
   try { fs.watchFile(QUEUE_FILE, { interval: 1000, persistent: false }, syncQueueHistory); } catch (_) {}
 }, 2500).unref();
 
+setTimeout(() => {
+  const regionalFile = path.join(DATA_DIR, 'regional_queues.json');
+  let previous = null;
+  let ready = false;
+  const readRegional = () => {
+    try {
+      if (!fs.existsSync(regionalFile)) return {};
+      const data = JSON.parse(fs.readFileSync(regionalFile, 'utf8'));
+      const snap = new Map();
+      for (const region of ['ME','AS','AU','EU','NA','SA']) {
+        const modes = data?.[region] || {};
+        for (const [weapon, entries] of Object.entries(modes)) {
+          (Array.isArray(entries) ? entries : []).forEach((entry, index) => {
+            const discordId = String(entry?.discordId || '');
+            if (!discordId || HIDDEN_PUBLIC_IDS.has(discordId)) return;
+            const key = `${region}:${weapon}:${discordId}`;
+            snap.set(key, { discordId, ign:String(entry.ign || 'Unknown player'), region, weapon:String(weapon), joinedAt:Number(entry.joinedAt || 0) || null, position:index + 1 });
+          });
+        }
+      }
+      return snap;
+    } catch (error) {
+      console.warn('[gateway] Could not read regional queue snapshot:', error.message);
+      return null;
+    }
+  };
+  const syncRegional = () => {
+    const current = readRegional();
+    if (!current) return;
+    if (!ready || !previous) { previous = current; ready = true; return; }
+    const now = Date.now();
+    const events = [];
+    for (const [key, entry] of current.entries()) {
+      if (!previous.has(key)) events.push({ id:`rjoin-${now}-${events.length}`, action:'joined', ...entry, timestamp:entry.joinedAt || now });
+    }
+    for (const [key, entry] of previous.entries()) {
+      if (!current.has(key)) events.push({ id:`rremove-${now}-${events.length}`, action:'removed', ...entry, timestamp:now, waitedMs:entry.joinedAt ? Math.max(0, now-entry.joinedAt) : null });
+    }
+    previous = current;
+    if (!events.length) return;
+    try {
+      if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive:true });
+      const historyPath = path.join(DATA_DIR, 'regional_queue_history.json');
+      const tempPath = `${historyPath}.${process.pid}.tmp`;
+      const oldHistory = readDataJson('regional_queue_history.json', []);
+      const history = Array.isArray(oldHistory) ? oldHistory : [];
+      history.push(...events);
+      if (history.length > 5000) history.splice(0, history.length - 5000);
+      fs.writeFileSync(tempPath, JSON.stringify(history, null, 2));
+      fs.renameSync(tempPath, historyPath);
+    } catch (error) { console.warn('[gateway] Could not persist regional queue history:', error.message); }
+  };
+  syncRegional(); // establish baseline; pre-existing entries are not backdated as new joins
+  const poller = setInterval(syncRegional, 1500);
+  poller.unref();
+  try { fs.watchFile(regionalFile, { interval: 1000, persistent:false }, syncRegional); } catch (_) {}
+}, 3000).unref();
+
 const backend = spawn(process.execPath, [path.join(ROOT, 'api_server.js')], {
   cwd: ROOT,
   env: { ...process.env, PORT: String(INTERNAL_PORT) },
@@ -197,7 +256,13 @@ app.get('/public-api/activity', (req, res) => {
   const tierLogPath = path.join(DATA_DIR, 'tier_logs.json');
   const matchPath = path.join(DATA_DIR, 'matches.json');
   const queueHistoryPath = path.join(DATA_DIR, 'queue_history.json');
-  const rawQueueEvents = readDataJson('queue_history.json', []);
+  const regionalQueueHistoryPath = path.join(DATA_DIR, 'regional_queue_history.json');
+  const legacyQueueEvents = readDataJson('queue_history.json', []);
+  const regionalQueueEvents = readDataJson('regional_queue_history.json', []);
+  const rawQueueEvents = [
+    ...(Array.isArray(legacyQueueEvents) ? legacyQueueEvents : []),
+    ...(Array.isArray(regionalQueueEvents) ? regionalQueueEvents : [])
+  ];
   const rawLogs = readDataJson('tier_logs.json', []);
   const rawMatches = readDataJson('matches.json', []);
   const tierAwards = (Array.isArray(rawLogs) ? rawLogs : [])
@@ -216,7 +281,7 @@ app.get('/public-api/activity', (req, res) => {
   res.setHeader('Cache-Control', 'private, max-age=10, stale-while-revalidate=20');
   res.json({
     generatedAt: Date.now(),
-    sources: { tierLogs: fs.existsSync(tierLogPath), matchArchive: fs.existsSync(matchPath), queueArchive: fs.existsSync(queueHistoryPath), rankSnapshots: false, failedTestArchive: false },
+    sources: { tierLogs: fs.existsSync(tierLogPath), matchArchive: fs.existsSync(matchPath), queueArchive: fs.existsSync(queueHistoryPath) || fs.existsSync(regionalQueueHistoryPath), rankSnapshots: false, failedTestArchive: false },
     counts: { tierChanges: tierAwards.length, matchRecords: matches.length, queueEvents: queueEvents.length },
     tierAwards: tierAwards.slice(0, limit),
     matches: matches.slice(0, limit),

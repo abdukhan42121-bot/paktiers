@@ -361,12 +361,14 @@ function enrichPlayer(p) {
 app.post('/bot/register', requireSecret, (req,res) => {
   const { discordId, ign, uuid, platform, accountType, region } = req.body;
   if (!discordId||!ign) return res.status(400).json({ error:'Missing fields' });
+  const selectedRegion = normalizeRegionCode(region);
+  if (!selectedRegion) return res.status(400).json({ error:`Invalid region. Choose one of: ${REGION_CODES.join(', ')}` });
   if (MEM.players[discordId]) return res.status(409).json({ error:'Already registered' });
   MEM.players[discordId] = {
     discordId, ign, uuid: uuid||null,
     platform: platform||'Java',
     accountType: accountType||'Premium',
-    region: region||'PK',
+    region: selectedRegion,
     tiers:{}, registeredAt:Date.now()
   };
   broadcast({ type:'player_registered', player:MEM.players[discordId] });
@@ -434,7 +436,8 @@ app.post('/bot/queue', requireSecret, (req,res) => {
 app.get('/api/stats', (req,res) => {
   const players   = Object.values(MEM.players);
   const tiered    = players.filter(p=>Object.keys(p.tiers).length>0);
-  const queuedNow = Object.values(MEM.queues).reduce((s,q)=>s+q.length,0);
+  const regionalQueued = Object.values(loadRegionalQueues()).reduce((regionTotal, modes) => regionTotal + Object.values(modes).reduce((modeTotal, queue) => modeTotal + queue.length, 0), 0);
+  const queuedNow = regionalQueued;
   res.json({ totalPlayers:players.length, tieredPlayers:tiered.length, queuedNow, totalMatches:MEM.matches.length });
 });
 
@@ -462,13 +465,15 @@ app.get('/api/player/:ign', (req,res) => {
 });
 
 app.get('/api/queue', (req,res) => {
-  const queues={};
-  for (const [w,q] of Object.entries(MEM.queues))
-    queues[w]=q.filter(e=>!isHiddenUser(e.discordId)).map(e=>{
-      const p = MEM.players[e.discordId];
-      return { ...e, avatar:`https://mc-heads.net/avatar/${p?skinName(p):e.ign}/32` };
-    });
-  res.json({ queues });
+  const requestedRegion = req.query.region ? normalizeRegionCode(req.query.region) : null;
+  if (req.query.region && !requestedRegion) {
+    return res.status(400).json({ error:`Invalid region. Choose one of: ${REGION_CODES.join(', ')}` });
+  }
+  // Keep the legacy shape for old consumers, but do not expose the old mixed-region waitlist.
+  const queues = Object.fromEntries(WEAPONS.map(weapon => [weapon, []]));
+  const regionalQueues = getPublicRegionalQueues(requestedRegion);
+  res.setHeader('Cache-Control', 'private, max-age=2, stale-while-revalidate=5');
+  res.json({ queues, regionalQueues, regions:REGION_CODES, selectedRegion:requestedRegion });
 });
 
 // ════════════════════════════════════════════════════════════
@@ -497,7 +502,7 @@ function toModPlayer(p) {
       tierRank:TIER_TO_MOD_VALUE[tier]||0, retired
     };
   }
-  return { ingameName:p.ign, uuid:p.ign, region:p.region||'PK',
+  return { ingameName:p.ign, uuid:p.ign, region:normalizeRegionCode(p.region)||null,
     avatar:`https://mc-heads.net/avatar/${skinName(p)}/64`,
     totalPoints:totalPts, overallRank:totalPts, tierRank:totalPts,
     title:rankInfo.label, rank:rankInfo.label, ranks };
@@ -540,7 +545,7 @@ function toV2Player(p) {
     };
   }
   const totalPts = Object.values(p.tiers||{}).reduce((s,t)=>s+(TIER_PTS[t]||0),0);
-  return { uuid:p.ign, name:p.ign, rankings, region:p.region||'PK',
+  return { uuid:p.ign, name:p.ign, rankings, region:normalizeRegionCode(p.region)||null,
     avatar:`https://mc-heads.net/avatar/${skinName(p)}/64`,
     points:totalPts, overall:totalPts, badges:[], combat_master:false };
 }
@@ -640,54 +645,50 @@ const BRAND_COLOR = 0x7FFF00;
 const BOT_FOOTER  = 'EclipseTiers · Global Minecraft Community';
 
 // ── PLATFORM / REGION / ACCOUNT DATA ──────────────────────
-const PLATFORMS    = ['Java Edition'];
-const REGIONS_LIST = ['Pakistan 🇵🇰', 'India 🇮🇳', 'UAE 🇦🇪', 'Saudi Arabia 🇸🇦', 'UK 🇬🇧', 'USA 🇺🇸', 'Other 🌍'];
+const PLATFORMS = ['Java Edition'];
+const REGION_DEFS = [
+  { code:'ME', label:'Middle East', color:0xC98255 },
+  { code:'AS', label:'Asia', color:0xC7A85C },
+  { code:'AU', label:'Oceania', color:0x55A6A6 },
+  { code:'EU', label:'Europe', color:0x688CC4 },
+  { code:'NA', label:'North America', color:0x8795AA },
+  { code:'SA', label:'South America', color:0x76A66F },
+];
+const REGION_CODES = REGION_DEFS.map(region => region.code);
+const REGIONS_LIST = REGION_DEFS.map(region => ({
+  label:`${region.code} · ${region.label}`,
+  description:`Use ${region.code} for your regional waitlists`,
+  value:region.code,
+}));
 const ACCOUNT_TYPES = ['Premium (Paid)', 'Cracked (Free)'];
 
-// ── REGION → FLAG NORMALIZER ───────────────────────────────
-// Player.region string to flag emoji helper — even if
-// region is stored in any format (full name, code, old synced entry, etc.)
-const REGION_FLAG_MAP = {
-  'pakistan':      '🇵🇰',
-  'pk':            '🇵🇰',
-  'india':         '🇮🇳',
-  'in':            '🇮🇳',
-  'uae':           '🇦🇪',
-  'united arab emirates': '🇦🇪',
-  'saudi arabia':  '🇸🇦',
-  'ksa':           '🇸🇦',
-  'uk':            '🇬🇧',
-  'united kingdom':'🇬🇧',
-  'usa':           '🇺🇸',
-  'us':            '🇺🇸',
-  'united states': '🇺🇸',
-  'as/au':         '🌏',
-  'asia':          '🌏',
-  'au':            '🌏',
-  'australia':     '🌏',
-  'eu':            '🇪🇺',
-  'europe':        '🇪🇺',
-  'na':            '🌎',
-  'other':         '🌍',
-};
-
-// Emoji regex — matches ANY existing flag/emoji already in the string
-const EMOJI_RE = /\p{Extended_Pictographic}/u;
+// Legacy country values are mapped into one of the six supported competitive regions.
+function normalizeRegionCode(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const upper = raw.toUpperCase().replace(/[^A-Z/]/g, '');
+  if (REGION_CODES.includes(upper)) return upper;
+  const lower = raw.toLowerCase().replace(/[🇵🇰🇮🇳🇦🇪🇸🇦🇬🇧🇺🇸🌏🌎🌍]/gu, '').trim();
+  const aliases = {
+    'middle east':'ME', 'mena':'ME', 'uae':'ME', 'united arab emirates':'ME',
+    'saudi arabia':'ME', 'ksa':'ME', 'qatar':'ME', 'kuwait':'ME', 'bahrain':'ME', 'oman':'ME',
+    'asia':'AS', 'pakistan':'AS', 'pk':'AS', 'india':'AS', 'in':'AS', 'bangladesh':'AS',
+    'nepal':'AS', 'sri lanka':'AS', 'china':'AS', 'japan':'AS', 'singapore':'AS',
+    'oceania':'AU', 'australia':'AU', 'new zealand':'AU',
+    'europe':'EU', 'united kingdom':'EU', 'uk':'EU', 'gb':'EU',
+    'north america':'NA', 'united states':'NA', 'usa':'NA', 'us':'NA', 'canada':'NA', 'mexico':'NA',
+    'south america':'SA', 'brazil':'SA', 'argentina':'SA', 'chile':'SA', 'peru':'SA',
+    'as/au':'AS',
+  };
+  if (aliases[lower]) return aliases[lower];
+  for (const [name, code] of Object.entries(aliases)) {
+    if (name.length > 2 && lower.includes(name)) return code;
+  }
+  return null;
+}
 
 function formatRegion(region) {
-  if (!region) return 'Other 🌍';
-  const raw = String(region).trim();
-  if (EMOJI_RE.test(raw)) return raw; // already has a flag/emoji — leave as-is
-
-  const lower = raw.toLowerCase();
-  // exact match first, then "contains" match (handles things like "Region: Pakistan")
-  let flag = REGION_FLAG_MAP[lower];
-  if (!flag) {
-    for (const key of Object.keys(REGION_FLAG_MAP)) {
-      if (lower.includes(key)) { flag = REGION_FLAG_MAP[key]; break; }
-    }
-  }
-  return flag ? `${raw} ${flag}` : `${raw} 🌍`;
+  return normalizeRegionCode(region) || '—';
 }
 
 // ── AUTO REACTIONS on public tier-update messages ──────────
@@ -856,45 +857,62 @@ function startOfMonth(ts = Date.now()) {
 }
 
 function buildTesterDashboard(guild) {
-  const perms = loadTiererPerms();
-  const roleIds = new Set(perms.roles || []);
-  if (CONFIG.TIERER_ROLE_ID) roleIds.add(CONFIG.TIERER_ROLE_ID);
-  const memberIds = new Set(perms.members || []);
   const monthStart = startOfMonth();
-
-  const allLogs = loadTierLogs().filter(log => log && !log.synced);
+  const allLogs = loadTierLogs().filter(log => log && !log.synced && log.tieredBy);
   const monthLogs = allLogs.filter(log => Number(log.timestamp || 0) >= monthStart);
 
-  const monthlyCounts = new Map();
-  const lifetimeCounts = new Map();
-  for (const log of allLogs) {
-    if (!log?.tieredBy) continue;
-    lifetimeCounts.set(log.tieredBy, (lifetimeCounts.get(log.tieredBy) || 0) + 1);
-    if (Number(log.timestamp || 0) >= monthStart) {
-      monthlyCounts.set(log.tieredBy, (monthlyCounts.get(log.tieredBy) || 0) + 1);
-    }
-  }
+  // The public directory is intentionally restricted to members who hold at
+  // least one of the six region-specific Tester-* roles. Legacy tierer perms,
+  // one-off member permissions, and generic queue roles do not qualify.
+  const roleByRegion = REGION_DEFS
+    .map(region => ({ ...region, role: guild?.roles?.cache?.find(role => role.name === `Tester-${region.code}`) || null }))
+    .filter(entry => entry.role);
 
   const testers = [];
   if (guild) {
     guild.members.cache.forEach(member => {
-      if (!member || member.user?.bot) return;
-      if (isHiddenUser(member.id)) return;
-      const hasRole = [...roleIds].some(rid => member.roles.cache.has(rid));
-      if (!hasRole && !memberIds.has(member.id)) return;
+      if (!member || member.user?.bot || isHiddenUser(member.id)) return;
 
-      const testsThisMonth = monthlyCounts.get(member.id) || 0;
-      const testsAllTime = lifetimeCounts.get(member.id) || 0;
-      const online = Boolean(member.presence && member.presence.status && member.presence.status !== 'offline');
+      const regions = roleByRegion
+        .filter(({ role }) => member.roles.cache.has(role.id))
+        .map(({ code, label }) => ({ code, label }));
+      if (!regions.length) return;
+
+      const memberLogs = allLogs
+        .filter(log => String(log.tieredBy) === String(member.id))
+        .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
+      const monthCount = memberLogs.filter(log => Number(log.timestamp || 0) >= monthStart).length;
+      const player = LDB.get(member.id);
+      const username = member.user?.username || member.displayName || 'Unknown';
+      const avatar = member.user?.displayAvatarURL?.({ extension: 'png', size: 256 }) || '';
 
       testers.push({
         id: member.id,
-        username: member.user?.username || member.displayName || 'Unknown',
-        displayName: member.displayName || member.user?.username || 'Unknown',
-        avatar: member.user?.displayAvatarURL({ extension: 'png', size: 128 }) || `https://mc-heads.net/avatar/${encodeURIComponent(member.displayName || member.user?.username || 'Steve')}/128`,
-        online,
-        testsThisMonth,
-        testsAllTime,
+        discordId: member.id,
+        username,
+        displayName: member.displayName || member.user?.globalName || username,
+        discordTag: member.user?.tag || username,
+        avatar,
+        profileUrl: `https://discord.com/users/${member.id}`,
+        regions,
+        region: regions[0]?.code || null,
+        regionLabel: regions.map(region => region.label).join(', '),
+        online: Boolean(member.presence?.status && member.presence.status !== 'offline'),
+        joinedAt: member.joinedTimestamp || null,
+        accountCreatedAt: member.user?.createdTimestamp || null,
+        ign: player?.ign || null,
+        platform: player?.platform || null,
+        accountType: player?.accountType || null,
+        registeredAt: player?.registeredAt || null,
+        gamemodes: getTesterGamemodes(member.id).filter(mode => WEAPONS.includes(mode)),
+        testsThisMonth: monthCount,
+        testsAllTime: memberLogs.length,
+        recentActivity: memberLogs.slice(0, 5).map(log => ({
+          playerIGN: String(log.playerIGN || 'Unknown player'),
+          weapon: String(log.weapon || 'Unknown'),
+          tier: String(log.tier || ''),
+          timestamp: Number(log.timestamp || 0) || null,
+        })),
       });
     });
   }
@@ -906,9 +924,9 @@ function buildTesterDashboard(guild) {
   ));
 
   const dashboard = {
-    totalTestsThisMonth: monthLogs.length,
+    totalTestsThisMonth: testers.reduce((sum, tester) => sum + tester.testsThisMonth, 0),
     activeTesters: testers.length,
-    onlineNow: testers.filter(t => t.online).length,
+    onlineNow: testers.filter(tester => tester.online).length,
     topContributor: testers[0] || null,
     topThree: testers.slice(0, 3),
   };
@@ -1189,6 +1207,11 @@ function getBackupFileMap() {
   return {
     players:     PF,
     queue:       QF,
+    legacyQueueBeforeRegional: path.join(DATA_DIR, 'queue.pre-regional-migration.json'),
+    regionalQueues: REGIONAL_QUEUE_FILE,
+    regionalSetup: REGIONAL_SETUP_FILE,
+    regionalPanels: REGIONAL_PANEL_FILE,
+    regionalQueueHistory: path.join(DATA_DIR, 'regional_queue_history.json'),
     matches:     MF,
     tickets:     TF,
     settings:    SF,
@@ -1229,8 +1252,10 @@ const LDB = {
 
   register(id, ign, platform, accountType, region, uuid, verified) {
     const db = rDB(PF); if (db[id]) return null;
+    const selectedRegion = normalizeRegionCode(region);
+    if (!selectedRegion) return null;
     db[id] = { discordId:id, ign, platform:platform||'Java Edition',
-      accountType:accountType||'Premium (Paid)', region:region||'Other 🌍',
+      accountType:accountType||'Premium (Paid)', region:selectedRegion,
       uuid: uuid || offlineUUID(ign), verified: verified===true,
       tiers:{}, retiredTiers:{}, registeredAt:Date.now() };
     wDB(PF, db); MEM.players[id]=db[id]; return db[id];
@@ -1542,6 +1567,12 @@ async function createQueueTicket(client, guild, player, weapon, discordId, pulle
         allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
       });
     }
+    const playerRegion = normalizeRegionCode(player.region);
+    const regionalTesterRole = playerRegion ? await ensureRegionalTesterRole(guild, playerRegion) : null;
+    if (regionalTesterRole) permOverwrites.push({
+      id:regionalTesterRole.id,
+      allow:[PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+    });
 
     const ticketChannel = await guild.channels.create({
       name: channelName,
@@ -1557,12 +1588,14 @@ async function createQueueTicket(client, guild, player, weapon, discordId, pulle
       playerId: discordId,
       playerIGN: player.ign,
       weapon,
+      region:normalizeRegionCode(player.region),
       testerId: pullerId || null,
       resultSubmitted: false,
       createdAt: Date.now(),
     });
 
     const staffPing = CONFIG.TICKET_STAFF_ROLE_ID ? `<@&${CONFIG.TICKET_STAFF_ROLE_ID}>` : '';
+    const regionalTesterPing = regionalTesterRole ? `<@&${regionalTesterRole.id}>` : '';
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`close_ticket_${discordId}`)
@@ -1571,7 +1604,7 @@ async function createQueueTicket(client, guild, player, weapon, discordId, pulle
     );
 
     await ticketChannel.send({
-      content: `${staffPing} <@${discordId}> ${pullerId ? `<@${pullerId}>` : ''}`.trim(),
+      content: `${staffPing} ${regionalTesterPing} <@${discordId}> ${pullerId ? `<@${pullerId}>` : ''}`.trim(),
       embeds: [buildTicketEmbed({
         player,
         discordId,
@@ -1622,6 +1655,18 @@ async function createGroupTicket(client, guild, players, weapon, roleName, pulle
         allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
       });
     }
+    const participantRegions = [...new Set(players.map(({ player }) => normalizeRegionCode(player?.region)).filter(Boolean))];
+    const regionalTesterRoles = [];
+    for (const region of participantRegions) {
+      const regionalTesterRole = await ensureRegionalTesterRole(guild, region);
+      if (regionalTesterRole) {
+        regionalTesterRoles.push(regionalTesterRole);
+        permOverwrites.push({
+          id:regionalTesterRole.id,
+          allow:[PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+        });
+      }
+    }
 
     const ticketChannel = await guild.channels.create({
       name: channelName,
@@ -1640,6 +1685,7 @@ async function createGroupTicket(client, guild, players, weapon, roleName, pulle
         playerId:  discordId,
         playerIGN: player.ign,
         weapon,
+        region:normalizeRegionCode(player.region),
         testerId:  pullerId || null,
         resultSubmitted: false,
         createdAt: Date.now(),
@@ -1647,6 +1693,7 @@ async function createGroupTicket(client, guild, players, weapon, roleName, pulle
     }
 
     const staffPing   = CONFIG.TICKET_STAFF_ROLE_ID ? `<@&${CONFIG.TICKET_STAFF_ROLE_ID}>` : '';
+    const regionalTesterPings = regionalTesterRoles.map(role => `<@&${role.id}>`).join(' ');
     const memberPings = players.map(p => `<@${p.discordId}>`).join(' ');
 
     const playerLines = players
@@ -1678,7 +1725,7 @@ async function createGroupTicket(client, guild, players, weapon, roleName, pulle
       .setTimestamp();
 
     await ticketChannel.send({
-      content: `${staffPing} ${memberPings}`.trim(),
+      content: `${staffPing} ${regionalTesterPings} ${memberPings}`.trim(),
       embeds: [embed],
       components: [row],
     });
@@ -1794,9 +1841,15 @@ async function buildTicketTranscriptHTML(channel, closedBy, reason, records, kin
   const ownerMentions = participants.length ? participants.map(id => `<@${id}>`).join(', ') : (channel.topic?.match(/<@!?\d+>/g) || []).join(', ') || 'Not recorded';
   const gameModes = [...new Set(records.map(([, ticket]) => ticket.weapon).filter(Boolean))];
   const testers = [...new Set(records.map(([, ticket]) => ticket.testerId).filter(Boolean))];
-  const resultSummary = records.map(([, ticket]) => ticket.resultSubmitted
-    ? `${ticket.playerIGN || ticket.playerId || 'Player'} — ${ticket.resultStatus || 'Submitted'} ${ticket.resultTier || ''} (${ticket.resultGamemode || ticket.weapon || 'Unknown gamemode'})`
-    : null).filter(Boolean).join('; ');
+  const resultSummary = records.map(([, ticket]) => {
+    if (!ticket.resultSubmitted) return null;
+    const who = ticket.playerIGN || ticket.playerId || 'Player';
+    const mode = ticket.resultGamemode || ticket.weapon || 'Unknown gamemode';
+    if (ticket.resultStatus === 'Skipped') {
+      return `${who} — SKIPPED (test not taken) (${mode})${ticket.skipReason ? ` · ${ticket.skipReason}` : ''}`;
+    }
+    return `${who} — ${ticket.resultStatus || 'Submitted'} ${ticket.resultTier || ''} (${mode})`;
+  }).filter(Boolean).join('; ');
   const details = [
     ['Ticket type', TICKET_LOG_SETTINGS[kind]?.label || kind],
     ['Channel', `#${channel.name} (${channel.id})`],
@@ -1875,9 +1928,13 @@ async function archiveTicketChannel(client, channel, closedBy, reason = '') {
       .setTimestamp();
     if (transcript.gameModes.length) summary.addFields({ name: 'Gamemode', value: transcript.gameModes.join(', ').slice(0, 1024), inline: true });
     if (transcript.testers.length) summary.addFields({ name: 'Tester(s)', value: transcript.testers.map(id => `<@${id}>`).join(', ').slice(0, 1024), inline: true });
-    const tierResults = records.map(([, ticket]) => ticket.resultSubmitted
-      ? `${ticket.playerIGN || ticket.playerId || 'Player'} — ${ticket.resultStatus || 'Submitted'} ${ticket.resultTier || ''} (${ticket.resultGamemode || ticket.weapon || 'Unknown'})`
-      : null).filter(Boolean).join('\n');
+    const tierResults = records.map(([, ticket]) => {
+      if (!ticket.resultSubmitted) return null;
+      const who = ticket.playerIGN || ticket.playerId || 'Player';
+      const mode = ticket.resultGamemode || ticket.weapon || 'Unknown';
+      if (ticket.resultStatus === 'Skipped') return `${who} — SKIPPED (test not taken) (${mode})${ticket.skipReason ? ` · ${ticket.skipReason}` : ''}`;
+      return `${who} — ${ticket.resultStatus || 'Submitted'} ${ticket.resultTier || ''} (${mode})`;
+    }).filter(Boolean).join('\n');
     if (tierResults) summary.addFields({ name: 'Tier Result(s)', value: tierResults.slice(0, 1024), inline: false });
     if (reason) summary.addFields({ name: 'Close Reason', value: String(reason).slice(0, 1024), inline: false });
 
@@ -2343,19 +2400,19 @@ function buildLivePanelEmbed(weapon) {
     : '*No active tester*';
 
   const now = new Date().toLocaleTimeString('en-PK', { timeZone: 'Asia/Karachi', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
-  const reg = 'PK';
+  const reg = 'Legacy / mixed';
 
   return new EmbedBuilder()
     .setColor(0x57F287)
     .setTitle(`✅  ${weapon} Tester Available!`)
     .setDescription(
-      `A **${weapon}** queue is open for the **PK** region!\n\n` +
+      `A legacy global **${weapon}** queue is open. Use the regional waitlist channels for ME, AS, AU, EU, NA or SA.\n\n` +
       `The queue is now open and updates in real-time.`
     )
     .addFields(
       { name: '📋  Queue',          value: queueTxt,    inline: false },
       { name: '👥  Active Testers', value: testerTxt,   inline: false },
-      { name: '🌍 Region',          value: 'PK',        inline: false },
+      { name: '🌍 Region',          value: 'Legacy / mixed', inline: false },
       { name: '🧪 Current Test',    value: currentTest, inline: false },
     )
     .setFooter({ text: `🌍 Region: ${reg} | 🕐 Last Refresh: ${now}` });
@@ -2414,17 +2471,20 @@ async function ensureWaitlistRole(guild, weapon) {
 async function sendWaitlistPanel(channel) {
   const embed = new EmbedBuilder()
     .setColor(0x7FFF00)
-    .setTitle('📋  Evaluation Testing — Waitlist & Roles')
+    .setTitle('📋  EclipseTiers — Regional Registration & Waitlists')
     .setDescription(
-      '**Step 1: Register Your Profile**\n' +
-      'Click the **Register / Update Profile** button below to set your in-game details.\n\n' +
-      '**Step 2: Get a Waitlist Role**\n' +
-      'After registering, select any gamemode below to get the corresponding **Waitlist** role. Each role has a **2-day cooldown**.\n\n' +
-      '> • **Region:** Global server\n' +
-      '> • **Username:** Your registered Minecraft IGN\n\n' +
-      '\u26A0\uFE0F **Providing false information will result in a denied test.**'
+      '**Step 1 · Register your profile**\n' +
+      'Click **Register / Update Profile**, confirm your Java Edition account type, choose one of the six supported regions, and enter your Minecraft IGN.\n\n' +
+      '**Step 2 · Choose a gamemode**\n' +
+      'Use the gamemode menu below. EclipseTiers grants the matching **region + gamemode waitlist role** from your saved profile.\n\n' +
+      '**Step 3 · Join your regional queue**\n' +
+      'Open your region category and press **Join waitlist** in the matching gamemode channel. You are only given access to the region saved on your profile.\n\n' +
+      '**Supported regions**\n' +
+      '`ME` Middle East · `AS` Asia · `AU` Oceania · `EU` Europe · `NA` North America · `SA` South America\n\n' +
+      'Each gamemode has a separate waitlist role in every region. Role requests use the configured **2-day cooldown**.\n\n' +
+      '⚠️ **Use your real Minecraft IGN and correct region. False details can result in a denied test.**'
     )
-    .setFooter({ text: 'EclipseTiers · Global Minecraft Community' })
+    .setFooter({ text: 'EclipseTiers · Regional Testing Network' })
     .setTimestamp();
 
   const registerBtn = new ButtonBuilder()
@@ -2435,20 +2495,39 @@ async function sendWaitlistPanel(channel) {
 
   const gamemodeSelect = new StringSelectMenuBuilder()
     .setCustomId('panel_waitlist_select')
-    .setPlaceholder('Select a gamemode to get the waitlist role ›')
+    .setPlaceholder('Choose a gamemode for your registered region...')
     .addOptions(
       WEAPONS.map(w => ({
         label: `${w}`,
-        description: `Join the ${w} waitlist`,
+        description: `Get the ${w} waitlist role for your region`,
         value: w,
         emoji: WEAPON_EMOJI[w],
       }))
     );
 
-  const row1 = new ActionRowBuilder().addComponents(registerBtn);
-  const row2 = new ActionRowBuilder().addComponents(gamemodeSelect);
+  const payload = {
+    embeds:[embed],
+    components:[
+      new ActionRowBuilder().addComponents(registerBtn),
+      new ActionRowBuilder().addComponents(gamemodeSelect),
+    ],
+  };
 
-  return channel.send({ embeds: [embed], components: [row1, row2] });
+  // Refresh the existing persistent panel where possible instead of leaving an outdated
+  // outdated global-region panel beside the corrected regional panel.
+  try {
+    const recentMessages = await channel.messages.fetch({ limit:50 });
+    const existingPanel = recentMessages.find(message =>
+      message.author?.bot && message.components?.some(row =>
+        row.components?.some(component => component.customId === 'panel_register')
+      )
+    );
+    if (existingPanel) return await existingPanel.edit(payload);
+  } catch (error) {
+    console.warn('[PANEL] Could not refresh an existing panel; sending a new one:', error.message);
+  }
+
+  return channel.send(payload);
 }
 
 // ════════════════════════════════════════════════════════════
@@ -3048,7 +3127,7 @@ CMDS.register = {
     await i.reply({
       ephemeral: true,
       embeds: [new EmbedBuilder().setColor(BRAND_COLOR)
-        .setTitle('📋 EclipseTiers Registration — Step 1/2')
+        .setTitle('📋 EclipseTiers Registration — Step 1/3')
         .setDescription('🖥️ **Platform: Java Edition**\n\nChoose your **account type**:')
         .addFields(
           { name:'💎 Premium (Paid)', value:'Official purchased Minecraft account', inline:false },
@@ -3373,9 +3452,9 @@ CMDS.tier = {
           await assignTierRole(guild, member, weapon, tier, oldTier);
           // Remove Waitlist-<weapon> role during cooldown
           const wlRole = guild.roles.cache.find(r => r.name === `Waitlist-${weapon}`);
-          if (wlRole && member.roles.cache.has(wlRole.id)) {
-            await member.roles.remove(wlRole).catch(() => {});
-          }
+          if (wlRole && member.roles.cache.has(wlRole.id)) await member.roles.remove(wlRole).catch(() => {});
+          const playerRegion = normalizeRegionCode(player.region);
+          if (playerRegion) await removeRegionalWaitlistRole(member, playerRegion, weapon);
         }
       } catch(_) {}
 
@@ -3502,6 +3581,95 @@ CMDS.tier = {
   },
 };
 
+// ── /skip ─────────────────────────────────────────────────
+// Marks a testing ticket participant as not tested when they never show up/respond.
+// No tier is assigned; once every participant has a result or skip status, the ticket is archived.
+CMDS.skip = {
+  data: new SlashCommandBuilder()
+    .setName('skip')
+    .setDescription('Mark a player as skipped when no test was taken (inside a testing ticket)')
+    .addUserOption(o => o.setName('player').setDescription('Player to skip (needed only for group tickets)').setRequired(false))
+    .addStringOption(o => o.setName('reason').setDescription('Optional reason, e.g. player did not respond').setRequired(false).setMaxLength(300)),
+
+  async execute(i) {
+    if (!i.guild || !i.channel) {
+      return i.reply({ ephemeral:true, content:'Use `/skip` inside an EclipseTiers testing ticket.' });
+    }
+    const records = getTicketRecordsForChannel(i.channelId)
+      .filter(([, ticket]) => isTierTestingTicketRecord(ticket));
+    if (!records.length || !isTierTestingTicketChannel(i.channel, records)) {
+      return i.reply({ ephemeral:true, content:'`/skip` only works inside an active tier-testing ticket.' });
+    }
+
+    const pending = records.filter(([, ticket]) => !ticket.resultSubmitted);
+    if (!pending.length) {
+      return i.reply({ ephemeral:true, content:'Every player in this ticket already has a result or skip status.' });
+    }
+    const selectedPlayer = i.options.getUser('player');
+    let targets = pending;
+    if (selectedPlayer) {
+      targets = pending.filter(([id]) => id === selectedPlayer.id);
+      if (!targets.length) return i.reply({ ephemeral:true, content:'That player is not a pending participant in this testing ticket.' });
+    } else if (pending.length > 1) {
+      return i.reply({ ephemeral:true, content:'This is a group ticket. Choose the player with `/skip player:@user` so the other tests remain untouched.' });
+    }
+
+    const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
+    const globalTicketStaff = isAdmin || hasQueuePerm(i.member) || hasTiererPerm(i.member) || hasTicketHandlerPerm(i.member) ||
+      Boolean(CONFIG.TICKET_STAFF_ROLE_ID && i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID));
+    const maySkipAll = globalTicketStaff || targets.every(([id, ticket]) => {
+      const region = normalizeRegionCode(ticket.region || LDB.get(id)?.region);
+      return hasRegionalTesterPerm(i.member, region) || String(ticket.testerId || '') === String(i.user.id);
+    });
+    if (!maySkipAll) {
+      return i.reply({ ephemeral:true, content:'You need the matching regional tester role (e.g. `Tester-ME`) or global ticket staff permissions to skip this test.' });
+    }
+
+    const reason = (i.options.getString('reason') || 'Player did not respond; no test was taken.').trim();
+    const now = Date.now();
+    for (const [discordId, ticket] of targets) {
+      const player = LDB.get(discordId);
+      LDB.setTicket(discordId, {
+        ...ticket,
+        type:'tier-testing',
+        playerId:discordId,
+        playerIGN:ticket.playerIGN || player?.ign || discordId,
+        resultSubmitted:true,
+        resultStatus:'Skipped',
+        resultTier:null,
+        resultGamemode:ticket.weapon || null,
+        resultRegion:formatRegion(ticket.region || player?.region),
+        resultSubmittedBy:i.user.id,
+        resultSubmittedAt:now,
+        resultSkipped:true,
+        skipReason:reason,
+      });
+    }
+
+    const skippedNames = targets.map(([id, ticket]) => `**${ticket.playerIGN || LDB.get(id)?.ign || id}** (<@${id}>)`).join(', ');
+    await i.channel.send({ embeds:[new EmbedBuilder().setColor(0xE0A52B)
+      .setTitle('⏭️ Test Skipped — No Test Taken')
+      .setDescription(`${skippedNames}
+
+**Marked by:** <@${i.user.id}>
+**Reason:** ${reason}`)
+      .setFooter({ text:'No tier was awarded or changed.' })
+      .setTimestamp()], allowedMentions:{ parse:[] } }).catch(error => console.warn('[SKIP] Could not post ticket note:', error.message));
+
+    const remaining = getTicketRecordsForChannel(i.channelId)
+      .filter(([, ticket]) => isTierTestingTicketRecord(ticket) && !ticket.resultSubmitted);
+    if (remaining.length) {
+      return i.reply({ ephemeral:true, content:`Marked ${targets.length} player(s) as skipped. This group ticket stays open for ${remaining.length} pending player(s). Use \`/skip player:@user\` or \`/tier set\` for each remaining participant.` });
+    }
+
+    const archived = await archiveTicketChannel(i.client, i.channel, i.user.id, 'Testing skipped — no test was taken.');
+    if (!archived.ok) {
+      return i.reply({ ephemeral:true, content:`Marked ${targets.length} player(s) as skipped. The ticket is now eligible to close, but could not be archived: ${archived.error} Run \`/closeticket\` after fixing the issue.` });
+    }
+    return i.reply({ ephemeral:true, content:`✅ Marked ${targets.length} player(s) as skipped. The transcript was sent to <#${archived.logChannelId}> and the ticket is closing.` });
+  },
+};
+
 // ── /submitresult ─────────────────────────────────────────
 // Usage: /submitresult player:@user tier:HT3 result:Passed gamemode:Sword
 //        region:PK rounds:3 opponent1:@x opponent2:@y opponent3:@z
@@ -3525,14 +3693,8 @@ CMDS.submitresult = {
       ))
     .addStringOption(o => o.setName('gamemode').setDescription('Gamemode').setRequired(true)
       .addChoices(...WEAPONS.map(w => ({ name: `${WEAPON_EMOJI[w]} ${w}`, value: w }))))
-    .addStringOption(o => o.setName('region').setDescription('Region').setRequired(true)
-      .addChoices(
-        { name: 'PK',    value: 'PK'    },
-        { name: 'AS/AU', value: 'AS/AU' },
-        { name: 'EU',    value: 'EU'    },
-        { name: 'NA',    value: 'NA'    },
-        { name: 'SA',    value: 'SA'    },
-      ))
+    .addStringOption(o => o.setName('region').setDescription("Select the player's registered region").setRequired(true)
+      .addChoices(...REGION_DEFS.map(region => ({ name:`${region.code} · ${region.label}`, value:region.code }))))
     .addIntegerOption(o => o.setName('rounds').setDescription('How many rounds were played').setRequired(true)
       .addChoices(
         { name: '1', value: 1 },
@@ -3568,7 +3730,7 @@ CMDS.submitresult = {
     const tier     = i.options.getString('tier');
     const result   = i.options.getString('result');
     const weapon   = i.options.getString('gamemode');
-    const region   = i.options.getString('region');
+    const region   = normalizeRegionCode(i.options.getString('region'));
     const rounds   = i.options.getInteger('rounds');
 
     const roundData = [1,2,3,4,5].slice(0, rounds).map(n => ({
@@ -3587,6 +3749,8 @@ CMDS.submitresult = {
     if (!player)
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ **${target.username}** must register first with \`/register\`.`)] });
+    if (!region || normalizeRegionCode(player.region) !== region)
+      return i.reply({ ephemeral:true, content:`Region mismatch: **${player.ign}** is registered in **${normalizeRegionCode(player.region) || 'no supported region'}**. Select the same region as the player's profile.` });
     if (isBlacklisted(target.id))
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setTitle('🚫 Player Blacklisted')
@@ -3619,9 +3783,9 @@ CMDS.submitresult = {
         if (member) {
           await assignTierRole(guild, member, weapon, tier, oldTier);
           const wlRole = guild.roles.cache.find(r => r.name === `Waitlist-${weapon}`);
-          if (wlRole && member.roles.cache.has(wlRole.id)) {
-            await member.roles.remove(wlRole).catch(() => {});
-          }
+          if (wlRole && member.roles.cache.has(wlRole.id)) await member.roles.remove(wlRole).catch(() => {});
+          const playerRegion = normalizeRegionCode(player.region);
+          if (playerRegion) await removeRegionalWaitlistRole(member, playerRegion, weapon);
         }
       } catch(_) {}
 
@@ -4648,7 +4812,7 @@ CMDS.hightierer = {
 CMDS.setuppanel = {
   data: new SlashCommandBuilder()
     .setName('setuppanel')
-    .setDescription('Send the waitlist panel to a channel (Admin only)')
+    .setDescription('Send or refresh the regional registration and waitlist panel (Admin only)')
     .addChannelOption(o => o
       .setName('channel')
       .setDescription('Channel to send the panel to (default: current)')
@@ -4666,7 +4830,7 @@ CMDS.setuppanel = {
     try {
       await sendWaitlistPanel(targetChannel);
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0x00C864)
-        .setDescription(`✅ Waitlist panel sent to <#${targetChannel.id}>!`)] });
+        .setDescription(`✅ Regional registration and waitlist panel is up to date in <#${targetChannel.id}>!`)] });
     } catch(err) {
       console.error('[PANEL ERROR]', err);
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
@@ -5223,6 +5387,487 @@ async function refreshSQPanel(client, weapon) {
   }
 }
 
+
+// ════════════════════════════════════════════════════════════
+//  REGIONAL WAITLIST SYSTEM — 6 regions × every gamemode
+//  Each region receives its own access role, private category,
+//  one channel per gamemode, and one persistent queue panel.
+// ════════════════════════════════════════════════════════════
+const REGIONAL_QUEUE_FILE = path.join(DATA_DIR, 'regional_queues.json');
+const REGIONAL_SETUP_FILE = path.join(DATA_DIR, 'regional_queue_setup.json');
+const REGIONAL_PANEL_FILE = path.join(DATA_DIR, 'regional_queue_panels.json');
+const REGIONAL_QUEUE_PREVIEW = 15;
+const regionalRoleCache = { regions:{}, waitlists:{}, testers:{} };
+
+function emptyRegionalQueues() {
+  return Object.fromEntries(REGION_CODES.map(region => [region, Object.fromEntries(WEAPONS.map(weapon => [weapon, []]))]));
+}
+function loadRegionalQueues() {
+  try {
+    if (!fs.existsSync(REGIONAL_QUEUE_FILE)) fs.writeFileSync(REGIONAL_QUEUE_FILE, JSON.stringify(emptyRegionalQueues(), null, 2));
+    const raw = JSON.parse(fs.readFileSync(REGIONAL_QUEUE_FILE, 'utf8'));
+    const normalized = emptyRegionalQueues();
+    for (const region of REGION_CODES) {
+      const regionData = raw?.[region];
+      if (!regionData || typeof regionData !== 'object') continue;
+      for (const weapon of WEAPONS) {
+        normalized[region][weapon] = Array.isArray(regionData[weapon])
+          ? regionData[weapon].filter(entry => entry && typeof entry === 'object' && entry.discordId)
+          : [];
+      }
+    }
+    return normalized;
+  } catch (error) {
+    console.error('[REGIONAL QUEUE] Could not load queue file:', error.message);
+    return emptyRegionalQueues();
+  }
+}
+function saveRegionalQueues(data) {
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive:true });
+    const temp = `${REGIONAL_QUEUE_FILE}.${process.pid}.tmp`;
+    fs.writeFileSync(temp, JSON.stringify(data, null, 2));
+    fs.renameSync(temp, REGIONAL_QUEUE_FILE);
+    return true;
+  } catch (error) {
+    console.error('[REGIONAL QUEUE] Could not save queue file:', error.message);
+    return false;
+  }
+}
+
+function migrateLegacyQueuesToRegional() {
+  const setup = loadRegionalSetup();
+  if (setup.legacyQueueMigration?.completedAt) return { migrated:0, remaining:0, skipped:true };
+  const legacy = LDB.allQ();
+  const regional = loadRegionalQueues();
+  const remaining = { ...(legacy || {}) };
+  let migrated = 0;
+  let retained = 0;
+  for (const weapon of WEAPONS) {
+    const entries = Array.isArray(legacy?.[weapon]) ? legacy[weapon] : [];
+    remaining[weapon] = [];
+    for (const entry of entries) {
+      const player = entry?.discordId ? LDB.get(entry.discordId) : null;
+      const region = normalizeRegionCode(player?.region);
+      if (!region || !entry?.discordId) {
+        remaining[weapon].push(entry);
+        retained++;
+        continue;
+      }
+      const duplicate = regional[region][weapon].some(item => String(item.discordId) === String(entry.discordId));
+      if (!duplicate) {
+        regional[region][weapon].push({
+          discordId:String(entry.discordId), ign:String(entry.ign || player.ign || 'Unknown'),
+          region, weapon, joinedAt:Number(entry.joinedAt || Date.now())
+        });
+        migrated++;
+      }
+    }
+  }
+  if (migrated > 0) {
+    const backupPath = path.join(DATA_DIR, 'queue.pre-regional-migration.json');
+    try { if (fs.existsSync(QF) && !fs.existsSync(backupPath)) fs.copyFileSync(QF, backupPath); }
+    catch (error) { console.error('[REGIONAL QUEUE] Could not back up legacy queue file; migration stopped:', error.message); return { migrated:0, remaining:Object.values(legacy || {}).reduce((n,q)=>n+(Array.isArray(q)?q.length:0),0), skipped:false }; }
+    if (!saveRegionalQueues(regional)) return { migrated:0, remaining:retained, skipped:false };
+    wDB(QF, remaining);
+    for (const weapon of WEAPONS) MEM.queues[weapon] = remaining[weapon] || [];
+  }
+  setup.legacyQueueMigration = { completedAt:Date.now(), migrated, retainedUnmapped:retained };
+  saveRegionalSetup(setup);
+  console.log(`[REGIONAL QUEUE] Legacy queue migration complete: ${migrated} moved into regions, ${retained} unmapped entries retained in queue.json.`);
+  return { migrated, remaining:retained, skipped:false };
+}
+function migratePlayerLegacyQueueToRegion(discordId, region) {
+  const code = normalizeRegionCode(region);
+  if (!code || !discordId) return 0;
+  const legacy = LDB.allQ();
+  const regional = loadRegionalQueues();
+  const remaining = { ...(legacy || {}) };
+  let moved = 0;
+  for (const weapon of WEAPONS) {
+    const entries = Array.isArray(legacy?.[weapon]) ? legacy[weapon] : [];
+    const keep = [];
+    for (const entry of entries) {
+      if (String(entry?.discordId || '') !== String(discordId)) { keep.push(entry); continue; }
+      const queue = regional[code][weapon];
+      const duplicate = queue.some(item => String(item.discordId) === String(discordId));
+      if (duplicate) { moved++; continue; }
+      const player = LDB.get(discordId);
+      queue.push({ discordId:String(discordId), ign:String(entry.ign || player?.ign || 'Unknown'), region:code, weapon, joinedAt:Number(entry.joinedAt || Date.now()) });
+      moved++;
+    }
+    remaining[weapon] = keep;
+  }
+  if (!moved) return 0;
+  if (!saveRegionalQueues(regional)) return 0;
+  wDB(QF, remaining);
+  for (const weapon of WEAPONS) MEM.queues[weapon] = remaining[weapon] || [];
+  console.log(`[REGIONAL QUEUE] Migrated ${moved} remaining legacy entry/entries for ${discordId} into ${code}.`);
+  return moved;
+}
+
+function loadRegionalSetup() {
+  try { return fs.existsSync(REGIONAL_SETUP_FILE) ? JSON.parse(fs.readFileSync(REGIONAL_SETUP_FILE, 'utf8')) : {}; }
+  catch (_) { return {}; }
+}
+function saveRegionalSetup(data) {
+  try { fs.writeFileSync(REGIONAL_SETUP_FILE, JSON.stringify(data, null, 2)); }
+  catch (error) { console.error('[REGIONAL QUEUE] Setup save failed:', error.message); }
+}
+function loadRegionalPanels() {
+  try { return fs.existsSync(REGIONAL_PANEL_FILE) ? JSON.parse(fs.readFileSync(REGIONAL_PANEL_FILE, 'utf8')) : {}; }
+  catch (_) { return {}; }
+}
+function saveRegionalPanels(data) {
+  try { fs.writeFileSync(REGIONAL_PANEL_FILE, JSON.stringify(data, null, 2)); }
+  catch (error) { console.error('[REGIONAL QUEUE] Panel save failed:', error.message); }
+}
+function regionalPanelKey(region, weapon) { return `${region}:${weapon}`; }
+function regionalWaitlistRoleName(region, weapon) { return `Waitlist-${region}-${weapon}`; }
+function regionalAccessRoleName(region) { return `Region-${region}`; }
+function regionalTesterRoleName(region) { return `Tester-${region}`; }
+function regionalChannelName(weapon) { return `waitlist-${weapon.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`; }
+
+function getRegionalQueue(region, weapon) {
+  const code = normalizeRegionCode(region);
+  if (!code || !WEAPONS.includes(weapon)) return [];
+  return loadRegionalQueues()[code][weapon];
+}
+function getPublicRegionalQueues(selectedRegion = null) {
+  const source = loadRegionalQueues();
+  const result = {};
+  const requested = normalizeRegionCode(selectedRegion);
+  const regionsToReturn = requested ? [requested] : REGION_CODES;
+  for (const region of regionsToReturn) {
+    result[region] = {};
+    for (const weapon of WEAPONS) {
+      result[region][weapon] = source[region][weapon]
+        .filter(entry => !isHiddenUser(entry.discordId) && normalizeRegionCode(LDB.get(entry.discordId)?.region) === region)
+        .map(entry => {
+          const player = LDB.get(entry.discordId);
+          const ign = String(entry.ign || player?.ign || 'Unknown player');
+          return {
+            ign, region, weapon, joinedAt:Number(entry.joinedAt || 0) || null,
+            avatar:`https://mc-heads.net/avatar/${encodeURIComponent(player ? skinName(player) : ign)}/32`
+          };
+        });
+    }
+  }
+  return result;
+}
+function addToRegionalQueue(discordId, region, weapon, ign) {
+  const code = normalizeRegionCode(region);
+  if (!code || !WEAPONS.includes(weapon)) return { ok:false, reason:'invalid' };
+  const data = loadRegionalQueues();
+  const queue = data[code][weapon];
+  if (queue.some(entry => String(entry.discordId) === String(discordId))) return { ok:false, reason:'dupe' };
+  const entry = { discordId:String(discordId), ign:String(ign || 'Unknown'), region:code, weapon, joinedAt:Date.now() };
+  queue.push(entry);
+  if (!saveRegionalQueues(data)) return { ok:false, reason:'storage' };
+  return { ok:true, position:queue.length, entry };
+}
+function removeFromRegionalQueue(discordId, region, weapon) {
+  const code = normalizeRegionCode(region);
+  if (!code || !WEAPONS.includes(weapon)) return null;
+  const data = loadRegionalQueues();
+  const queue = data[code][weapon];
+  const index = queue.findIndex(entry => String(entry.discordId) === String(discordId));
+  if (index < 0) return null;
+  const [removed] = queue.splice(index, 1);
+  saveRegionalQueues(data);
+  return removed;
+}
+async function ensureRegionalAccessRole(guild, region) {
+  const code = normalizeRegionCode(region);
+  if (!code) return null;
+  const cachedId = regionalRoleCache.regions[code];
+  let role = cachedId ? guild.roles.cache.get(cachedId) : null;
+  if (!role) role = guild.roles.cache.find(candidate => candidate.name === regionalAccessRoleName(code));
+  if (!role) {
+    const definition = REGION_DEFS.find(item => item.code === code);
+    role = await guild.roles.create({
+      name:regionalAccessRoleName(code), color:definition?.color || 0x888888,
+      mentionable:false, hoist:false, reason:`EclipseTiers ${code} private regional waitlist access`
+    });
+    console.log(`[REGIONAL ROLE] Created ${role.name}`);
+  }
+  regionalRoleCache.regions[code] = role.id;
+  return role;
+}
+async function ensureRegionalTesterRole(guild, region) {
+  const code = normalizeRegionCode(region);
+  if (!code) return null;
+  const cachedId = regionalRoleCache.testers[code];
+  let role = cachedId ? guild.roles.cache.get(cachedId) : null;
+  if (!role) role = guild.roles.cache.find(candidate => candidate.name === regionalTesterRoleName(code));
+  if (!role) {
+    const definition = REGION_DEFS.find(item => item.code === code);
+    role = await guild.roles.create({
+      name:regionalTesterRoleName(code), color:definition?.color || 0x5865F2,
+      mentionable:false, hoist:false,
+      reason:`EclipseTiers ${code} regional tester permissions`
+    });
+    console.log(`[REGIONAL ROLE] Created ${role.name}`);
+  }
+  regionalRoleCache.testers[code] = role.id;
+  return role;
+}
+function hasRegionalTesterPerm(member, region) {
+  const code = normalizeRegionCode(region);
+  if (!member || !code) return false;
+  const role = member.guild?.roles?.cache?.find(candidate => candidate.name === regionalTesterRoleName(code));
+  return Boolean(role && member.roles?.cache?.has(role.id));
+}
+
+async function ensureRegionalWaitlistRole(guild, region, weapon) {
+  const code = normalizeRegionCode(region);
+  if (!code || !WEAPONS.includes(weapon)) return null;
+  const key = `${code}:${weapon}`;
+  let role = regionalRoleCache.waitlists[key] ? guild.roles.cache.get(regionalRoleCache.waitlists[key]) : null;
+  const name = regionalWaitlistRoleName(code, weapon);
+  if (!role) role = guild.roles.cache.find(candidate => candidate.name === name);
+  if (!role) {
+    role = await guild.roles.create({
+      name, color:0x5865F2, mentionable:false, hoist:false,
+      reason:`EclipseTiers dedicated ${code} ${weapon} waitlist role`
+    });
+    console.log(`[REGIONAL ROLE] Created ${name}`);
+  }
+  regionalRoleCache.waitlists[key] = role.id;
+  return role;
+}
+async function syncMemberRegionRole(guild, member, region) {
+  const selected = normalizeRegionCode(region);
+  if (!selected || !guild || !member) return null;
+  const selectedRole = await ensureRegionalAccessRole(guild, selected);
+  for (const code of REGION_CODES) {
+    const role = await ensureRegionalAccessRole(guild, code);
+    if (!role) continue;
+    if (code === selected) {
+      if (!member.roles.cache.has(role.id)) await member.roles.add(role, 'EclipseTiers registered region sync').catch(() => {});
+    } else if (member.roles.cache.has(role.id)) {
+      await member.roles.remove(role, 'EclipseTiers keep only the selected region visible').catch(() => {});
+    }
+  }
+  return selectedRole;
+}
+async function removeRegionalWaitlistRole(member, region, weapon) {
+  if (!member) return;
+  const code = normalizeRegionCode(region);
+  const role = code ? (member.guild.roles.cache.find(candidate => candidate.name === regionalWaitlistRoleName(code, weapon))) : null;
+  if (role && member.roles.cache.has(role.id)) await member.roles.remove(role, 'EclipseTiers waitlist completed or left').catch(() => {});
+}
+
+function buildRegionalQueueEmbed(region, weapon) {
+  const code = normalizeRegionCode(region) || 'ME';
+  const queue = getRegionalQueue(code, weapon).filter(entry => !isHiddenUser(entry.discordId));
+  const display = queue.length
+    ? queue.slice(0, REGIONAL_QUEUE_PREVIEW).map((entry, index) => `**${String(index + 1).padStart(2, '0')}**  <@${entry.discordId}> · <t:${Math.floor(Number(entry.joinedAt || Date.now()) / 1000)}:R>`).join('\n') + (queue.length > REGIONAL_QUEUE_PREVIEW ? `\n…and ${queue.length - REGIONAL_QUEUE_PREVIEW} more player(s)` : '')
+    : '*No players are waiting in this regional queue.*';
+  return new EmbedBuilder()
+    .setColor(REGION_DEFS.find(item => item.code === code)?.color || BRAND_COLOR)
+    .setTitle(`${WEAPON_EMOJI[weapon] || '🎮'} ${weapon} · ${code} Waitlist`)
+    .setDescription(`**${code} region only**\nPlayers registered in **${code}** can join this ${weapon} waitlist. Other region categories remain private.`)
+    .addFields(
+      { name:`Players waiting · ${queue.length}`, value:display.slice(0, 1024), inline:false },
+      { name:'How it works', value:'Join to enter this region and gamemode queue. A tester can pull the next player to open a private testing ticket.', inline:false }
+    )
+    .setFooter({ text:`EclipseTiers · ${code} · ${weapon} · live regional waitlist` })
+    .setTimestamp();
+}
+function buildRegionalQueueButtons(region, weapon) {
+  const code = normalizeRegionCode(region) || 'ME';
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`rwl_join_${code}_${weapon}`).setLabel('Join waitlist').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`rwl_leave_${code}_${weapon}`).setLabel('Leave').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`rwl_pull_${code}_${weapon}`).setLabel('Pull next').setStyle(ButtonStyle.Primary)
+  );
+}
+async function refreshRegionalQueuePanel(client, region, weapon) {
+  const code = normalizeRegionCode(region);
+  const panels = loadRegionalPanels();
+  const key = regionalPanelKey(code, weapon);
+  const info = panels[key];
+  if (!info?.channelId || !info?.messageId) return false;
+  try {
+    const channel = await client.channels.fetch(info.channelId).catch(() => null);
+    if (!channel) return false;
+    const message = await channel.messages.fetch(info.messageId).catch(() => null);
+    if (!message) return false;
+    await message.edit({ embeds:[buildRegionalQueueEmbed(code, weapon)], components:[buildRegionalQueueButtons(code, weapon)] });
+    return true;
+  } catch (error) {
+    console.error(`[REGIONAL QUEUE] Panel refresh failed ${key}:`, error.message);
+    return false;
+  }
+}
+
+async function ensureRegionalQueueInfrastructure(guild, client) {
+  if (!guild || !client) throw new Error('Guild and Discord client are required.');
+  await guild.roles.fetch().catch(() => {});
+  await guild.channels.fetch().catch(() => {});
+  const setup = loadRegionalSetup();
+  const panels = loadRegionalPanels();
+  const botMember = guild.members.me || await guild.members.fetch(client.user.id).catch(() => null);
+  const privilegedRoleIds = new Set([
+    CONFIG.TESTERS_ROLE_ID, CONFIG.TIERER_ROLE_ID, CONFIG.TICKET_STAFF_ROLE_ID,
+    ...((loadQueuePerms().roles || []))
+  ].filter(roleId => roleId && guild.roles.cache.has(roleId)));
+  for (const region of REGION_CODES) {
+    const regionRole = await ensureRegionalAccessRole(guild, region);
+    const regionalTesterRole = await ensureRegionalTesterRole(guild, region);
+    let regionConfig = setup[region] || { channels:{} };
+    const overwrites = [
+      { id:guild.id, deny:[PermissionFlagsBits.ViewChannel] },
+      { id:regionRole.id, allow:[PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory] },
+      { id:regionalTesterRole.id, allow:[PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages] },
+    ];
+    for (const roleId of privilegedRoleIds) {
+      if (roleId !== regionRole.id) overwrites.push({ id:roleId, allow:[PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages] });
+    }
+    if (botMember) overwrites.push({ id:botMember.id, allow:[PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ManageMessages] });
+
+    let category = regionConfig.categoryId ? await guild.channels.fetch(regionConfig.categoryId).catch(() => null) : null;
+    if (!category) category = guild.channels.cache.find(channel => channel.type === ChannelType.GuildCategory && channel.name.toLowerCase() === `${region.toLowerCase()}-waitlists`);
+    if (!category) {
+      category = await guild.channels.create({
+        name:`${region.toLowerCase()}-waitlists`, type:ChannelType.GuildCategory,
+        permissionOverwrites:overwrites, reason:`EclipseTiers automatically provision ${region} waitlist category`
+      });
+      console.log(`[REGIONAL CHANNEL] Created category ${category.name}`);
+    } else {
+      await category.permissionOverwrites.set(overwrites).catch(error => console.warn(`[REGIONAL CHANNEL] Could not sync category permissions ${region}:`, error.message));
+    }
+    regionConfig = { ...regionConfig, regionRoleId:regionRole.id, testerRoleId:regionalTesterRole.id, categoryId:category.id, channels:regionConfig.channels || {} };
+    setup[region] = regionConfig;
+
+    for (const weapon of WEAPONS) {
+      const waitlistRole = await ensureRegionalWaitlistRole(guild, region, weapon);
+      let channelInfo = regionConfig.channels[weapon] || {};
+      let channel = channelInfo.channelId ? await guild.channels.fetch(channelInfo.channelId).catch(() => null) : null;
+      const name = regionalChannelName(weapon);
+      if (!channel) channel = guild.channels.cache.find(candidate => candidate.parentId === category.id && candidate.name === name);
+      if (!channel) {
+        channel = await guild.channels.create({
+          name, type:ChannelType.GuildText, parent:category.id, permissionOverwrites:overwrites,
+          topic:`${region} region · ${weapon} testing waitlist · visible only to ${region} members and staff`,
+          reason:`EclipseTiers regional ${region} ${weapon} waitlist channel`
+        });
+        await channel.permissionOverwrites.set(overwrites).catch(() => {});
+        console.log(`[REGIONAL CHANNEL] Created #${name} in ${region}`);
+      } else {
+        if (channel.parentId !== category.id) await channel.setParent(category.id, { lockPermissions:true, reason:'EclipseTiers regional queue organization' }).catch(() => {});
+        await channel.permissionOverwrites.set(overwrites).catch(() => {});
+      }
+
+      const key = regionalPanelKey(region, weapon);
+      const existingInfo = panels[key] || {};
+      let message = null;
+      if (existingInfo.channelId === channel.id && existingInfo.messageId) {
+        message = await channel.messages.fetch(existingInfo.messageId).catch(() => null);
+      }
+      if (message) {
+        await message.edit({ embeds:[buildRegionalQueueEmbed(region, weapon)], components:[buildRegionalQueueButtons(region, weapon)] }).catch(error => console.warn(`[REGIONAL PANEL] edit failed ${key}:`, error.message));
+      } else {
+        message = await channel.send({ embeds:[buildRegionalQueueEmbed(region, weapon)], components:[buildRegionalQueueButtons(region, weapon)] });
+      }
+      panels[key] = { channelId:channel.id, messageId:message.id, region, weapon, updatedAt:Date.now(), waitlistRoleId:waitlistRole?.id || null };
+      regionConfig.channels[weapon] = { channelId:channel.id, waitlistRoleId:waitlistRole?.id || null, panelId:message.id };
+      saveRegionalPanels(panels);
+      setup[region] = regionConfig;
+      saveRegionalSetup(setup);
+    }
+  }
+  // Keep old, unscoped waitlist channels from exposing a global mixed-region list.
+  // Replace old role overwrites so generic legacy Waitlist-* roles cannot bypass the new regional access roles.
+  const regionalCategoryIds = new Set(REGION_CODES.map(code => setup[code]?.categoryId).filter(Boolean));
+  const oldChannelNames = new Set(WEAPONS.map(regionalChannelName));
+  const legacyPrivateOverwrites = [
+    { id:guild.id, deny:[PermissionFlagsBits.ViewChannel] },
+  ];
+  for (const roleId of privilegedRoleIds) {
+    legacyPrivateOverwrites.push({ id:roleId, allow:[PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages] });
+  }
+  if (botMember) legacyPrivateOverwrites.push({ id:botMember.id, allow:[PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ManageMessages] });
+  for (const channel of guild.channels.cache.values()) {
+    if (channel.type !== ChannelType.GuildText || !oldChannelNames.has(channel.name) || regionalCategoryIds.has(channel.parentId)) continue;
+    // Replace old channel overwrites instead of merely denying @everyone; old generic Waitlist-* roles must not keep access to mixed-region lists.
+    await channel.permissionOverwrites.set(legacyPrivateOverwrites, 'EclipseTiers moved waitlists into private region categories').catch(error => {
+      console.warn(`[REGIONAL QUEUE] Could not hide legacy public channel #${channel.name}:`, error.message);
+    });
+  }
+
+  console.log('[REGIONAL QUEUE] Infrastructure ready: 6 regions, 66 gamemode channels, 78 dedicated roles (6 region access + 6 tester + 66 waitlist).');
+  return setup;
+}
+
+async function handleRegionalQueueButton(i) {
+  const match = /^rwl_(join|leave|pull)_([A-Z]{2})_(.+)$/.exec(i.customId);
+  if (!match) return i.reply({ ephemeral:true, content:'Invalid regional waitlist button.' });
+  const [, action, region, weapon] = match;
+  if (!REGION_CODES.includes(region) || !WEAPONS.includes(weapon)) return i.reply({ ephemeral:true, content:'This regional queue is not configured.' });
+
+  if (action === 'pull') {
+    if (!hasQueuePerm(i.member) && !hasRegionalTesterPerm(i.member, region)) return i.reply({ ephemeral:true, content:`Only ${regionalTesterRoleName(region)} or global staff can pull players from this regional queue.` });
+    await i.deferReply({ ephemeral:true });
+    const queue = getRegionalQueue(region, weapon);
+    if (!queue.length) return i.editReply({ content:`The ${region} ${weapon} waitlist is empty.` });
+    const entry = queue[0];
+    const target = LDB.get(entry.discordId);
+    removeFromRegionalQueue(entry.discordId, region, weapon);
+    const member = await i.guild.members.fetch(entry.discordId).catch(() => null);
+    if (member) await removeRegionalWaitlistRole(member, region, weapon);
+    await refreshRegionalQueuePanel(i.client, region, weapon);
+    if (!target) return i.editReply({ content:'The queued player record was not found; the stale entry has been removed.' });
+    const ticket = await createQueueTicket(i.client, i.guild, target, weapon, entry.discordId, i.user.id).catch(error => {
+      console.error('[REGIONAL QUEUE] Ticket creation failed:', error.message); return null;
+    });
+    return i.editReply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+      .setTitle(`${WEAPON_EMOJI[weapon] || '🎮'} ${region} · ${weapon} player pulled`)
+      .setDescription(`**${target.ign}** has been removed from position #1 in the **${region} ${weapon}** waitlist.\n${ticket ? `Testing ticket: <#${ticket.id}>` : 'Ticket creation did not complete; please contact staff.'}`)
+      .setTimestamp()] });
+  }
+
+  if (isBlacklisted(i.user.id)) return i.reply({ ephemeral:true, content:'Your account cannot join or leave waitlists while blacklisted.' });
+  const player = LDB.get(i.user.id);
+  if (!player) return i.reply({ ephemeral:true, content:'Register your Minecraft profile before joining a waitlist.' });
+  const playerRegion = normalizeRegionCode(player.region);
+  if (playerRegion !== region) {
+    return i.reply({ ephemeral:true, content:`Your registered region is **${playerRegion || 'not set'}**. This channel is for **${region}** players only. Use Register / Update Profile to select your region.` });
+  }
+
+  if (action === 'join') {
+    const cooldown = isOnCooldown(i.user.id, weapon);
+    if (cooldown.onCooldown) return i.reply({ ephemeral:true, content:`Your ${weapon} cooldown is active for another ${cooldown.hours}h ${cooldown.mins}m.` });
+    const result = addToRegionalQueue(i.user.id, region, weapon, player.ign);
+    if (!result.ok) {
+      const message = result.reason === 'dupe' ? 'You are already in this regional waitlist.'
+        : 'The regional waitlist could not be saved. Please try again.';
+      return i.reply({ ephemeral:true, content:message });
+    }
+    const member = await i.guild.members.fetch(i.user.id).catch(() => null);
+    if (member) {
+      await syncMemberRegionRole(i.guild, member, region).catch(() => {});
+      const waitlistRole = await ensureRegionalWaitlistRole(i.guild, region, weapon).catch(() => null);
+      if (waitlistRole) await member.roles.add(waitlistRole, `Joined ${region} ${weapon} waitlist`).catch(() => {});
+    }
+    await refreshRegionalQueuePanel(i.client, region, weapon);
+    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x57F287)
+      .setTitle(`Joined ${region} · ${weapon} waitlist`)
+      .setThumbnail(`https://mc-heads.net/avatar/${encodeURIComponent(player.ign)}/128`)
+      .setDescription(`**${player.ign}** is now at position **#${result.position}** in the ${region} ${weapon} waitlist.`)
+      .addFields({ name:'Region', value:region, inline:true }, { name:'Gamemode', value:weapon, inline:true }, { name:'Status', value:'Waiting for a tester', inline:true })
+      .setFooter({ text:'Use Leave to exit this waitlist.' }).setTimestamp()] });
+  }
+
+  const removed = removeFromRegionalQueue(i.user.id, region, weapon);
+  if (!removed) return i.reply({ ephemeral:true, content:`You are not in the ${region} ${weapon} waitlist.` });
+  const member = await i.guild.members.fetch(i.user.id).catch(() => null);
+  if (member) await removeRegionalWaitlistRole(member, region, weapon);
+  await refreshRegionalQueuePanel(i.client, region, weapon);
+  return i.reply({ ephemeral:true, content:`You left the **${region} ${weapon}** waitlist.` });
+}
+
 // ════════════════════════════════════════════════════════════
 //  STAFF MANAGEMENT — /hire, /fire, /staff list
 // ════════════════════════════════════════════════════════════
@@ -5731,15 +6376,9 @@ CMDS.startqueue = {
     )
     .addStringOption(o => o
       .setName('region')
-      .setDescription('Region (default: AS/AU)')
+      .setDescription('Choose one of the six supported regions (default: ME)')
       .setRequired(false)
-      .addChoices(
-        { name: 'AS/AU', value: 'AS/AU' },
-        { name: 'PK',    value: 'PK'    },
-        { name: 'EU',    value: 'EU'    },
-        { name: 'NA',    value: 'NA'    },
-        { name: 'SA',    value: 'SA'    },
-      )
+      .addChoices(...REGION_DEFS.map(region => ({ name:`${region.code} · ${region.label}`, value:region.code })))
     )
     .addStringOption(o => o
       .setName('message')
@@ -5748,150 +6387,57 @@ CMDS.startqueue = {
     ),
 
   async execute(i) {
-    // ── Permission check ─────────────────────────────────────
-    if (!hasQueuePerm(i.member))
-      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
+    if (!hasQueuePerm(i.member)) {
+      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setTitle('❌ Permission Denied')
-        .setDescription('Only **Testers** or roles with queue permission can use this command.')
-        .setFooter({ text: BOT_FOOTER })] });
-
-    await i.deferReply({ ephemeral: true });
-
+        .setDescription('Only Testers or staff with queue permission can manage waitlists.')
+        .setFooter({ text:BOT_FOOTER })] });
+    }
+    await i.deferReply({ ephemeral:true });
     const weapon = i.options.getString('gamemode');
-    const region = i.options.getString('region') || 'AS/AU';
-    const extraMsg = i.options.getString('message') || null;
-    const emoji  = WEAPON_EMOJI[weapon] || '<:sword:1549472174119854302>';
-
-    // ── Find target channel: waitlist-<weapon> ────────────────
-    const targetName = `waitlist-${weapon.toLowerCase()}`;
-    let targetCh = null;
-
+    const region = normalizeRegionCode(i.options.getString('region') || 'ME');
     try {
-      const all = await i.guild.channels.fetch();
-      targetCh = all.find(c => c?.isTextBased?.() && c.name.toLowerCase() === targetName) || null;
-    } catch(_) {}
-
-    // Fallback chain: env var → current channel
-    if (!targetCh && CONFIG.QUEUE_ANNOUNCE_CHANNEL_ID) {
-      try { targetCh = await i.client.channels.fetch(CONFIG.QUEUE_ANNOUNCE_CHANNEL_ID).catch(() => null); } catch(_) {}
+      await ensureRegionalQueueInfrastructure(i.guild, i.client);
+      const setup = loadRegionalSetup();
+      const channelId = setup?.[region]?.channels?.[weapon]?.channelId;
+      const channel = channelId ? await i.client.channels.fetch(channelId).catch(() => null) : null;
+      await refreshRegionalQueuePanel(i.client, region, weapon);
+      if (!channel) return i.editReply({ content:`The ${region} ${weapon} waitlist channel was not provisioned. Run /setupregionalqueues or check Manage Channels permission.` });
+      const extra = i.options.getString('message');
+      if (extra) await channel.send({ content:extra, allowedMentions:{ parse:[] } }).catch(() => {});
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0x57F287)
+        .setTitle(`${WEAPON_EMOJI[weapon] || '🎮'} ${region} ${weapon} waitlist is ready`)
+        .setDescription(`Regional queue: <#${channel.id}>
+Only members with the **${regionalAccessRoleName(region)}** role can view this category. The queue panel is managed automatically.`)
+        .setTimestamp()] });
+    } catch (error) {
+      console.error('[STARTQUEUE REGIONAL]', error);
+      return i.editReply({ content:`Regional waitlist setup failed: ${error.message}. Check that the bot has Manage Roles and Manage Channels, and that its role is above the roles it creates.` });
     }
-    if (!targetCh) targetCh = i.channel;
-
-    // ── Bot permission check ──────────────────────────────────
-    const me    = i.guild.members.me;
-    const perms = targetCh.permissionsFor(me);
-    if (!perms?.has(PermissionFlagsBits.SendMessages) || !perms?.has(PermissionFlagsBits.ViewChannel)) {
-      return i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF4444)
-        .setTitle('❌ Bot Missing Permission')
-        .setDescription(
-          `Bot does not have permission to send messages in <#${targetCh.id}>.\n\n` +
-          `**Fix:** Channel settings → Permissions → Bot role → ✅ View Channel + ✅ Send Messages`
-        )
-        .setFooter({ text: BOT_FOOTER })] });
-    }
-
-    // ── Delete old panel for this weapon if exists ────────────
-    const panels = loadSQPanels();
-    console.log(`[STARTQUEUE] panels keys: ${Object.keys(panels).join(', ')}`);
-
-    if (panels[weapon]?.channelId && panels[weapon]?.messageId) {
-      const { channelId, messageId } = panels[weapon];
-      try {
-        const oldCh = await i.client.channels.fetch(channelId, { force: true });
-        if (!oldCh) {
-          console.error(`[STARTQUEUE] Could not fetch old panel channel ${channelId} for ${weapon}`);
-        } else {
-          const oldMsg = await oldCh.messages.fetch({ message: messageId, force: true }).catch(err => {
-            console.error(`[STARTQUEUE] Could not fetch old panel message ${messageId} for ${weapon}:`, err.message);
-            return null;
-          });
-          if (oldMsg) {
-            await oldMsg.delete().catch(err =>
-              console.error(`[STARTQUEUE] Could not delete old panel message ${messageId} for ${weapon}:`, err.message)
-            );
-          }
-        }
-      } catch(err) {
-        console.error(`[STARTQUEUE] Old panel cleanup error for ${weapon}:`, err.message);
-      }
-    }
-
-    // ── Delete "Queue Closed" embed if it exists ──────────────
-    const closedKey = `closed_${weapon}`;
-    console.log(`[STARTQUEUE] closedKey: ${closedKey}, exists: ${!!panels[closedKey]}`);
-    if (panels[closedKey]?.channelId && panels[closedKey]?.messageId) {
-      try {
-        const closedCh  = await i.client.channels.fetch(panels[closedKey].channelId).catch(() => null);
-        const closedMsg = closedCh ? await closedCh.messages.fetch(panels[closedKey].messageId).catch(() => null) : null;
-        if (closedMsg) {
-          await closedMsg.delete().catch(() => {});
-          console.log(`[STARTQUEUE] Deleted closed embed for ${weapon}`);
-        } else {
-          console.log(`[STARTQUEUE] Closed msg not found in channel (may be already deleted)`);
-        }
-      } catch(e) {
-        console.error(`[STARTQUEUE] Error deleting closed msg:`, e.message);
-      }
-      delete panels[closedKey];
-      saveSQPanels(panels);
-    }
-
-    // ── Send the live panel ───────────────────────────────────
-    let sentMsg = null;
-    const baseContent = `@here **${weapon}** queue is open for the **${region}** region!`;
-    const fullContent = extraMsg ? `${extraMsg} ${baseContent}` : baseContent;
-    try {
-      sentMsg = await targetCh.send({
-        content:           fullContent,
-        embeds:            [buildSQEmbed(weapon, region, [i.user.id])],
-        components:        [buildSQButtons(weapon)],
-        allowedMentions:   { parse: ['everyone'] },
-      });
-    } catch(err) {
-      console.error('[STARTQUEUE SEND ERROR]', err.message, 'Code:', err.code);
-      return i.editReply({ embeds: [new EmbedBuilder().setColor(0xFF4444)
-        .setTitle('⚠️ Panel Failed to Send')
-        .setDescription(
-          `Failed to send message in <#${targetCh.id}>.\n\n` +
-          `**Error:** \`${err.message}\` (Code: ${err.code || 'N/A'})\n\n` +
-          `Check:\n• Does the bot have **Send Messages** permission in the channel?\n• Is there a permission override on the channel?`
-        )
-        .addFields(
-          { name: `${emoji} Gamemode`, value: weapon,              inline: true },
-          { name: '📢 Channel',        value: `<#${targetCh.id}>`, inline: true },
-        )
-        .setFooter({ text: BOT_FOOTER })] });
-    }
-
-    // ── Save panel info ───────────────────────────────────────
-    panels[weapon] = {
-      channelId:   targetCh.id,
-      messageId:   sentMsg.id,
-      testers:     [i.user.id],   // tester who started it
-      region,
-      content:     fullContent,   // preserved on refresh so the mention doesn't disappear
-      startedBy:   i.user.id,
-      startedAt:   Date.now(),
-      lastRefresh: Date.now(),
-    };
-    saveSQPanels(panels);
-
-    // ── Confirm to tester (ephemeral) ─────────────────────────
-    return i.editReply({ embeds: [new EmbedBuilder().setColor(0x00C864)
-      .setTitle('✅ Live Queue Panel Started!')
-      .setDescription(
-        `The **${emoji} ${weapon}** CTL-style live panel has been sent in <#${targetCh.id}>!\n\n` +
-        `The panel will update automatically whenever someone joins, leaves, or gets pulled.`
-      )
-      .addFields(
-        { name: `${emoji} Gamemode`, value: weapon,              inline: true },
-        { name: '📢 Channel',        value: `<#${targetCh.id}>`, inline: true },
-        { name: '🌍 Region',         value: region,              inline: true },
-        ...(extraMsg ? [{ name: '💬 Message', value: extraMsg, inline: false }] : []),
-      )
-      .setFooter({ text: BOT_FOOTER })
-      .setTimestamp()] });
   },
+};
+
+CMDS.setupregionalqueues = {
+  data: new SlashCommandBuilder()
+    .setName('setupregionalqueues')
+    .setDescription('Create or repair all six private regional waitlists')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+  async execute(i) {
+    if (!i.memberPermissions?.has(PermissionFlagsBits.Administrator))
+      return i.reply({ ephemeral:true, content:'Administrator permission required.' });
+    await i.deferReply({ ephemeral:true });
+    try {
+      const setup = await ensureRegionalQueueInfrastructure(i.guild, i.client);
+      const summary = REGION_CODES.map(code => `**${code}** · ${WEAPONS.length} channels · ${regionalAccessRoleName(code)}`).join('\n');
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(0x57F287)
+        .setTitle('✅ Regional waitlists provisioned')
+        .setDescription(`Six region categories and their per-gamemode channels are ready.\n\n${summary}\n\nOnly the matching region role can view each category. Testers and admins retain access.`)
+        .setFooter({ text:'EclipseTiers · Regional waitlists' }).setTimestamp()] });
+    } catch (error) {
+      console.error('[REGIONAL SETUP COMMAND]', error);
+      return i.editReply({ content:`Setup failed: ${error.message}. Grant the bot Manage Roles and Manage Channels, then move its bot role above the generated roles.` });
+    }
+  }
 };
 
 // ════════════════════════════════════════════════════════════
@@ -6510,7 +7056,7 @@ async function handleSelectMenu(i) {
 
     // Cooldown check — reuse tier cooldown per weapon for waitlist
     const WAITLIST_COOLDOWN_MS = CONFIG.TIER_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
-    const wlCDKey = `wl_${i.user.id}_${weapon}`;
+    const wlCDKey = `wl_${i.user.id}_${normalizeRegionCode(player.region) || 'none'}_${weapon}`;
     const wlCDStore = global._wlCooldowns || (global._wlCooldowns = {});
     if (wlCDStore[wlCDKey]) {
       const remaining = WAITLIST_COOLDOWN_MS - (Date.now() - wlCDStore[wlCDKey]);
@@ -6522,25 +7068,26 @@ async function handleSelectMenu(i) {
       }
     }
 
-    // Assign Waitlist-<weapon> role
+    // Assign the dedicated region × gamemode waitlist role.
     try {
-      const role = await ensureWaitlistRole(i.guild, weapon);
-      if (role) {
-        const member = await i.guild.members.fetch(i.user.id).catch(()=>null);
-        if (member) await member.roles.add(role).catch(()=>{});
+      const region = normalizeRegionCode(player.region);
+      if (!region) return i.reply({ ephemeral:true, content:'Please update your profile and choose one of the six supported regions first.' });
+      const role = await ensureRegionalWaitlistRole(i.guild, region, weapon);
+      const member = await i.guild.members.fetch(i.user.id).catch(()=>null);
+      if (member) {
+        await syncMemberRegionRole(i.guild, member, region);
+        if (role) await member.roles.add(role).catch(()=>{});
       }
       wlCDStore[wlCDKey] = Date.now();
 
       return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x7FFF00)
-        .setTitle(`✅ Waitlist Role Granted — ${WEAPON_EMOJI[weapon]} ${weapon}`)
+        .setTitle(`✅ ${region} Waitlist Role Granted — ${WEAPON_EMOJI[weapon]} ${weapon}`)
         .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
         .setDescription(
-          `You have received the **Waitlist-${weapon}** role!
+          `You have received **${regionalWaitlistRoleName(region, weapon)}**.
 
 ` +
-          `When the **${weapon}** queue opens, you will be pinged.
-` +
-          `To join, click the **Join** button in the queue channel.`
+          `Your waitlist is private to the **${region}** region. Open the **${region} waitlists** category and join the ${weapon} queue channel.`
         )
         .addFields(
           { name:'🎮 IGN',      value:`**${player.ign}**`,           inline:true },
@@ -6600,7 +7147,7 @@ async function handleSelectMenu(i) {
 
     return i.update({
       embeds: [new EmbedBuilder().setColor(BRAND_COLOR)
-        .setTitle('📋 EclipseTiers Registration — Step 1/2')
+        .setTitle('📋 EclipseTiers Registration — Step 1/3')
         .setDescription(`✅ Platform: **${selected}**\n\nNow choose your **account type**:`)
         .addFields(
           { name:'💎 Premium (Paid)', value:'Original bought Minecraft account', inline:false },
@@ -6620,12 +7167,12 @@ async function handleSelectMenu(i) {
       new StringSelectMenuBuilder()
         .setCustomId(`reg_region_${i.user.id}`)
         .setPlaceholder('🌍 Choose your region...')
-        .addOptions(REGIONS_LIST.map(r => ({ label:r, value:r }))),
+        .addOptions(REGIONS_LIST),
     );
 
     return i.update({
       embeds: [new EmbedBuilder().setColor(BRAND_COLOR)
-        .setTitle('📋 EclipseTiers Registration — Step 2/2')
+        .setTitle(`📋 EclipseTiers ${state.isUpdate ? 'Profile Update' : 'Registration'} — Step 2/3`)
         .setDescription(`✅ Platform: **${state.platform}**\n✅ Account: **${selected}**\n\nNow choose your **region**:`)
         .setFooter({ text:'Only you can see this | EclipseTiers' })],
       components: [regionRow],
@@ -6647,7 +7194,7 @@ async function handleSelectMenu(i) {
 
     return i.update({
       embeds: [new EmbedBuilder().setColor(BRAND_COLOR)
-        .setTitle('📋 EclipseTiers Registration — IGN')
+        .setTitle(`📋 EclipseTiers ${state.isUpdate ? 'Profile Update' : 'Registration'} — Step 3/3 · IGN`)
         .setDescription(`✅ Platform: **${state.platform}**\n✅ Account: **${state.accountType}**\n✅ Region: **${selected}**\n\n⬇️ Now click the button below and enter your **Minecraft IGN**:`)
         .setFooter({ text:'Only you can see this | EclipseTiers' })],
       components: [ignRow],
@@ -6657,6 +7204,7 @@ async function handleSelectMenu(i) {
 
 async function handleButtonClick(i) {
   const parts = i.customId.split('_');
+  if (i.customId.startsWith('rwl_')) return handleRegionalQueueButton(i);
 
   // ── Staff List: 🔄 Refresh button ─────────────────────────
   if (i.customId === 'staff_list_refresh') {
@@ -6715,7 +7263,7 @@ async function handleButtonClick(i) {
         .addOptions(ACCOUNT_TYPES.map(a => ({ label:a, value:a }))),
     );
 
-    const titleTxt = existing ? '📋 EclipseTiers — Update Profile (Step 1/2)' : '📋 EclipseTiers Registration — Step 1/2';
+    const titleTxt = existing ? '📋 EclipseTiers — Update Profile (Step 1/3)' : '📋 EclipseTiers Registration — Step 1/3';
     const descTxt  = existing
       ? `♻️ **Updating profile for ${existing.ign}**\n\nChoose your **account type**:`
       : '🖥️ **Platform: Java Edition**\n\nChoose your **account type**:';
@@ -7219,6 +7767,10 @@ async function handleModal(i) {
 
   const ign   = i.fields.getTextInputValue('ign_input').trim();
   const state = regState.get(i.user.id) || {};
+  const selectedRegion = normalizeRegionCode(state.region);
+  if (!selectedRegion) return i.reply({ ephemeral:true, content:`Choose one supported region before submitting: ${REGION_CODES.join(', ')}.` });
+  state.region = selectedRegion;
+  regState.set(i.user.id, state);
 
   if (!/^[a-zA-Z0-9_]+$/.test(ign))
     return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
@@ -7278,6 +7830,38 @@ async function handleModal(i) {
     };
     fs.writeFileSync(PF, JSON.stringify(db, null, 2));
     if (MEM.players[i.user.id]) Object.assign(MEM.players[i.user.id], db[i.user.id]);
+    migratePlayerLegacyQueueToRegion(i.user.id, db[i.user.id].region);
+
+    // Move Discord category visibility to the one newly selected region.
+    try {
+      const member = await i.guild.members.fetch(i.user.id).catch(() => null);
+      if (member) {
+        await syncMemberRegionRole(i.guild, member, db[i.user.id].region);
+        const selectedCode = normalizeRegionCode(db[i.user.id].region);
+        const regionalQueuesForMember = loadRegionalQueues();
+        for (const mode of WEAPONS) {
+          if (regionalQueuesForMember[selectedCode]?.[mode]?.some(entry => String(entry.discordId) === String(i.user.id))) {
+            const role = await ensureRegionalWaitlistRole(i.guild, selectedCode, mode).catch(() => null);
+            if (role && !member.roles.cache.has(role.id)) await member.roles.add(role, 'Restore regional waitlist role after profile update').catch(() => {});
+            await refreshRegionalQueuePanel(i.client, selectedCode, mode);
+          }
+        }
+        if (normalizeRegionCode(existing.region) !== normalizeRegionCode(db[i.user.id].region)) {
+          const regionalData = loadRegionalQueues();
+          for (const code of REGION_CODES) for (const mode of WEAPONS) {
+            const q = regionalData[code][mode];
+            const index = q.findIndex(entry => String(entry.discordId) === String(i.user.id));
+            if (index >= 0 && code !== normalizeRegionCode(db[i.user.id].region)) q.splice(index, 1);
+            if (code !== normalizeRegionCode(db[i.user.id].region)) {
+              const oldWaitRole = i.guild.roles.cache.find(role => role.name === regionalWaitlistRoleName(code, mode));
+              if (oldWaitRole && member.roles.cache.has(oldWaitRole.id)) await member.roles.remove(oldWaitRole).catch(() => {});
+            }
+          }
+          saveRegionalQueues(regionalData);
+          for (const code of REGION_CODES) for (const mode of WEAPONS) await refreshRegionalQueuePanel(i.client, code, mode);
+        }
+      }
+    } catch (regionError) { console.warn('[REGION SYNC] Profile update:', regionError.message); }
 
     regState.delete(i.user.id);
     broadcast({ type:'player_updated', player: db[i.user.id] });
@@ -7301,7 +7885,7 @@ async function handleModal(i) {
 
     return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
       .setTitle('✅ Profile Updated! 🎉')
-      .setDescription(`Profile updated, **${ign}**! 🇵🇰\nAll previous tiers have been transferred.`)
+      .setDescription(`Profile updated, **${ign}**!\nAll previous tiers have been transferred, and your Discord region access has been synced to **${formatRegion(state.region)}**.`)
       .setThumbnail(`https://mc-heads.net/avatar/${ign}/128`)
       .addFields(
         { name:'🔄 Old IGN',    value:`\`${oldIgn}\``,            inline:true },
@@ -7324,6 +7908,12 @@ async function handleModal(i) {
       .setDescription(`❌ **${ign}** is already registered. Please double-check your IGN.`)] });
 
   const result = LDB.register(i.user.id, ign, state.platform, accountType, state.region, uuid, verified);
+  if (result) {
+    try {
+      const member = await i.guild.members.fetch(i.user.id).catch(() => null);
+      if (member) await syncMemberRegionRole(i.guild, member, result.region);
+    } catch (regionError) { console.warn('[REGION SYNC] New registration:', regionError.message); }
+  }
   if (!result) {
     const ex = LDB.get(i.user.id);
     // Player already exists — treat as update
@@ -7349,7 +7939,7 @@ async function handleModal(i) {
 
   await i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
     .setTitle('✅ Registration Complete! 🎉')
-    .setDescription(`Welcome to **EclipseTiers**, **${ign}**! 🇵🇰`)
+    .setDescription(`Welcome to **EclipseTiers**, **${ign}**!\nYour **${formatRegion(state.region)}** regional access has been assigned.`)
     .setThumbnail(`https://mc-heads.net/avatar/${ign}/128`)
     .addFields(
       { name:'🎮 IGN',         value:`\`${ign}\``,           inline:true },
@@ -7358,7 +7948,7 @@ async function handleModal(i) {
       { name:'🌍 Region',      value:state.region||'?',      inline:true },
       { name:'🆔 UUID',        value:`\`${MEM.players[i.user.id].uuid||'—'}\`${accountType==='Cracked (Free)' ? ' (Offline/Cracked)' : ''}`, inline:true },
       { name:'🔰 Season',      value:'Season 1',             inline:true },
-      { name:'📋 Next Steps',  value:'1. Get evaluated by a Tierer\n2. use queue access to find a match\n3. View your card with `/profile`', inline:false },
+      { name:'📋 Next Steps',  value:'1. Select your gamemode in the registration panel to receive its regional waitlist role\n2. Open your region category and press **Join waitlist** in that gamemode channel\n3. View your player card with `/profile`', inline:false },
     )
     .setFooter({ text:BOT_FOOTER })
     .setTimestamp()] });
@@ -7420,7 +8010,35 @@ client.once('ready', async () => {
       } catch(_) {}
     }
     console.log(`[ROLE SYNC] Done — ${allPlayers.length} players processed.`);
-  } catch(e) { console.error('[ROLE INIT]', e); }
+
+    // One-time transfer of active legacy global queue entries into their registered region.
+    // The original queue.json is backed up before transferred entries are removed.
+    migrateLegacyQueuesToRegional();
+
+    // Provision all six private regional waitlist categories/channels/roles.
+    await ensureRegionalQueueInfrastructure(guild, client);
+    console.log('[REGIONAL ROLE SYNC] Assigning exactly one selected region to registered members...');
+    const registeredPlayers = Object.values(LDB.all());
+    for (const player of registeredPlayers) {
+      try {
+        const member = await guild.members.fetch(player.discordId).catch(() => null);
+        if (member && normalizeRegionCode(player.region)) await syncMemberRegionRole(guild, member, player.region);
+      } catch (regionError) { console.warn('[REGIONAL ROLE SYNC]', player.ign, regionError.message); }
+      await new Promise(resolve => setTimeout(resolve, 80));
+    }
+    const activeRegionalQueues = loadRegionalQueues();
+    for (const region of REGION_CODES) {
+      for (const weapon of WEAPONS) {
+        const waitlistRole = await ensureRegionalWaitlistRole(guild, region, weapon).catch(() => null);
+        if (!waitlistRole) continue;
+        for (const entry of activeRegionalQueues[region][weapon]) {
+          const member = await guild.members.fetch(entry.discordId).catch(() => null);
+          if (member && !member.roles.cache.has(waitlistRole.id)) await member.roles.add(waitlistRole, 'Restore regional waitlist role from persistent queue').catch(() => {});
+        }
+      }
+    }
+    console.log(`[REGIONAL ROLE SYNC] Done — ${registeredPlayers.length} registered members checked; active waitlist roles restored.`);
+  } catch(e) { console.error('[ROLE INIT / REGIONAL SETUP] Ensure the bot has Manage Roles + Manage Channels and its highest role is above generated roles:', e); }
 });
 
 client.on('interactionCreate', async i => {
