@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   AppBar, Avatar, Alert, Autocomplete, Badge, Box, Button, Card, CardContent,
-  Chip, CircularProgress, Container, Dialog, DialogContent, DialogTitle,
+  Chip, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle,
   Divider, Drawer, FormControl, IconButton, InputAdornment, InputLabel,
   LinearProgress, Menu, MenuItem, Pagination, Paper, Select, Skeleton,
   Snackbar, Stack, Table, TableBody, TableCell, TableContainer, TableHead,
@@ -68,7 +68,24 @@ const tierSort = (tier) => TIER_ORDER.indexOf(String(tier || '').replace(/^R/, '
 const safeName = (value) => String(value || '').trim();
 const getTiers = (player) => player?.tiers && typeof player.tiers === 'object' ? player.tiers : {};
 const getTotalPoints = (player) => Number(player?.totalPts ?? Object.values(getTiers(player)).reduce((sum, tier) => sum + ({ HT1:60, LT1:45, HT2:30, LT2:20, HT3:10, LT3:6, HT4:4, LT4:3, HT5:2, LT5:1 }[tier] || 0), 0));
-const getRegion = (player) => player?.region || '—';
+const REGION_CODES = ['ME', 'AS', 'AU', 'EU', 'NA', 'SA'];
+const normalizeRegion = (value) => {
+  const raw = String(value || '').trim();
+  const code = raw.toUpperCase().replace(/[^A-Z/]/g, '');
+  if (REGION_CODES.includes(code)) return code;
+  const lower = raw.toLowerCase().replace(/[🇵🇰🇮🇳🇦🇪🇸🇦🇬🇧🇺🇸🌏🌎🌍]/gu, '').trim();
+  const aliases = {
+    'middle east':'ME','mena':'ME','uae':'ME','united arab emirates':'ME','saudi arabia':'ME','ksa':'ME','qatar':'ME','kuwait':'ME','bahrain':'ME','oman':'ME',
+    'asia':'AS','pakistan':'AS','pk':'AS','india':'AS','in':'AS','bangladesh':'AS','nepal':'AS','sri lanka':'AS','china':'AS','japan':'AS','singapore':'AS','as/au':'AS',
+    'oceania':'AU','australia':'AU','new zealand':'AU','europe':'EU','united kingdom':'EU','uk':'EU','gb':'EU',
+    'north america':'NA','united states':'NA','usa':'NA','us':'NA','canada':'NA','mexico':'NA',
+    'south america':'SA','brazil':'SA','argentina':'SA','chile':'SA','peru':'SA'
+  };
+  if (aliases[lower]) return aliases[lower];
+  for (const [name, region] of Object.entries(aliases)) if (name.length > 2 && lower.includes(name)) return region;
+  return '—';
+};
+const getRegion = (player) => normalizeRegion(player?.region);
 const getAvatar = (player) => player?.avatar || `https://mc-heads.net/avatar/${encodeURIComponent(player?.ign || 'Steve')}/64`;
 const formatNumber = (value) => Number.isFinite(Number(value)) ? new Intl.NumberFormat('en-US').format(Number(value)) : '—';
 const formatDate = (value) => {
@@ -430,7 +447,7 @@ function RankingsPage({ openPlayer }) {
   const filtered = useMemo(() => {
     let items = ranked.filter(player => {
       const matchesName = !query || String(player.ign || '').toLowerCase().includes(query.trim().toLowerCase());
-      const matchesRegion = region === 'all' || String(player.region || '').toLowerCase() === region.toLowerCase();
+      const matchesRegion = region === 'all' || normalizeRegion(player.region) === region;
       const tiers = getTiers(player);
       const activeTier = (mode === 'all' ? Object.values(tiers) : [getTierForMode(player, gamemodeOf(mode))]).map(value => String(value || '').replace(/^R/, ''));
       const matchesTier = tier === 'all' || activeTier.includes(tier);
@@ -444,7 +461,7 @@ function RankingsPage({ openPlayer }) {
   const pageSize = 100;
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const visible = filtered.slice((page - 1) * pageSize, page * pageSize);
-  const regions = [...new Set(ranked.map(player => player.region).filter(Boolean))].sort();
+  const regions = REGION_CODES;
   const activeMode = gamemodeOf(mode);
 
   const selectMode = (item) => {
@@ -644,11 +661,7 @@ function getAssignedModeCount(player) {
   return GAMEMODES.filter(mode => mode.key !== 'all' && Boolean(getTierForMode(player, mode))).length;
 }
 
-const REGION_FLAGS = {
-  PK: '🇵🇰', PAKISTAN: '🇵🇰', UAE: '🇦🇪', SA: '🇸🇦', KSA: '🇸🇦',
-  US: '🇺🇸', USA: '🇺🇸', NA: '🌎', EU: '🇪🇺', UK: '🇬🇧', GB: '🇬🇧',
-  IN: '🇮🇳', AS: '🌏', ASIA: '🌏', AU: '🇦🇺', OCE: '🌏', BR: '🇧🇷', TR: '🇹🇷'
-};
+const REGION_TITLES = { ME:'Middle East', AS:'Asia', AU:'Oceania', EU:'Europe', NA:'North America', SA:'South America' };
 
 function getSkinBody(player) {
   const skinName = getSkinName(player) || player?.ign;
@@ -687,13 +700,9 @@ function ClassicPlayerIdentity({ player, compact = false }) {
 }
 
 function ClassicRegionPill({ region }) {
-  const raw = String(region || '').trim();
-  const key = raw.toUpperCase();
-  const flag = REGION_FLAGS[key];
-  const label = key === 'PAKISTAN' ? 'Pakistan' : (raw || 'Unknown');
-  return <Box className={`classic-region-pill ${flag ? '' : 'muted'}`} title={label}>
-    {flag && <span className="classic-region-flag">{flag}</span>}
-    <span>{label}</span>
+  const code = normalizeRegion(region);
+  return <Box className={`classic-region-pill ${code === '—' ? 'muted' : ''}`} title={REGION_TITLES[code] || 'Region not selected'}>
+    <span>{code}</span>
   </Box>;
 }
 
@@ -816,23 +825,35 @@ function PlayerPage({ ign, openPlayer }) {
 }
 
 function QueuePage() {
-  const { data, loading, error, stale, updatedAt } = useApiResource('/api/queue', 12000);
+  const [selectedRegion, setSelectedRegion] = useState('ME');
+  const { data, loading, error, stale, updatedAt } = useApiResource(`/api/queue?region=${selectedRegion}`, 12000);
   const { data: activity } = useApiResource('/public-api/activity?limit=12', 45000);
-  const queues = data?.queues && typeof data.queues === 'object' && !Array.isArray(data.queues) ? data.queues : {};
-  const modes = Object.entries(queues).map(([key, value]) => [key, Array.isArray(value) ? value : []]);
-  const total = modes.reduce((sum, [, items]) => sum + (Array.isArray(items) ? items.length : 0), 0);
+  const regionalQueues = data?.regionalQueues && typeof data.regionalQueues === 'object' ? data.regionalQueues : null;
+  const sourceQueues = regionalQueues ? regionalQueues[selectedRegion] : null;
+  const queues = sourceQueues && typeof sourceQueues === 'object' && !Array.isArray(sourceQueues) ? sourceQueues : {};
+  const modes = Object.entries(queues).map(([key, value]) => [key, Array.isArray(value) ? value.filter(entry => entry && typeof entry === 'object') : []]);
+  const total = modes.reduce((sum, [, items]) => sum + items.length, 0);
   const matches = Array.isArray(activity?.matches) ? activity.matches : [];
-  const queueEvents = Array.isArray(activity?.queueEvents) ? activity.queueEvents : [];
+  const queueEvents = Array.isArray(activity?.queueEvents) ? activity.queueEvents.filter(event => normalizeRegion(event?.region) === selectedRegion) : [];
   const [clock, setClock] = useState(Date.now());
   useEffect(() => { const timer = window.setInterval(() => setClock(Date.now()), 30000); return () => window.clearInterval(timer); }, []);
-  return <Container maxWidth="xl" className="page-container"><PageBanner eyebrow="LIVE ACTIVITY" title="Testing queue" subtitle="See who is waiting, their live queue position and how long they have been queued. The list refreshes automatically." action={<Chip icon={<span className="live-dot" />} label="Live updates" className="live-chip" />} /><StatusStrip stale={stale} error={error} updatedAt={updatedAt} />
-    <Box className="queue-overview"><StatCard label="Players queued" value={total} icon={<GroupsRoundedIcon />} note="Across all visible queues" /><StatCard label="Gamemodes active" value={modes.filter(([, list]) => list?.length).length} icon={<SportsEsportsRoundedIcon />} note="Queues with at least one player" /><StatCard label="Refresh interval" value="12s" icon={<RefreshRoundedIcon />} note="Automatic background refresh" /></Box>
-    <Box className="queue-section-heading"><Box><Typography className="eyebrow">CURRENT WAITLIST</Typography><Typography variant="h5">Players waiting for a test</Typography></Box><Chip size="small" label={`${total} waiting`} /></Box>
-    <Box className="queue-grid">{modes.map(([key, list]) => <Card key={key} className="queue-card motion-tile"><CardContent><Stack direction="row" alignItems="center" spacing={1.2} sx={{ mb: 2 }}><Box className="mini-mode-icon">{gamemodeOf(key).file && <img src={`/gamemodes/${gamemodeOf(key).file}`} alt="" />}</Box><Box flex={1}><Typography fontWeight={850}>{gamemodeOf(key).label}</Typography><Typography className="muted-caption">Live queue</Typography></Box><Chip size="small" label={list?.length || 0} /></Stack>
-      {loading && !data ? <Skeleton height={65} /> : list?.length ? list.map((entry, index) => <Stack key={`${entry.ign}-${entry.joinedAt}`} direction="row" spacing={1.1} alignItems="center" className="queue-player"><Typography className="queue-position">{String(index + 1).padStart(2, '0')}</Typography><Avatar src={entry.avatar || `https://mc-heads.net/avatar/${entry.ign}/32`} /><Box flex={1} minWidth={0}><Typography fontWeight={750} noWrap>{entry.ign}</Typography><Typography className="muted-caption">Joined {formatDateTime(entry.joinedAt)}</Typography></Box><Chip size="small" label={formatElapsed(entry.joinedAt, clock)} className="waiting-chip" /></Stack>) : <Typography className="queue-empty">No players currently queued.</Typography>}
-      </CardContent></Card>)}</Box>
-    <Box className="queue-history-callout"><Box><Typography fontWeight={850}>Queue archive</Typography><Typography color="text.secondary" fontSize={13}>The gateway records observed changes to the persistent waitlist from this release onward. Short-lived changes may not always be visible to the file observer, and older queue activity cannot be reconstructed.</Typography></Box><Button variant="outlined" onClick={() => { window.history.pushState({}, '', '/history'); window.dispatchEvent(new PopStateEvent('popstate')); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Open all history</Button></Box>
-    {queueEvents.length > 0 && <Box className="queue-recent-events"><Box className="queue-section-heading"><Box><Typography className="eyebrow">LATEST MOVEMENT</Typography><Typography variant="h5">Recent queue activity</Typography></Box><Chip size="small" label={`${queueEvents.length} recorded`} /></Box><Box className="queue-event-history-list">{queueEvents.slice(0, 5).map(event => <QueueEventCard key={event.id} event={event} />)}</Box></Box>}
+  return <Container maxWidth="xl" className="page-container">
+    <PageBanner eyebrow="LIVE ACTIVITY" title="Testing queue" subtitle="Choose a region to view only its gamemode waitlists. Each regional waitlist is isolated from the others." action={<Chip icon={<span className="live-dot" />} label="Live updates" className="live-chip" />} />
+    <StatusStrip stale={stale} error={error} updatedAt={updatedAt} />
+    <Paper className="ranking-panel regional-queue-region-picker">
+      <Typography className="eyebrow">SELECT REGION</Typography>
+      <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt:1 }}>
+        {REGION_CODES.map(code => <Button key={code} variant={selectedRegion === code ? 'contained' : 'outlined'} onClick={() => setSelectedRegion(code)} aria-pressed={selectedRegion === code}>{code}</Button>)}
+      </Stack>
+      <Typography color="text.secondary" fontSize={12} sx={{ mt:1.2 }}>{REGION_TITLES[selectedRegion]} · Only this region's waitlists are shown below.</Typography>
+    </Paper>
+    <Box className="queue-overview"><StatCard label={`${selectedRegion} players queued`} value={total} icon={<GroupsRoundedIcon />} note="In the selected region" /><StatCard label="Gamemodes active" value={modes.filter(([, list]) => list.length).length} icon={<SportsEsportsRoundedIcon />} note={`Active ${selectedRegion} waitlists`} /><StatCard label="Refresh interval" value="12s" icon={<RefreshRoundedIcon />} note="Automatic background refresh" /></Box>
+    <Box className="queue-section-heading"><Box><Typography className="eyebrow">{selectedRegion} WAITLISTS</Typography><Typography variant="h5">Players waiting for a test</Typography></Box><Chip size="small" label={`${total} waiting`} /></Box>
+    {loading && !data ? <EclipseLoadingScreen compact label={`Loading ${selectedRegion} waitlists`} /> : !regionalQueues ? <Paper className="queue-region-unavailable"><Typography variant="h6">Regional waitlists are not connected yet</Typography><Typography color="text.secondary">The regional queue service has not been provisioned. The previous mixed-region queue is hidden here so players from another region are never shown by mistake.</Typography></Paper> : <Box className="queue-grid">{modes.map(([key, list]) => <Card key={`${selectedRegion}-${key}`} className="queue-card motion-tile"><CardContent><Stack direction="row" alignItems="center" spacing={1.2} sx={{ mb:2 }}><Box className="mini-mode-icon">{gamemodeOf(key).file && <img src={`/gamemodes/${gamemodeOf(key).file}`} alt="" />}</Box><Box flex={1}><Typography fontWeight={850}>{gamemodeOf(key).label}</Typography><Typography className="muted-caption">{selectedRegion} regional queue</Typography></Box><Chip size="small" label={list.length} /></Stack>
+      {list.length ? list.map((entry,index) => <Stack key={`${entry.ign}-${entry.joinedAt}-${index}`} direction="row" spacing={1.1} alignItems="center" className="queue-player"><Typography className="queue-position">{String(index+1).padStart(2,'0')}</Typography><Avatar src={entry.avatar || `https://mc-heads.net/avatar/${encodeURIComponent(entry.ign || 'Steve')}/32`} /><Box flex={1} minWidth={0}><Typography fontWeight={750} noWrap>{entry.ign || 'Unknown player'}</Typography><Typography className="muted-caption">Joined {formatDateTime(entry.joinedAt)}</Typography></Box><Chip size="small" label={formatElapsed(entry.joinedAt,clock)} className="waiting-chip" /></Stack>) : <Typography className="queue-empty">No players currently queued in {selectedRegion}.</Typography>}
+      </CardContent></Card>)}</Box>}
+    <Box className="queue-history-callout"><Box><Typography fontWeight={850}>Queue archive</Typography><Typography color="text.secondary" fontSize={13}>Regional waitlist events are recorded from this release onward. Older events cannot be reconstructed.</Typography></Box><Button variant="outlined" onClick={() => { window.history.pushState({}, '', '/history'); window.dispatchEvent(new PopStateEvent('popstate')); window.scrollTo({ top:0, behavior:'smooth' }); }}>Open all history</Button></Box>
+    {queueEvents.length > 0 && <Box className="queue-recent-events"><Box className="queue-section-heading"><Box><Typography className="eyebrow">LATEST MOVEMENT</Typography><Typography variant="h5">Recent queue activity</Typography></Box><Chip size="small" label={`${queueEvents.length} recorded`} /></Box><Box className="queue-event-history-list">{queueEvents.slice(0,5).map(event => <QueueEventCard key={event.id} event={event} />)}</Box></Box>}
     <Box className="queue-section-heading queue-match-heading"><Box><Typography className="eyebrow">RECORDED MATCHES</Typography><Typography variant="h5">Match activity</Typography></Box><Typography color="text.secondary" fontSize={12}>{matches.length} archived records available</Typography></Box>
     {matches.length ? <Box className="history-match-grid">{matches.map(match => <MatchHistoryCard key={match.id} match={match} />)}</Box> : <EmptyState title="No archived matches available" detail="The current queue flow does not consistently save match records to the persistent match archive. Nothing is being made up here." />}
   </Container>;
@@ -844,15 +865,43 @@ function TestersPage({ testerData }) {
   const testers = Array.isArray(source.testers) ? source.testers : [];
   const dashboard = source.dashboard || {};
   const [query, setQuery] = useState('');
-  const visible = testers.filter(t => t && typeof t === 'object' && String(t.displayName || t.username || '').toLowerCase().includes(query.toLowerCase()));
-  return <Container maxWidth="xl" className="page-container"><PageBanner eyebrow="THE PEOPLE BEHIND THE TIERS" title="Tester directory" subtitle="Meet the community members who help maintain the EclipseTiers ranking system." action={<Button component="a" href={DISCORD_INVITE} target="_blank" startIcon={<ForumRoundedIcon />} variant="contained">Join the community</Button>} /><StatusStrip stale={stale} error={error} updatedAt={updatedAt} />
-    <Box className="stats-grid tester-stats"><StatCard label="Active Testers" value={dashboard.activeTesters ?? testers.length} icon={<ShieldRoundedIcon />} note="Visible tester directory" /><StatCard label="Online Now" value={dashboard.onlineNow} icon={<WifiRoundedIcon />} note="Discord presence when available" /><StatCard label="Tier Records This Month" value={dashboard.totalTestsThisMonth} icon={<StarRoundedIcon />} note="Saved tier-log actions" /><StatCard label="Top Contributor" value={dashboard.topContributor?.displayName || dashboard.topContributor?.username || '—'} icon={<MilitaryTechRoundedIcon />} note="By current-month tier records" /></Box>
-    <Paper className="directory-panel"><Stack className="directory-toolbar" direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}><Box><Typography variant="h5">Our testers</Typography><Typography color="text.secondary">{formatNumber(testers.length)} public tester profiles</Typography></Box><TextField size="small" placeholder="Search testers..." value={query} onChange={e => setQuery(e.target.value)} sx={{ width: { xs: '100%', sm: 280 } }} InputProps={{ startAdornment: <InputAdornment position="start"><SearchRoundedIcon /></InputAdornment> }} /></Stack>
-      {loading && !data && !testerData ? <Box sx={{ p: 3 }}><Skeleton height={90} /><Skeleton height={90} /><Skeleton height={90} /></Box> : visible.length ? <Box className="tester-grid">{visible.map((tester, index) => <Card key={tester.id || tester.username} className="tester-card"><CardContent><Stack direction="row" spacing={1.5} alignItems="center"><Box className="tester-avatar-wrap"><Avatar src={tester.avatar} className="tester-avatar" /><span className={tester.online ? 'online-indicator online' : 'online-indicator'} /></Box><Box flex={1} minWidth={0}><Typography fontWeight={850} noWrap>{tester.displayName || tester.username}</Typography><Typography color="text.secondary" fontSize={12}>@{tester.username}</Typography></Box><Chip size="small" label={tester.online ? 'Online' : 'Offline'} className={tester.online ? 'online-chip' : 'offline-chip'} /></Stack><Divider sx={{ my: 1.7 }} /><Stack direction="row" justifyContent="space-between"><Box><Typography className="stat-label">MONTHLY RECORDS</Typography><Typography variant="h5">{formatNumber(tester.testsThisMonth)}</Typography></Box><Box textAlign="right"><Typography className="stat-label">ALL-TIME RECORDS</Typography><Typography variant="h5">{formatNumber(tester.testsAllTime)}</Typography></Box></Stack></CardContent></Card>)}</Box> : <EmptyState title="No testers found" detail={testers.length ? 'Try another search term.' : 'Tester information is not currently available from Discord.'} />}
+  const [selectedTester, setSelectedTester] = useState(null);
+  const visible = testers.filter(t => t && typeof t === 'object' && [t.displayName, t.username, t.ign, ...(t.regions || []).map(region => region.code)].some(value => String(value || '').toLowerCase().includes(query.toLowerCase())));
+  return <Container maxWidth="xl" className="page-container"><PageBanner eyebrow="THE PEOPLE BEHIND THE TIERS" title="Regional tester directory" subtitle="Meet the verified regional testers helping maintain the EclipseTiers ranking system. Only members holding a regional Tester role appear here." action={<Button component="a" href={DISCORD_INVITE} target="_blank" startIcon={<ForumRoundedIcon />} variant="contained">Join the community</Button>} /><StatusStrip stale={stale} error={error} updatedAt={updatedAt} />
+    <Box className="stats-grid tester-stats"><StatCard label="Regional Testers" value={dashboard.activeTesters ?? testers.length} icon={<ShieldRoundedIcon />} note="Members with a regional Tester role" /><StatCard label="Online Now" value={dashboard.onlineNow} icon={<WifiRoundedIcon />} note="Discord presence when available" /><StatCard label="Tier Records This Month" value={dashboard.totalTestsThisMonth} icon={<StarRoundedIcon />} note="Saved results by current regional testers" /><StatCard label="Top Contributor" value={dashboard.topContributor?.displayName || dashboard.topContributor?.username || '—'} icon={<MilitaryTechRoundedIcon />} note="By current-month tier records" /></Box>
+    <Paper className="directory-panel"><Stack className="directory-toolbar" direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}><Box><Typography variant="h5">Our regional testers</Typography><Typography color="text.secondary">{formatNumber(testers.length)} verified Discord tester profiles</Typography></Box><TextField size="small" placeholder="Search testers, IGN or region..." value={query} onChange={e => setQuery(e.target.value)} sx={{ width: { xs: '100%', sm: 310 } }} InputProps={{ startAdornment: <InputAdornment position="start"><SearchRoundedIcon /></InputAdornment> }} /></Stack>
+      {loading && !data && !testerData ? <Box sx={{ p: 3 }}><Skeleton height={90} /><Skeleton height={90} /><Skeleton height={90} /></Box> : visible.length ? <Box className="tester-grid">{visible.map(tester => <Card key={tester.discordId || tester.id} className="tester-card tester-card-clickable" role="button" tabIndex={0} aria-label={`Open ${tester.displayName || tester.username} tester profile`} onClick={() => setSelectedTester(tester)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedTester(tester); } }}><CardContent><Stack direction="row" spacing={1.5} alignItems="center"><Box className="tester-avatar-wrap"><Avatar src={tester.avatar} alt={`${tester.displayName || tester.username} Discord avatar`} className="tester-avatar" /><span className={tester.online ? 'online-indicator online' : 'online-indicator'} /></Box><Box flex={1} minWidth={0}><Typography fontWeight={850} noWrap>{tester.displayName || tester.username}</Typography><Typography color="text.secondary" fontSize={12}>@{tester.username}</Typography></Box><Chip size="small" label={tester.online ? 'Online' : 'Offline'} className={tester.online ? 'online-chip' : 'offline-chip'} /></Stack><Stack direction="row" spacing={.6} flexWrap="wrap" useFlexGap sx={{ mt: 1.4 }}>{(tester.regions || []).map(region => <Chip key={region.code} size="small" label={`${region.code} · ${region.label}`} className="tester-region-chip" />)}</Stack><Typography className="tester-card-ign" noWrap>{tester.ign ? `Minecraft: ${tester.ign}` : 'Minecraft account not linked'}</Typography><Divider sx={{ my: 1.5 }} /><Stack direction="row" justifyContent="space-between" alignItems="center"><Box><Typography className="stat-label">MONTHLY RECORDS</Typography><Typography variant="h5">{formatNumber(tester.testsThisMonth)}</Typography></Box><Box textAlign="right"><Typography className="stat-label">ALL-TIME RECORDS</Typography><Typography variant="h5">{formatNumber(tester.testsAllTime)}</Typography></Box></Stack><Typography className="tester-card-open-hint">View profile & ask a question <ArrowOutwardRoundedIcon /></Typography></CardContent></Card>)}</Box> : <EmptyState title="No regional testers found" detail={testers.length ? 'Try another search term.' : 'Only members with Tester-ME, Tester-AS, Tester-AU, Tester-EU, Tester-NA or Tester-SA roles appear here. Assign a regional Tester role in Discord to list someone.'} />}
     </Paper>
+    <TesterProfileDialog tester={selectedTester} onClose={() => setSelectedTester(null)} />
   </Container>;
 }
 
+function TesterProfileDialog({ tester, onClose }) {
+  if (!tester) return null;
+  const regions = Array.isArray(tester.regions) ? tester.regions : [];
+  const gamemodes = Array.isArray(tester.gamemodes) ? tester.gamemodes : [];
+  const recentActivity = Array.isArray(tester.recentActivity) ? tester.recentActivity : [];
+  const info = [
+    ['Minecraft IGN', tester.ign || 'Not linked'],
+    ['Account type', tester.accountType || 'Not provided'],
+    ['Platform', tester.platform || 'Not provided'],
+    ['Discord member since', tester.joinedAt ? formatDate(tester.joinedAt) : 'Not available'],
+    ['Discord account created', tester.accountCreatedAt ? formatDate(tester.accountCreatedAt) : 'Not available'],
+    ['Minecraft registered', tester.registeredAt ? formatDate(tester.registeredAt) : 'Not linked'],
+  ];
+  return <Dialog open={Boolean(tester)} onClose={onClose} fullWidth maxWidth="sm" className="tester-profile-dialog" PaperProps={{ className: 'tester-profile-paper' }}>
+    <DialogTitle className="tester-profile-title"><Box><Typography className="eyebrow">REGIONAL TESTER PROFILE</Typography><Typography variant="h5">{tester.displayName || tester.username}</Typography></Box><IconButton onClick={onClose} aria-label="Close tester profile"><CloseRoundedIcon /></IconButton></DialogTitle>
+    <DialogContent dividers>
+      <Stack direction="row" spacing={2} alignItems="center" className="tester-profile-identity"><Avatar src={tester.avatar} alt={`${tester.displayName || tester.username} Discord avatar`} className="tester-profile-avatar" /><Box minWidth={0} flex={1}><Typography fontWeight={850} variant="h6" noWrap>{tester.displayName || tester.username}</Typography><Typography color="text.secondary">{tester.discordTag || `@${tester.username}`}</Typography><Stack direction="row" flexWrap="wrap" gap={.6} sx={{ mt: 1 }}>{regions.map(region => <Chip key={region.code} size="small" label={`${region.code} · ${region.label}`} className="tester-region-chip" />)}<Chip size="small" label={tester.online ? 'Online' : 'Offline'} className={tester.online ? 'online-chip' : 'offline-chip'} /></Stack></Box></Stack>
+      <Box className="tester-profile-counts"><Box><Typography className="stat-label">THIS MONTH</Typography><Typography variant="h4">{formatNumber(tester.testsThisMonth)}</Typography><Typography className="muted-caption">Tier records</Typography></Box><Box><Typography className="stat-label">ALL TIME</Typography><Typography variant="h4">{formatNumber(tester.testsAllTime)}</Typography><Typography className="muted-caption">Tier records</Typography></Box></Box>
+      <Typography className="tester-dialog-section-label">PROFILE DETAILS</Typography><Box className="tester-detail-grid">{info.map(([label, value]) => <Box className="tester-detail-item" key={label}><Typography className="stat-label">{label}</Typography><Typography>{value}</Typography></Box>)}</Box>
+      <Typography className="tester-dialog-section-label">ASSIGNED GAMEMODES</Typography><Stack direction="row" flexWrap="wrap" gap={.7}>{gamemodes.length ? gamemodes.map(mode => <Chip key={mode} size="small" label={mode} className="tester-mode-chip" />) : <Typography color="text.secondary" fontSize={13}>No gamemode assignments have been published yet.</Typography>}</Stack>
+      <Typography className="tester-dialog-section-label">RECENT TIER ACTIVITY</Typography>{recentActivity.length ? <Stack spacing={.8}>{recentActivity.map((record, index) => <Box className="tester-activity-row" key={`${record.timestamp}-${record.playerIGN}-${index}`}><Box minWidth={0} flex={1}><Typography fontWeight={750}>{record.playerIGN}</Typography><Typography color="text.secondary" fontSize={12}>{record.weapon}{record.tier ? ` · ${record.tier}` : ''}</Typography></Box><Typography color="text.secondary" fontSize={11}>{record.timestamp ? formatDate(record.timestamp) : 'Date unavailable'}</Typography></Box>)}</Stack> : <Typography color="text.secondary" fontSize={13}>No public tier activity records are available yet.</Typography>}
+      <Paper className="tester-question-panel"><Typography fontWeight={800}>Have a question for this tester?</Typography><Typography color="text.secondary" fontSize={12}>Open their Discord profile or join the EclipseTiers server to ask about testing, regions or gamemodes.</Typography><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1.5 }}><Button component="a" href={tester.profileUrl || `https://discord.com/users/${tester.discordId || tester.id}`} target="_blank" rel="noreferrer" variant="outlined" endIcon={<ArrowOutwardRoundedIcon />}>Discord profile</Button><Button component="a" href={DISCORD_INVITE} target="_blank" rel="noreferrer" variant="contained" endIcon={<ForumRoundedIcon />}>Ask in Discord</Button></Stack></Paper>
+    </DialogContent>
+    <DialogActions><Button onClick={onClose}>Close profile</Button></DialogActions>
+  </Dialog>;
+}
 function ActivityHistoryPage() {
   const { data, loading, error, stale, updatedAt } = useApiResource('/public-api/activity?limit=80', 45000);
   const { data: queueData } = useApiResource('/api/queue', 12000);
@@ -930,7 +979,7 @@ function QueueEventCard({ event }) {
   return <Paper className={`queue-event-card motion-tile ${joined ? 'joined' : 'removed'}`} elevation={0}>
     <Box className={`queue-event-mark ${joined ? 'joined' : 'removed'}`}>{joined ? <ArrowForwardRoundedIcon /> : <CloseRoundedIcon />}</Box>
     <Box className="history-mode-icon">{mode.file ? <img src={`/gamemodes/${mode.file}`} alt="" /> : <HourglassBottomRoundedIcon />}</Box>
-    <Box className="queue-event-main"><Typography fontWeight={850}>{event.ign}</Typography><Typography className="muted-caption">{mode.label} · {joined ? `Joined at position ${event.position || '—'}` : 'Removed from waitlist'}</Typography></Box>
+    <Box className="queue-event-main"><Typography fontWeight={850}>{event.ign}</Typography><Typography className="muted-caption">{mode.label} · {event.region ? `${event.region} region · ` : ''}{joined ? `Joined at position ${event.position || '—'}` : 'Removed from waitlist'}</Typography></Box>
     <Box className="history-record-time"><Typography>{formatDate(event.timestamp)}</Typography><Typography>{new Date(Number(event.timestamp)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Typography>{!joined && event.waitedMs != null && <Typography>Waited {formatElapsed(Number(event.timestamp) - Number(event.waitedMs), Number(event.timestamp)).replace(' waiting','')}</Typography>}</Box>
   </Paper>;
 }

@@ -138,6 +138,28 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .directory-panel { padding: 22px; }.directory-toolbar { margin-bottom: 20px; }
 .tester-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
 .tester-card { background: rgba(255,255,255,.018) !important; border-radius: 15px !important; }
+.tester-card-clickable { cursor: pointer; text-align: left; outline: none; }
+.tester-card-clickable:focus-visible { border-color: rgba(214,179,106,.65) !important; box-shadow: 0 0 0 3px rgba(214,179,106,.12) !important; }
+.tester-card-ign { margin-top: 12px !important; color: #a5a8b2; font-size: 11px !important; }
+.tester-card-open-hint { display: flex; align-items: center; justify-content: flex-end; gap: 5px; margin-top: 14px !important; color: #d5b272; font-size: 10px !important; font-weight: 750 !important; }
+.tester-card-open-hint svg { font-size: 14px; }
+.tester-region-chip { color: #dfc28a !important; background: rgba(214,179,106,.075) !important; border: 1px solid rgba(214,179,106,.17) !important; font-size: 10px !important; }
+.tester-profile-paper { background: linear-gradient(145deg,#171920,#101116) !important; border: 1px solid rgba(214,179,106,.2); border-radius: 18px !important; }
+.tester-profile-title { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 22px 24px 15px !important; }
+.tester-profile-title .eyebrow { margin-bottom: 5px !important; }
+.tester-profile-identity { padding: 8px 0 18px; }
+.tester-profile-avatar { width: 76px !important; height: 76px !important; border: 2px solid rgba(214,179,106,.38); box-shadow: 0 8px 24px rgba(0,0,0,.28); }
+.tester-profile-counts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin: 0 0 22px; }
+.tester-profile-counts > div { padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.025); }
+.tester-profile-counts h4 { margin-top: 6px; font-weight: 850; font-variant-numeric: tabular-nums; }
+.tester-dialog-section-label { margin: 19px 0 10px !important; color: #d3b174 !important; font-size: 10px !important; font-weight: 850 !important; letter-spacing: .15em !important; }
+.tester-detail-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.tester-detail-item { padding: 11px 12px; background: rgba(255,255,255,.025); border: 1px solid rgba(255,255,255,.055); border-radius: 10px; min-width: 0; }
+.tester-detail-item > p:last-child { margin-top: 5px; font-size: 12px; overflow-wrap: anywhere; }
+.tester-mode-chip { color: #c8cbd4 !important; background: rgba(255,255,255,.055) !important; }
+.tester-activity-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: rgba(255,255,255,.025); border: 1px solid rgba(255,255,255,.05); border-radius: 10px; }
+.tester-question-panel { margin-top: 20px; padding: 15px; background: rgba(214,179,106,.055) !important; border: 1px solid rgba(214,179,106,.15); border-radius: 13px !important; }
+.tester-question-panel .MuiButton-root { flex: 1; }
 .tester-avatar-wrap { position: relative; }.tester-avatar { width: 43px !important; height: 43px !important; }.online-indicator { position: absolute; width: 10px; height: 10px; right: 0; bottom: 0; border-radius: 50%; background: #676b75; border: 2px solid #15171d; }.online-indicator.online { background: #4bc58d; box-shadow: 0 0 10px rgba(75,197,141,.5); }
 .online-chip { background: rgba(71,189,134,.1) !important; color: #7cd7a9 !important; }.offline-chip { background: rgba(255,255,255,.05) !important; color: #9296a1 !important; }
 .compare-select-panel { padding: 22px; }.compare-select-grid { display: grid; grid-template-columns: 1fr 54px 1fr; gap: 12px; align-items: center; }.versus-mark { width: 42px; height: 42px; display: grid; place-items: center; border: 1px solid rgba(214,179,106,.22); border-radius: 50%; color: #dabb7b; font-family: "Space Grotesk", "Plus Jakarta Sans", sans-serif; font-weight: 900; font-size: 12px; }
@@ -1178,3 +1200,8 @@ html.reduce-motion .match-history-card {
 .route-error-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; color: #e9a0a3; background: rgba(215,70,79,.12); border: 1px solid rgba(215,70,79,.18); }
 .route-error-icon .MuiSvgIcon-root { font-size: 24px; }
 .route-error-panel .MuiTypography-h4 { font-size: clamp(22px, 3vw, 30px) !important; }
+
+
+/* Regional queue setup / safe fallback */
+.queue-region-unavailable { padding: 24px; border: 1px solid rgba(201,130,85,.24); background: rgba(20,20,25,.72); border-radius: 18px; }
+.queue-region-unavailable h6 { margin-bottom: 8px; }
