@@ -1,8 +1,8 @@
 {
   "name": "eclipsetiers-railway-mui",
-  "version": "2.6.4",
+  "version": "2.6.6",
   "private": true,
-  "description": "EclipseTiers premium MUI website with region-only tester directory, Discord profiles, private regional waitlists, and testing skip logs.",
+  "description": "EclipseTiers premium MUI website with six regions, regional tester directory, private waitlists, and hardened regional queue history watcher.",
   "main": "railway-gateway.js",
   "scripts": {
     "dev": "vite --host 0.0.0.0",

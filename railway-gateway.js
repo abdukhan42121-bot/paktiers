@@ -164,11 +164,19 @@ setTimeout(() => {
   let ready = false;
   const readRegional = () => {
     try {
-      if (!fs.existsSync(regionalFile)) return {};
+      // The regional queue file is created by the bot on first use. Until it
+      // exists, skip this poll so migrated/existing entries become the initial
+      // baseline instead of being reported as new joins.
+      if (!fs.existsSync(regionalFile)) return null;
       const data = JSON.parse(fs.readFileSync(regionalFile, 'utf8'));
+      if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        console.warn('[gateway] Regional queue file has an unexpected root shape; keeping the last valid snapshot.');
+        return null;
+      }
       const snap = new Map();
       for (const region of ['ME','AS','AU','EU','NA','SA']) {
-        const modes = data?.[region] || {};
+        const modes = data[region];
+        if (!modes || typeof modes !== 'object' || Array.isArray(modes)) continue;
         for (const [weapon, entries] of Object.entries(modes)) {
           (Array.isArray(entries) ? entries : []).forEach((entry, index) => {
             const discordId = String(entry?.discordId || '');
@@ -185,30 +193,36 @@ setTimeout(() => {
     }
   };
   const syncRegional = () => {
-    const current = readRegional();
-    if (!current) return;
-    if (!ready || !previous) { previous = current; ready = true; return; }
-    const now = Date.now();
-    const events = [];
-    for (const [key, entry] of current.entries()) {
-      if (!previous.has(key)) events.push({ id:`rjoin-${now}-${events.length}`, action:'joined', ...entry, timestamp:entry.joinedAt || now });
-    }
-    for (const [key, entry] of previous.entries()) {
-      if (!current.has(key)) events.push({ id:`rremove-${now}-${events.length}`, action:'removed', ...entry, timestamp:now, waitedMs:entry.joinedAt ? Math.max(0, now-entry.joinedAt) : null });
-    }
-    previous = current;
-    if (!events.length) return;
     try {
-      if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive:true });
-      const historyPath = path.join(DATA_DIR, 'regional_queue_history.json');
-      const tempPath = `${historyPath}.${process.pid}.tmp`;
-      const oldHistory = readDataJson('regional_queue_history.json', []);
-      const history = Array.isArray(oldHistory) ? oldHistory : [];
-      history.push(...events);
-      if (history.length > 5000) history.splice(0, history.length - 5000);
-      fs.writeFileSync(tempPath, JSON.stringify(history, null, 2));
-      fs.renameSync(tempPath, historyPath);
-    } catch (error) { console.warn('[gateway] Could not persist regional queue history:', error.message); }
+      const current = readRegional();
+      // A malformed/partially-written file is ignored. Never let a transient
+      // data issue turn the polling/watch callback into an uncaught exception.
+      if (!(current instanceof Map)) return;
+      if (!ready || !(previous instanceof Map)) { previous = current; ready = true; return; }
+      const now = Date.now();
+      const events = [];
+      for (const [key, entry] of current.entries()) {
+        if (!previous.has(key)) events.push({ id:`rjoin-${now}-${events.length}`, action:'joined', ...entry, timestamp:entry.joinedAt || now });
+      }
+      for (const [key, entry] of previous.entries()) {
+        if (!current.has(key)) events.push({ id:`rremove-${now}-${events.length}`, action:'removed', ...entry, timestamp:now, waitedMs:entry.joinedAt ? Math.max(0, now-entry.joinedAt) : null });
+      }
+      previous = current;
+      if (!events.length) return;
+      try {
+        if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive:true });
+        const historyPath = path.join(DATA_DIR, 'regional_queue_history.json');
+        const tempPath = `${historyPath}.${process.pid}.tmp`;
+        const oldHistory = readDataJson('regional_queue_history.json', []);
+        const history = Array.isArray(oldHistory) ? oldHistory : [];
+        history.push(...events);
+        if (history.length > 5000) history.splice(0, history.length - 5000);
+        fs.writeFileSync(tempPath, JSON.stringify(history, null, 2));
+        fs.renameSync(tempPath, historyPath);
+      } catch (error) { console.warn('[gateway] Could not persist regional queue history:', error.message); }
+    } catch (error) {
+      console.warn('[gateway] Regional queue watcher recovered from an unexpected error:', error.message);
+    }
   };
   syncRegional(); // establish baseline; pre-existing entries are not backdated as new joins
   const poller = setInterval(syncRegional, 1500);

@@ -18,7 +18,7 @@ const path                = require('path');
 const fs                  = require('fs');
 
 const {
-  Client, GatewayIntentBits, REST, Routes,
+  Client, GatewayIntentBits, REST, Routes, MessageFlags,
   SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits,
   ActionRowBuilder, ButtonBuilder, ButtonStyle,
   StringSelectMenuBuilder, ChannelType, PermissionsBitField, AttachmentBuilder,
@@ -662,7 +662,7 @@ const REGIONS_LIST = REGION_DEFS.map(region => ({
 }));
 const ACCOUNT_TYPES = ['Premium (Paid)', 'Cracked (Free)'];
 
-// Legacy country values are mapped into one of the six supported competitive regions.
+// Unambiguous legacy country values map into one of the six supported regions. The old combined AS/AU value is intentionally not mapped because it cannot identify one region.
 function normalizeRegionCode(value) {
   const raw = String(value || '').trim();
   if (!raw) return null;
@@ -678,7 +678,6 @@ function normalizeRegionCode(value) {
     'europe':'EU', 'united kingdom':'EU', 'uk':'EU', 'gb':'EU',
     'north america':'NA', 'united states':'NA', 'usa':'NA', 'us':'NA', 'canada':'NA', 'mexico':'NA',
     'south america':'SA', 'brazil':'SA', 'argentina':'SA', 'chile':'SA', 'peru':'SA',
-    'as/au':'AS',
   };
   if (aliases[lower]) return aliases[lower];
   for (const [name, code] of Object.entries(aliases)) {
@@ -2569,7 +2568,7 @@ CMDS.msgsend = {
 
   async execute(i) {
     if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Administrator permission required.')] });
     }
 
@@ -2577,10 +2576,10 @@ CMDS.msgsend = {
     const message = i.options.getString('message');
     try {
       await channel.send({ content: message });
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x57F287)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0x57F287)
         .setDescription(`✅ Message sent to ${channel}.`)] });
     } catch (err) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ Could not send message: ${err.message}`)] });
     }
   },
@@ -2607,7 +2606,7 @@ CMDS.punish = {
     const isStaff = i.member.permissions.has(PermissionFlagsBits.Administrator) ||
       (CONFIG.TICKET_STAFF_ROLE_ID && i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID));
     if (!isStaff) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ You do not have permission to use this command.')] });
     }
 
@@ -2649,16 +2648,16 @@ CMDS.backup = {
 
   async execute(i) {
     if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Administrator permission required.')] });
     }
     if (!CONFIG.GITHUB_TOKEN || !CONFIG.GITHUB_REPO) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ `GITHUB_TOKEN` and `GITHUB_REPO` env vars are not set. Add them in Railway → Variables.\n`GITHUB_REPO` format: `username/repo`')] });
     }
 
     const sub = i.options.getSubcommand();
-    await i.deferReply({ ephemeral:true });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
 
     // ── /backup create ──
     if (sub === 'create') {
@@ -2726,7 +2725,7 @@ CMDS.embedsend = {
 
   async execute(i) {
     if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Administrator permission required.')] });
     }
 
@@ -2750,10 +2749,10 @@ CMDS.embedsend = {
 
     try {
       await channel.send({ embeds: [embed] });
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x57F287)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0x57F287)
         .setDescription(`✅ Embed sent to ${channel}.`)] });
     } catch (err) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ Could not send embed: ${err.message}`)] });
     }
   },
@@ -2768,18 +2767,18 @@ function makeTicketLogSettingCommand(commandName, description, settingKey, displ
       .addChannelOption(o => o.setName('channel').setDescription(`${displayName} channel`).setRequired(true)),
     async execute(i) {
       if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
-        return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds: [new EmbedBuilder().setColor(0xFF4444)
           .setDescription('❌ Administrator permission required.')] });
       }
       const channel = i.options.getChannel('channel');
       if (!channel || !channel.isTextBased?.() || ![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(channel.type)) {
-        return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds: [new EmbedBuilder().setColor(0xFF4444)
           .setDescription('❌ Select a text or announcement channel.')] });
       }
       const settings = loadSettings();
       settings[settingKey] = channel.id;
       saveSettings(settings);
-      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0x57F287)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds: [new EmbedBuilder().setColor(0x57F287)
         .setDescription(`✅ **${displayName}** channel set to ${channel}.`)] });
     },
   };
@@ -2799,7 +2798,7 @@ CMDS.setreglogschannel = {
 
   async execute(i) {
     if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Administrator permission required.')] });
     }
 
@@ -2809,7 +2808,7 @@ CMDS.setreglogschannel = {
     saveSettings(settings);
     CONFIG.REG_LOGS_CHANNEL_ID = channel.id;
 
-    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x57F287)
+    return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0x57F287)
       .setDescription(`✅ Registration logs channel set to ${channel}.`)] });
   },
 };
@@ -2823,7 +2822,7 @@ CMDS.setstafflogs = {
 
   async execute(i) {
     if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Administrator permission required.')] });
     }
 
@@ -2833,7 +2832,7 @@ CMDS.setstafflogs = {
     saveSettings(settings);
     CONFIG.STAFF_LOGS_CHANNEL_ID = channel.id;
 
-    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x57F287)
+    return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0x57F287)
       .setDescription(`✅ Staff logs channel set to ${channel}.`)] });
   },
 };
@@ -2851,7 +2850,7 @@ CMDS.testerprofile = {
 
   async execute(i) {
     if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Administrator permission required.')] });
     }
 
@@ -2859,7 +2858,7 @@ CMDS.testerprofile = {
     const player = LDB.get(target.id);
 
     if (!player) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ **${target.username}** is not registered.`)] });
     }
 
@@ -2909,7 +2908,7 @@ CMDS.tester = {
 
   async execute(i) {
     if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Administrator permission required.')] });
     }
 
@@ -2954,7 +2953,7 @@ CMDS.testerremove = {
 
   async execute(i) {
     if (!i.member.permissions.has(PermissionFlagsBits.Administrator)) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Administrator permission required.')] });
     }
 
@@ -2967,7 +2966,7 @@ CMDS.testerremove = {
     const idx  = list.indexOf(gamemode);
 
     if (idx === -1) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF9933)
         .setDescription(`⚠️ ${emoji} **${target.username}** is not a tester for **${gamemode}**.`)] });
     }
 
@@ -3012,7 +3011,7 @@ CMDS.openticket = {
     const hasTierer = hasTiererPerm(i.member);
     const canUse    = isAdmin || hasStaff || hasTierer || hasQueuePerm(i.member);
     if (!canUse) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ You do not have permission to open a ticket.')] });
     }
 
@@ -3022,7 +3021,7 @@ CMDS.openticket = {
     const reason   = i.options.getString('reason') || 'No reason provided';
 
     if (!user && !role) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Provide either a **player** or a **role**.')] });
     }
 
@@ -3032,11 +3031,11 @@ CMDS.openticket = {
     if (user) {
       const player = LDB.get(user.id);
       if (!player) {
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setDescription(`❌ **${user.username}** not is registered.`)] });
       }
 
-      await i.deferReply({ ephemeral:true });
+      await i.deferReply({ flags: MessageFlags.Ephemeral });
 
       const ticketChannel = await createQueueTicket(i.client, i.guild, player, gamemode, user.id, i.user.id, reason);
       if (!ticketChannel) {
@@ -3057,7 +3056,7 @@ CMDS.openticket = {
     }
 
     // ── Role: open ONE combined ticket for every registered member ──
-    await i.deferReply({ ephemeral:true });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
 
     const members = await i.guild.members.fetch();
     const roleMembers = members.filter(m => m.roles.cache.has(role.id) && !m.user.bot);
@@ -3105,13 +3104,13 @@ CMDS.register = {
 
   async execute(i) {
     if (CONFIG.REGISTER_CHANNEL_ID && i.channelId !== CONFIG.REGISTER_CHANNEL_ID) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ Please use <#${CONFIG.REGISTER_CHANNEL_ID}> for registration.`)] });
     }
 
     const existing = LDB.get(i.user.id);
     if (existing) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF9933)
         .setDescription(`⚠️ You are already registered as **${existing.ign}**. Use \`/profile\` to view it.`)] });
     }
 
@@ -3125,7 +3124,7 @@ CMDS.register = {
     );
 
     await i.reply({
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
       embeds: [new EmbedBuilder().setColor(BRAND_COLOR)
         .setTitle('📋 EclipseTiers Registration — Step 1/3')
         .setDescription('🖥️ **Platform: Java Edition**\n\nChoose your **account type**:')
@@ -3209,7 +3208,7 @@ CMDS.skin = {
   async execute(i) {
     const player = LDB.get(i.user.id);
     if (!player)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ You must `/register` first.')] });
 
     const sub = i.options.getSubcommand();
@@ -3218,7 +3217,7 @@ CMDS.skin = {
       const current = player.skinSource
         ? `**${player.skinSource}**'s skin`
         : `your own IGN (**${player.ign}**)`;
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
         .setDescription(`🖼️ Your website profile currently shows ${current}.`)
         .setThumbnail(`https://mc-heads.net/avatar/${skinName(player)}/128`)] });
     }
@@ -3226,23 +3225,23 @@ CMDS.skin = {
     // set/clear are cosmetic-identity changes — restrict to Cracked accounts.
     // Premium accounts already display their own real skin.
     if (player.accountType !== 'Cracked (Free)')
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ `/skin` is only for **Cracked (Free)** accounts. Premium accounts already show their real skin.')] });
 
     if (sub === 'clear') {
       LDB.updateField(i.user.id, 'skinSource', null);
       broadcast({ type:'player_updated', player: LDB.get(i.user.id) });
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
         .setDescription(`✅ Skin reset. Your website profile will now show the default skin for **${player.ign}**.`)] });
     }
 
     // sub === 'set'
     const username = i.options.getString('username').trim();
     if (!/^[a-zA-Z0-9_]+$/.test(username))
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Invalid username. Only letters, numbers, and underscores are allowed.')] });
 
-    await i.deferReply({ ephemeral:true });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
     const lookup = await lookupMojangName(username);
 
     if (lookup.exists === false)
@@ -3288,7 +3287,7 @@ CMDS.tier = {
     const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
     const hasTierer = hasTiererPerm(i.member);
     if (!isAdmin && !hasTierer)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ **Tierer** role required.')]});
 
     const sub    = i.options.getSubcommand();
@@ -3298,13 +3297,13 @@ CMDS.tier = {
     const player = LDB.get(target.id);
 
     if (sub !== 'view' && isBlacklisted(target.id)) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setTitle('🚫 Player Blacklisted')
         .setDescription(`**${target.username}** is blacklisted and cannot be tiered.${blacklistReason(target.id)}`)] });
     }
 
     if (sub==='view') {
-      if (!player) return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      if (!player) return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ **${target.username}** not registered.`)] });
       const entries = Object.entries(player.tiers||{}).sort((a,b)=>(TIER_PTS[b[1]]||0)-(TIER_PTS[a[1]]||0));
       const pts = entries.reduce((s,[,t])=>s+(TIER_PTS[t]||0),0);
@@ -3319,10 +3318,10 @@ CMDS.tier = {
 
     if (sub==='wipe') {
       if (!i.member.permissions.has(PermissionFlagsBits.Administrator))
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setDescription('❌ Only **Admin** can use `/tier wipe`.')] });
       if (!player)
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setDescription(`❌ **${target.username}** is not registered.`)] });
 
       const oldTiers = { ...(player.tiers || {}) };
@@ -3374,7 +3373,7 @@ CMDS.tier = {
     }
 
     if (sub==='set') {
-      if (!player) return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      if (!player) return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ **${target.username}** must register first with \`/register\`.`)] });
       // If this player has an active tier-testing ticket, /tier set must be
       // performed inside that ticket. The ticket result is archived to /resultlogs,
@@ -3384,40 +3383,40 @@ CMDS.tier = {
       if (isTierTestingTicketRecord(targetTicket)) {
         const targetTicketChannelId = targetTicket?.channelId || (typeof targetTicket === 'string' ? targetTicket : null);
         if (!targetTicketChannelId || targetTicketChannelId !== i.channelId) {
-          return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
             .setDescription(`❌ **${target.username}** has an active tier-testing ticket. Run \`/tier set\` for this player inside <#${targetTicketChannelId || 'unknown'}>.`)] });
         }
 
         const channelRecords = getTicketRecordsForChannel(i.channelId);
         const currentPlayerTicket = channelRecords.find(([id, ticket]) => id === target.id && isTierTestingTicketRecord(ticket));
         if (!currentPlayerTicket) {
-          return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
             .setDescription('❌ This player is not recorded as a participant in this tier-testing ticket.') ] });
         }
         const ticketData = currentPlayerTicket[1];
         if (ticketData.weapon && ticketData.weapon !== weapon) {
-          return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
             .setDescription(`❌ This ticket is for **${ticketData.weapon}**. Use that gamemode when running \`/tier set\`.`)] });
         }
         if (ticketData.resultSubmitted) {
-          return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+          return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF9933)
             .setDescription(`⚠️ A result has already been recorded for **${player.ign}** in this ticket.`)] });
         }
 
         const settings = loadSettings();
         if (!settings.resultLogsChannelId) {
-          return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
             .setDescription('❌ Result logs are not configured. An administrator must run `/resultlogs` first.') ] });
         }
         const resultChannel = await i.client.channels.fetch(settings.resultLogsChannelId).catch(() => null);
         if (!resultChannel || !resultChannel.isTextBased?.() || ![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(resultChannel.type)) {
-          return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
             .setDescription('❌ The configured result-log channel is missing or is not a text channel. Ask an administrator to run `/resultlogs` again.') ] });
         }
         const botMemberForResults = i.guild.members.me;
         const resultLogPermissions = botMemberForResults ? resultChannel.permissionsFor(botMemberForResults) : null;
         if (!resultLogPermissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
-          return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
             .setDescription(`❌ I need View Channel, Send Messages, and Embed Links permissions in <#${resultChannel.id}>.`)] });
         }
         testingResultContext = {
@@ -3484,7 +3483,7 @@ CMDS.tier = {
           });
         } catch (err) {
           console.error('[TIER SET RESULT LOG ERROR]', err);
-          return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+          return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
             .setDescription(`❌ The tier was assigned, but the result could not be posted in <#${testingResultContext.resultChannel.id}>. The ticket remains locked. Check channel permissions, then run \`/tier set\` again to retry the result log.`)] });
         }
         await autoReact(resultLogMessage);
@@ -3508,7 +3507,7 @@ CMDS.tier = {
 
       // Ephemeral ack — only the tester will see this, so a "used /tier set"
       // indicator will not be visible to anyone else (ephemeral replies are shown only to the invoker).
-      await i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+      await i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
         .setDescription(`✅ **${player.ign}**'s ${weapon} tier set to **${getTierLabel(tier)}** \`${tier}\`.`)] });
 
       const tierUpdateEmbed = new EmbedBuilder()
@@ -3550,7 +3549,7 @@ CMDS.tier = {
 
     if (sub==='remove') {
       if (!player||!player.tiers?.[weapon])
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF9933)
           .setDescription(`⚠️ **${player?.ign||target.username}** does not have a ${weapon} tier.`)] });
       const removed = player.tiers[weapon];
       LDB.delTier(target.id, weapon);
@@ -3593,25 +3592,25 @@ CMDS.skip = {
 
   async execute(i) {
     if (!i.guild || !i.channel) {
-      return i.reply({ ephemeral:true, content:'Use `/skip` inside an EclipseTiers testing ticket.' });
+      return i.reply({ flags: MessageFlags.Ephemeral, content:'Use `/skip` inside an EclipseTiers testing ticket.' });
     }
     const records = getTicketRecordsForChannel(i.channelId)
       .filter(([, ticket]) => isTierTestingTicketRecord(ticket));
     if (!records.length || !isTierTestingTicketChannel(i.channel, records)) {
-      return i.reply({ ephemeral:true, content:'`/skip` only works inside an active tier-testing ticket.' });
+      return i.reply({ flags: MessageFlags.Ephemeral, content:'`/skip` only works inside an active tier-testing ticket.' });
     }
 
     const pending = records.filter(([, ticket]) => !ticket.resultSubmitted);
     if (!pending.length) {
-      return i.reply({ ephemeral:true, content:'Every player in this ticket already has a result or skip status.' });
+      return i.reply({ flags: MessageFlags.Ephemeral, content:'Every player in this ticket already has a result or skip status.' });
     }
     const selectedPlayer = i.options.getUser('player');
     let targets = pending;
     if (selectedPlayer) {
       targets = pending.filter(([id]) => id === selectedPlayer.id);
-      if (!targets.length) return i.reply({ ephemeral:true, content:'That player is not a pending participant in this testing ticket.' });
+      if (!targets.length) return i.reply({ flags: MessageFlags.Ephemeral, content:'That player is not a pending participant in this testing ticket.' });
     } else if (pending.length > 1) {
-      return i.reply({ ephemeral:true, content:'This is a group ticket. Choose the player with `/skip player:@user` so the other tests remain untouched.' });
+      return i.reply({ flags: MessageFlags.Ephemeral, content:'This is a group ticket. Choose the player with `/skip player:@user` so the other tests remain untouched.' });
     }
 
     const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
@@ -3622,7 +3621,7 @@ CMDS.skip = {
       return hasRegionalTesterPerm(i.member, region) || String(ticket.testerId || '') === String(i.user.id);
     });
     if (!maySkipAll) {
-      return i.reply({ ephemeral:true, content:'You need the matching regional tester role (e.g. `Tester-ME`) or global ticket staff permissions to skip this test.' });
+      return i.reply({ flags: MessageFlags.Ephemeral, content:'You need the matching regional tester role (e.g. `Tester-ME`) or global ticket staff permissions to skip this test.' });
     }
 
     const reason = (i.options.getString('reason') || 'Player did not respond; no test was taken.').trim();
@@ -3659,14 +3658,14 @@ CMDS.skip = {
     const remaining = getTicketRecordsForChannel(i.channelId)
       .filter(([, ticket]) => isTierTestingTicketRecord(ticket) && !ticket.resultSubmitted);
     if (remaining.length) {
-      return i.reply({ ephemeral:true, content:`Marked ${targets.length} player(s) as skipped. This group ticket stays open for ${remaining.length} pending player(s). Use \`/skip player:@user\` or \`/tier set\` for each remaining participant.` });
+      return i.reply({ flags: MessageFlags.Ephemeral, content:`Marked ${targets.length} player(s) as skipped. This group ticket stays open for ${remaining.length} pending player(s). Use \`/skip player:@user\` or \`/tier set\` for each remaining participant.` });
     }
 
     const archived = await archiveTicketChannel(i.client, i.channel, i.user.id, 'Testing skipped — no test was taken.');
     if (!archived.ok) {
-      return i.reply({ ephemeral:true, content:`Marked ${targets.length} player(s) as skipped. The ticket is now eligible to close, but could not be archived: ${archived.error} Run \`/closeticket\` after fixing the issue.` });
+      return i.reply({ flags: MessageFlags.Ephemeral, content:`Marked ${targets.length} player(s) as skipped. The ticket is now eligible to close, but could not be archived: ${archived.error} Run \`/closeticket\` after fixing the issue.` });
     }
-    return i.reply({ ephemeral:true, content:`✅ Marked ${targets.length} player(s) as skipped. The transcript was sent to <#${archived.logChannelId}> and the ticket is closing.` });
+    return i.reply({ flags: MessageFlags.Ephemeral, content:`✅ Marked ${targets.length} player(s) as skipped. The transcript was sent to <#${archived.logChannelId}> and the ticket is closing.` });
   },
 };
 
@@ -3723,7 +3722,7 @@ CMDS.submitresult = {
     const isAdmin       = i.member.permissions.has(PermissionFlagsBits.Administrator);
     const hasHighTierer = hasHighTiererPerm(i.member);
     if (!isAdmin && !hasHighTierer)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ **HighTierer** permission required. Ask an admin to grant it with `/hightierer add`.')]});
 
     const target   = i.options.getUser('player');
@@ -3742,17 +3741,17 @@ CMDS.submitresult = {
     // ── Validate every active round has an opponent + both scores ──
     const incomplete = roundData.some(r => !r.opponent || r.score === null || r.oppScore === null);
     if (incomplete)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ You selected **${rounds}** round(s) but a round is missing an opponent or score. Every active round needs \`opponentN\`, \`scoreN\`, and \`oppscoreN\`.`)] });
 
     const player = LDB.get(target.id);
     if (!player)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ **${target.username}** must register first with \`/register\`.`)] });
     if (!region || normalizeRegionCode(player.region) !== region)
-      return i.reply({ ephemeral:true, content:`Region mismatch: **${player.ign}** is registered in **${normalizeRegionCode(player.region) || 'no supported region'}**. Select the same region as the player's profile.` });
+      return i.reply({ flags: MessageFlags.Ephemeral, content:`Region mismatch: **${player.ign}** is registered in **${normalizeRegionCode(player.region) || 'no supported region'}**. Select the same region as the player's profile.` });
     if (isBlacklisted(target.id))
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setTitle('🚫 Player Blacklisted')
         .setDescription(`**${target.username}** is blacklisted and cannot receive a tier test result.${blacklistReason(target.id)}`)] });
 
@@ -3801,7 +3800,7 @@ CMDS.submitresult = {
       .join('\n');
 
     // ── Ephemeral ack to the tierer ────────────────────────
-    await i.reply({ ephemeral:true, content:`✅ Result submitted for **${player.ign}** — **${result}** their **${tier}** test.` });
+    await i.reply({ flags: MessageFlags.Ephemeral, content:`✅ Result submitted for **${player.ign}** — **${result}** their **${tier}** test.` });
 
     // ── Public announcement — plain message, not an embed ──
     const resultLine =
@@ -3833,7 +3832,7 @@ CMDS.blacklist = {
     .addStringOption(o=>o.setName('reason').setDescription('Reason for blacklist').setRequired(false)),
   async execute(i) {
     if (!i.member.permissions.has(PermissionFlagsBits.Administrator))
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Only **Admin** can use this command.')] });
 
     const target = i.options.getUser('player');
@@ -3859,12 +3858,12 @@ CMDS.unblacklist = {
     .addUserOption(o=>o.setName('player').setDescription('Member to unblacklist').setRequired(true)),
   async execute(i) {
     if (!i.member.permissions.has(PermissionFlagsBits.Administrator))
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Only **Admin** can use this command.')] });
 
     const target = i.options.getUser('player');
     if (!isBlacklisted(target.id))
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF9933)
         .setDescription(`⚠️ **${target.tag}** is not blacklisted.`)] });
 
     clearBlacklisted(target.id);
@@ -3886,15 +3885,15 @@ CMDS.ban = {
     .addStringOption(o=>o.setName('reason').setDescription('Ban reason').setRequired(false)),
   async execute(i) {
     if (!i.member.permissions.has(PermissionFlagsBits.Administrator))
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Only **Admin** can use this command.')] });
 
     const target = i.options.getUser('player');
     const reason = i.options.getString('reason') || 'EclipseTiers moderation';
     if (target.id === i.user.id)
-      return i.reply({ ephemeral:true, content:'❌ You cannot ban yourself.' });
+      return i.reply({ flags: MessageFlags.Ephemeral, content:'❌ You cannot ban yourself.' });
 
-    await i.deferReply({ ephemeral:true });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
     try {
       await i.guild.members.ban(target.id, { reason, deleteMessageSeconds: 0 });
     } catch(err) {
@@ -3925,25 +3924,25 @@ CMDS.retire = {
     const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
     const hasTierer = hasTiererPerm(i.member);
     if (!isAdmin && !hasTierer)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ **Tierer** permission required.')] });
 
     const target = i.options.getUser('player');
     const weapon = i.options.getString('gamemode');
     const player = LDB.get(target.id);
     if (!player)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ **${target.username}** is not registered.`)] });
 
     const tier = player.tiers?.[weapon];
     if (!tier)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF9933)
         .setDescription(`⚠️ **${player.ign}** has no **${weapon}** tier.`)] });
     if (!isRetirableTier(tier))
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ Only **HT1, LT1, HT2, or LT2** can be retired. Current **${weapon}** tier is **${tier}**.`)] });
     if (player.retiredTiers?.[weapon])
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF9933)
         .setDescription(`⚠️ **${player.ign}** is already retired in **${weapon}** as **${formatRetiredTier(tier)}**.`)] });
 
     const db = rDB(PF);
@@ -4056,7 +4055,7 @@ CMDS.migrate = {
       .addChoices(...WEAPONS.map(w=>({name:`${WEAPON_EMOJI[w]} ${w}`,value:w})))),
   async execute(i) {
     if (!i.member.permissions.has(PermissionFlagsBits.Administrator))
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Only **Admin** can use this command.')] });
 
     const target = i.options.getUser('player');
@@ -4064,13 +4063,13 @@ CMDS.migrate = {
     const modeFilter = i.options.getString('gamemode');
     const player = LDB.get(target.id);
     if (!player)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ **${target.username}** must register first with \`/register\`.`)] });
     if (isBlacklisted(target.id))
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ **${target.username}** is blacklisted and cannot be migrated until unblacklisted.`)] });
 
-    await i.deferReply({ ephemeral:true });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
     let payload;
     try {
       payload = await fetchExternalPlayer(source, player.ign);
@@ -4236,10 +4235,10 @@ CMDS.closeticket = {
     const hasStaff  = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
     const hasTierer = hasTiererPerm(i.member);
     if (!isAdmin && !hasStaff && !hasTierer)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Staff or Tierer role required.')]});
     const target = i.options.getUser('player');
-    await i.deferReply({ ephemeral:true });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
     const outcome = await closeTicket(i.client, i.guild, target.id, i.user.id);
     return i.editReply({ embeds:[new EmbedBuilder()
       .setColor(outcome.ok ? 0x00C864 : 0xFF9933)
@@ -4260,10 +4259,10 @@ CMDS.syncroles = {
     const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
     const hasTierer = hasTiererPerm(i.member);
     if (!isAdmin && !hasTierer)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Admin or Tierer role required.')] });
 
-    await i.deferReply({ ephemeral:true });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
 
     const allPlayers = LDB.all();
     const playerList = Object.values(allPlayers).filter(p => Object.keys(p.tiers||{}).length > 0);
@@ -4326,10 +4325,10 @@ CMDS.backfilluuids = {
     const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
     const hasTierer = hasTiererPerm(i.member);
     if (!isAdmin && !hasTierer)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Admin or Tierer role required.')] });
 
-    await i.deferReply({ ephemeral:true });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
     const { fixed, total } = await backfillMissingUUIDs();
 
     return i.editReply({ embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
@@ -4367,7 +4366,7 @@ CMDS.queueperm = {
   async execute(i) {
     const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
     if (!isAdmin)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Only **Admin** can use this command.')] });
 
     const sub   = i.options.getSubcommand();
@@ -4382,7 +4381,7 @@ CMDS.queueperm = {
         ? roles.map(rid => `• <@&${rid}>`).join('\n')
         : '*No custom role*';
 
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
         .setTitle('🔑 Queue Permission Roles')
         .addFields(
           { name:'Built-in', value: builtinLines.length ? builtinLines.join('\n') : '*None set*', inline:false },
@@ -4396,7 +4395,7 @@ CMDS.queueperm = {
 
     if (sub === 'add') {
       if (perms.roles.includes(role.id))
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF9933)
           .setDescription(`⚠️ **${role.name}** already has queue permission.`)] });
 
       perms.roles.push(role.id);
@@ -4410,7 +4409,7 @@ CMDS.queueperm = {
 
     if (sub === 'remove') {
       if (!perms.roles.includes(role.id))
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF9933)
           .setDescription(`⚠️ **${role.name}** does not have queue permission.`)] });
 
       perms.roles = perms.roles.filter(rid => rid !== role.id);
@@ -4446,7 +4445,7 @@ CMDS.tiererperm = {
   async execute(i) {
     const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
     if (!isAdmin)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Only **Admin** can use this command.')] });
 
     const sub   = i.options.getSubcommand();
@@ -4465,7 +4464,7 @@ CMDS.tiererperm = {
         ? perms.members.map(uid => `• <@${uid}>`).join('\n')
         : '*No custom member*';
 
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
         .setTitle('🛡️ Tierer Permission List')
         .addFields(
           { name:'Built-in Roles', value: builtinLines.length ? builtinLines.join('\n') : '*None set*', inline:false },
@@ -4480,7 +4479,7 @@ CMDS.tiererperm = {
     const member = i.options.getUser('member');
 
     if (!role && !member)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF9933)
         .setDescription('⚠️ You must provide at least one **role** or **member**.')] });
 
     // ── ADD ──────────────────────────────────────────────────
@@ -4585,7 +4584,7 @@ CMDS.tickethandler = {
   async execute(i) {
     const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
     if (!isAdmin)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Only **Admin** can use this command.')] });
 
     const sub   = i.options.getSubcommand();
@@ -4601,7 +4600,7 @@ CMDS.tickethandler = {
         ? perms.members.map(uid => `• <@${uid}>`).join('\n')
         : '*No custom player*';
 
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
         .setTitle('🎫 Ticket-Handler Permission List')
         .addFields(
           { name:'Roles (/tickethandler set role)',   value: roleLines,   inline:false },
@@ -4615,7 +4614,7 @@ CMDS.tickethandler = {
     const player = i.options.getUser('player');
 
     if (!role && !player)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF9933)
         .setDescription('⚠️ You must provide at least one **role** or **player**.')] });
 
     // ── SET (add) ────────────────────────────────────────────
@@ -4699,7 +4698,7 @@ CMDS.hightierer = {
   async execute(i) {
     const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
     if (!isAdmin)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Only **Admin** can use this command.')] });
 
     const sub   = i.options.getSubcommand();
@@ -4715,7 +4714,7 @@ CMDS.hightierer = {
         ? perms.members.map(uid => `• <@${uid}>`).join('\n')
         : '*No custom member*';
 
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
         .setTitle('🛡️ HighTierer Permission List')
         .addFields(
           { name:'Roles (/hightierer add role)', value: roleLines, inline:false },
@@ -4729,7 +4728,7 @@ CMDS.hightierer = {
     const member = i.options.getUser('member');
 
     if (!role && !member)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF9933)
         .setDescription('⚠️ You must provide at least one **role** or **member**.')] });
 
     // ── ADD ──────────────────────────────────────────────────
@@ -4822,10 +4821,10 @@ CMDS.setuppanel = {
   async execute(i) {
     const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
     if (!isAdmin)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Only Admin can use this command.')] });
 
-    await i.deferReply({ ephemeral:true });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
     const targetChannel = i.options.getChannel('channel') || i.channel;
     try {
       await sendWaitlistPanel(targetChannel);
@@ -4854,10 +4853,10 @@ CMDS.setupticketpnl = {
   async execute(i) {
     const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
     if (!isAdmin)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Only Admin can use this command.')] });
 
-    await i.deferReply({ ephemeral:true });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
 
     let targetChannel = i.options.getChannel('channel');
     if (!targetChannel && CONFIG.APPLICATION_CHANNEL_ID) {
@@ -4895,10 +4894,10 @@ CMDS.setupsupportpnl = {
   async execute(i) {
     const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
     if (!isAdmin)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Only Admin can use this command.')] });
 
-    await i.deferReply({ ephemeral:true });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
 
     let targetChannel = i.options.getChannel('channel');
     if (!targetChannel && CONFIG.SUPPORT_CHANNEL_ID) {
@@ -4959,17 +4958,17 @@ CMDS.appmanager = {
   async execute(i) {
     const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
     if (!isAdmin)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Only Admin can use this command.')] });
 
     const action = i.options.getSubcommand(); // 'add' | 'remove'
     const role   = i.options.getRole('role');
     const member = i.options.getUser('member');
     if (!role && !member)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Provide at least one role or member.')] });
 
-    await i.deferReply({ ephemeral:true });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
 
     try {
       const category = await resolveApplicationCategory(i.guild);
@@ -5050,16 +5049,16 @@ CMDS.supmanager = {
   async execute(i) {
     const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
     if (!isAdmin)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Only Admin can use this command.')] });
 
     const role   = i.options.getRole('role');
     const member = i.options.getUser('member');
     if (!role && !member)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Provide at least one role or member.')] });
 
-    await i.deferReply({ ephemeral:true });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
 
     try {
       const category = await resolveSupportCategory(i.guild);
@@ -5119,13 +5118,13 @@ CMDS.add = {
     const hasTierer = hasTiererPerm(i.member);
     const canUse    = isAdmin || hasStaff || hasTierer || hasQueuePerm(i.member) || hasTicketHandlerPerm(i.member);
     if (!canUse)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ You do not have permission to add members to tickets. Ask an admin to grant it via `/tickethandler set`.')] });
 
     const role   = i.options.getRole('role');
     const member = i.options.getUser('player');
     if (!role && !member)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Provide at least one **role** or **player**.')] });
 
     const channel = i.channel;
@@ -5140,7 +5139,7 @@ CMDS.add = {
     const validParentIds = [ticketCat?.id, appCat?.id, supCat?.id].filter(Boolean);
 
     if (!channel?.parentId || !validParentIds.includes(channel.parentId)) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ This command can only be used inside a ticket channel.')] });
     }
 
@@ -5150,7 +5149,7 @@ CMDS.add = {
         ViewChannel: true, SendMessages: true, ReadMessageHistory: true,
       });
     } catch(err) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ Could not update channel permissions: ${err.message}`)] });
     }
 
@@ -5179,13 +5178,13 @@ CMDS.remove = {
     const hasTierer = hasTiererPerm(i.member);
     const canUse    = isAdmin || hasStaff || hasTierer || hasQueuePerm(i.member) || hasTicketHandlerPerm(i.member);
     if (!canUse)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ You do not have permission to remove members from tickets. Ask an admin to grant it via `/tickethandler set`.')] });
 
     const role   = i.options.getRole('role');
     const member = i.options.getUser('player');
     if (!role && !member)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Provide at least one **role** or **player**.')] });
 
     const channel = i.channel;
@@ -5200,7 +5199,7 @@ CMDS.remove = {
     const validParentIds = [ticketCat?.id, appCat?.id, supCat?.id].filter(Boolean);
 
     if (!channel?.parentId || !validParentIds.includes(channel.parentId)) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ This command can only be used inside a ticket channel.')] });
     }
 
@@ -5208,14 +5207,14 @@ CMDS.remove = {
 
     // Don't let someone accidentally strip everyone's access via @everyone.
     if (targetId === i.guild.roles.everyone.id) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ You can\'t remove the @everyone role from a ticket.')] });
     }
 
     try {
       await channel.permissionOverwrites.delete(targetId);
     } catch(err) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ Could not update channel permissions: ${err.message}`)] });
     }
 
@@ -5245,7 +5244,7 @@ CMDS.close = {
     const hasTierer = hasTiererPerm(i.member);
     const canUse    = isAdmin || hasStaff || hasTierer || hasQueuePerm(i.member) || hasTicketHandlerPerm(i.member);
     if (!canUse)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ You do not have permission to close tickets. Ask an admin to grant it via `/tickethandler set`.')] });
 
     const channel = i.channel;
@@ -5261,11 +5260,11 @@ CMDS.close = {
     const validParentIds = [ticketCat?.id, appCat?.id, supCat?.id].filter(Boolean);
 
     if (!channel?.parentId || !validParentIds.includes(channel.parentId)) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ This command can only be used inside a ticket channel.')] });
     }
 
-    await i.deferReply({ ephemeral:true });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
     const outcome = await archiveTicketChannel(i.client, channel, i.user.id, reason || '');
     if (!outcome.ok) {
       return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF9933)
@@ -5803,13 +5802,13 @@ async function ensureRegionalQueueInfrastructure(guild, client) {
 
 async function handleRegionalQueueButton(i) {
   const match = /^rwl_(join|leave|pull)_([A-Z]{2})_(.+)$/.exec(i.customId);
-  if (!match) return i.reply({ ephemeral:true, content:'Invalid regional waitlist button.' });
+  if (!match) return i.reply({ flags: MessageFlags.Ephemeral, content:'Invalid regional waitlist button.' });
   const [, action, region, weapon] = match;
-  if (!REGION_CODES.includes(region) || !WEAPONS.includes(weapon)) return i.reply({ ephemeral:true, content:'This regional queue is not configured.' });
+  if (!REGION_CODES.includes(region) || !WEAPONS.includes(weapon)) return i.reply({ flags: MessageFlags.Ephemeral, content:'This regional queue is not configured.' });
 
   if (action === 'pull') {
-    if (!hasQueuePerm(i.member) && !hasRegionalTesterPerm(i.member, region)) return i.reply({ ephemeral:true, content:`Only ${regionalTesterRoleName(region)} or global staff can pull players from this regional queue.` });
-    await i.deferReply({ ephemeral:true });
+    if (!hasQueuePerm(i.member) && !hasRegionalTesterPerm(i.member, region)) return i.reply({ flags: MessageFlags.Ephemeral, content:`Only ${regionalTesterRoleName(region)} or global staff can pull players from this regional queue.` });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
     const queue = getRegionalQueue(region, weapon);
     if (!queue.length) return i.editReply({ content:`The ${region} ${weapon} waitlist is empty.` });
     const entry = queue[0];
@@ -5828,22 +5827,22 @@ async function handleRegionalQueueButton(i) {
       .setTimestamp()] });
   }
 
-  if (isBlacklisted(i.user.id)) return i.reply({ ephemeral:true, content:'Your account cannot join or leave waitlists while blacklisted.' });
+  if (isBlacklisted(i.user.id)) return i.reply({ flags: MessageFlags.Ephemeral, content:'Your account cannot join or leave waitlists while blacklisted.' });
   const player = LDB.get(i.user.id);
-  if (!player) return i.reply({ ephemeral:true, content:'Register your Minecraft profile before joining a waitlist.' });
+  if (!player) return i.reply({ flags: MessageFlags.Ephemeral, content:'Register your Minecraft profile before joining a waitlist.' });
   const playerRegion = normalizeRegionCode(player.region);
   if (playerRegion !== region) {
-    return i.reply({ ephemeral:true, content:`Your registered region is **${playerRegion || 'not set'}**. This channel is for **${region}** players only. Use Register / Update Profile to select your region.` });
+    return i.reply({ flags: MessageFlags.Ephemeral, content:`Your registered region is **${playerRegion || 'not set'}**. This channel is for **${region}** players only. Use Register / Update Profile to select your region.` });
   }
 
   if (action === 'join') {
     const cooldown = isOnCooldown(i.user.id, weapon);
-    if (cooldown.onCooldown) return i.reply({ ephemeral:true, content:`Your ${weapon} cooldown is active for another ${cooldown.hours}h ${cooldown.mins}m.` });
+    if (cooldown.onCooldown) return i.reply({ flags: MessageFlags.Ephemeral, content:`Your ${weapon} cooldown is active for another ${cooldown.hours}h ${cooldown.mins}m.` });
     const result = addToRegionalQueue(i.user.id, region, weapon, player.ign);
     if (!result.ok) {
       const message = result.reason === 'dupe' ? 'You are already in this regional waitlist.'
         : 'The regional waitlist could not be saved. Please try again.';
-      return i.reply({ ephemeral:true, content:message });
+      return i.reply({ flags: MessageFlags.Ephemeral, content:message });
     }
     const member = await i.guild.members.fetch(i.user.id).catch(() => null);
     if (member) {
@@ -5852,7 +5851,7 @@ async function handleRegionalQueueButton(i) {
       if (waitlistRole) await member.roles.add(waitlistRole, `Joined ${region} ${weapon} waitlist`).catch(() => {});
     }
     await refreshRegionalQueuePanel(i.client, region, weapon);
-    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x57F287)
+    return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0x57F287)
       .setTitle(`Joined ${region} · ${weapon} waitlist`)
       .setThumbnail(`https://mc-heads.net/avatar/${encodeURIComponent(player.ign)}/128`)
       .setDescription(`**${player.ign}** is now at position **#${result.position}** in the ${region} ${weapon} waitlist.`)
@@ -5861,11 +5860,11 @@ async function handleRegionalQueueButton(i) {
   }
 
   const removed = removeFromRegionalQueue(i.user.id, region, weapon);
-  if (!removed) return i.reply({ ephemeral:true, content:`You are not in the ${region} ${weapon} waitlist.` });
+  if (!removed) return i.reply({ flags: MessageFlags.Ephemeral, content:`You are not in the ${region} ${weapon} waitlist.` });
   const member = await i.guild.members.fetch(i.user.id).catch(() => null);
   if (member) await removeRegionalWaitlistRole(member, region, weapon);
   await refreshRegionalQueuePanel(i.client, region, weapon);
-  return i.reply({ ephemeral:true, content:`You left the **${region} ${weapon}** waitlist.` });
+  return i.reply({ flags: MessageFlags.Ephemeral, content:`You left the **${region} ${weapon}** waitlist.` });
 }
 
 // ════════════════════════════════════════════════════════════
@@ -5912,7 +5911,7 @@ CMDS.hire = {
     // ══════════════════════════════════════════════════════
     if (group === 'perm') {
       if (i.user.id !== i.guild.ownerId) {
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setDescription('❌ Only the **server owner** can manage hire permissions.')] });
       }
 
@@ -5923,7 +5922,7 @@ CMDS.hire = {
         const roleLines   = perms.roles.length   ? perms.roles.map(rid => `• <@&${rid}>`).join('\n')   : '*No roles granted*';
         const memberLines = perms.members.length ? perms.members.map(uid => `• <@${uid}>`).join('\n') : '*No members granted*';
 
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
           .setTitle('🛡️ Hire Permission List')
           .addFields(
             { name:'Server Owner', value:`• <@${i.guild.ownerId}> *(always allowed, bypasses role hierarchy)*`, inline:false },
@@ -5938,7 +5937,7 @@ CMDS.hire = {
       const member = i.options.getUser('member');
 
       if (!role && !member)
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF9933)
           .setDescription('⚠️ You must provide at least one **role** or **member**.')] });
 
       // ── SET (add) ────────────────────────────────────────
@@ -6002,7 +6001,7 @@ CMDS.hire = {
     // /hire user — the actual hire action
     // ══════════════════════════════════════════════════════
     if (!hasHirePerm(i.member)) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ You don\'t have permission to hire. Ask the server owner to grant it via `/hire perm set`.')] });
     }
 
@@ -6010,11 +6009,11 @@ CMDS.hire = {
     const role       = i.options.getRole('role');
 
     if (!canActOnRole(i.member, role)) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ You can't hire someone into **${role.name}** — that role is equal to or higher than your own highest role.`)] });
     }
 
-    await i.deferReply({ ephemeral:true });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
 
     const member = await i.guild.members.fetch(targetUser.id).catch(() => null);
     if (!member) return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
@@ -6063,7 +6062,7 @@ CMDS.fire = {
 
   async execute(i) {
     if (!hasHirePerm(i.member)) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ You don\'t have permission to fire. Ask the server owner to grant it via `/hire perm set`.')] });
     }
 
@@ -6073,11 +6072,11 @@ CMDS.fire = {
 
     // If a specific role was given, block it upfront if it's at/above the actor's own highest role.
     if (roleOpt && !canActOnRole(i.member, roleOpt)) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ You can't remove **${roleOpt.name}** — that role is equal to or higher than your own highest role.`)] });
     }
 
-    await i.deferReply({ ephemeral:true });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
 
     const member = await i.guild.members.fetch(targetUser.id).catch(() => null);
     if (!member) return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFF4444)
@@ -6388,12 +6387,12 @@ CMDS.startqueue = {
 
   async execute(i) {
     if (!hasQueuePerm(i.member)) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setTitle('❌ Permission Denied')
         .setDescription('Only Testers or staff with queue permission can manage waitlists.')
         .setFooter({ text:BOT_FOOTER })] });
     }
-    await i.deferReply({ ephemeral:true });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
     const weapon = i.options.getString('gamemode');
     const region = normalizeRegionCode(i.options.getString('region') || 'ME');
     try {
@@ -6424,8 +6423,8 @@ CMDS.setupregionalqueues = {
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
   async execute(i) {
     if (!i.memberPermissions?.has(PermissionFlagsBits.Administrator))
-      return i.reply({ ephemeral:true, content:'Administrator permission required.' });
-    await i.deferReply({ ephemeral:true });
+      return i.reply({ flags: MessageFlags.Ephemeral, content:'Administrator permission required.' });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
     try {
       const setup = await ensureRegionalQueueInfrastructure(i.guild, i.client);
       const summary = REGION_CODES.map(code => `**${code}** · ${WEAPONS.length} channels · ${regionalAccessRoleName(code)}`).join('\n');
@@ -6463,12 +6462,12 @@ CMDS.closequeue = {
   async execute(i) {
     // ── Permission check ──────────────────────────────────────
     if (!hasQueuePerm(i.member))
-      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds: [new EmbedBuilder().setColor(0xFF4444)
         .setTitle('❌ Permission Denied')
         .setDescription('Only **Testers** or roles with queue permission can use this command.')
         .setFooter({ text: BOT_FOOTER })] });
 
-    await i.deferReply({ ephemeral: true });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
 
     const weapon = i.options.getString('gamemode');
     const reason = i.options.getString('reason') || 'Last tester left the queue';
@@ -6612,10 +6611,10 @@ CMDS.synclogs = {
   async execute(i) {
     const isAdmin = i.member.permissions.has(PermissionFlagsBits.Administrator);
     if (!isAdmin)
-      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds: [new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Only **Admin** can use this command.')] });
 
-    await i.deferReply({ ephemeral: true });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
 
     const allPlayers = LDB.all();
     const existing   = loadTierLogs();
@@ -6711,7 +6710,7 @@ CMDS.logs = {
     const isAdmin   = i.member.permissions.has(PermissionFlagsBits.Administrator);
     const hasTierer = hasTiererPerm(i.member);
     if (!isAdmin && !hasTierer)
-      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds: [new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ You need the **Tierer** or **Admin** role to use this command.')] });
 
     await i.deferReply();
@@ -6894,7 +6893,7 @@ CMDS.play = {
   async execute(i) {
     // ── Hard owner-only gate — Administrator perm does NOT count ──
     if (i.guild.ownerId !== i.user.id) {
-      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds: [new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Yeh command sirf **server ke owner/creator** hi use kar sakte hain — Admin role kaafi nahi.')] });
     }
 
@@ -6902,13 +6901,13 @@ CMDS.play = {
     const customUrl   = i.options.getString('url');
 
     if (!naatChoice && !customUrl) {
-      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF9933)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds: [new EmbedBuilder().setColor(0xFF9933)
         .setDescription('⚠️ Ek preset `naat` choose karo ya `url` option mein YouTube link do.')] });
     }
 
     const vc = i.member.voice?.channel;
     if (!vc) {
-      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds: [new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Pehle kisi voice channel mein join ho jao, phir command use karo.')] });
     }
 
@@ -7012,12 +7011,12 @@ CMDS.stopplay = {
     .setDescription('🛑 [Owner Only] VC mein loop/playback stop karo'),
   async execute(i) {
     if (i.guild.ownerId !== i.user.id) {
-      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds: [new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Yeh command sirf **server ke owner/creator** hi use kar sakte hain.')] });
     }
     const entry = guildAudio.get(i.guild.id);
     if (!entry) {
-      return i.reply({ ephemeral: true, embeds: [new EmbedBuilder().setColor(0xFF9933)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds: [new EmbedBuilder().setColor(0xFF9933)
         .setDescription('⚠️ Abhi kuch bhi play nahi ho raha.')] });
     }
     // Remove from the map FIRST so the Idle/error handlers stop looping,
@@ -7038,7 +7037,7 @@ const regState = new Map(); // userId -> { platform, accountType, region, step }
 
 async function handleSelectMenu(i) {
   if (isBlacklisted(i.user.id)) {
-    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+    return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
       .setTitle('🚫 Blacklisted')
       .setDescription(`Your EclipseTiers account is blacklisted. You cannot use registration/profile actions or queue/test features.${blacklistReason(i.user.id)}`)
       .setFooter({ text: BOT_FOOTER })] });
@@ -7051,7 +7050,7 @@ async function handleSelectMenu(i) {
     const player = LDB.get(i.user.id);
 
     if (!player)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ First click **Register / Update Profile** and register.')] });
 
     // Cooldown check — reuse tier cooldown per weapon for waitlist
@@ -7062,7 +7061,7 @@ async function handleSelectMenu(i) {
       const remaining = WAITLIST_COOLDOWN_MS - (Date.now() - wlCDStore[wlCDKey]);
       if (remaining > 0) {
         const h = Math.floor(remaining/3600000), m = Math.floor((remaining%3600000)/60000);
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setTitle(`⏳ ${weapon} Waitlist — Cooldown Active`)
           .setDescription(`**${weapon}** You can apply for the waitlist role again in **${h}h ${m}m**.`)] });
       }
@@ -7071,7 +7070,7 @@ async function handleSelectMenu(i) {
     // Assign the dedicated region × gamemode waitlist role.
     try {
       const region = normalizeRegionCode(player.region);
-      if (!region) return i.reply({ ephemeral:true, content:'Please update your profile and choose one of the six supported regions first.' });
+      if (!region) return i.reply({ flags: MessageFlags.Ephemeral, content:'Please update your profile and choose one of the six supported regions first.' });
       const role = await ensureRegionalWaitlistRole(i.guild, region, weapon);
       const member = await i.guild.members.fetch(i.user.id).catch(()=>null);
       if (member) {
@@ -7080,7 +7079,7 @@ async function handleSelectMenu(i) {
       }
       wlCDStore[wlCDKey] = Date.now();
 
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x7FFF00)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0x7FFF00)
         .setTitle(`✅ ${region} Waitlist Role Granted — ${WEAPON_EMOJI[weapon]} ${weapon}`)
         .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
         .setDescription(
@@ -7098,7 +7097,7 @@ async function handleSelectMenu(i) {
         .setTimestamp()] });
     } catch(err) {
       console.error('[PANEL WAITLIST ROLE]', err);
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ Error assigning role: ${err.message}`)] });
     }
   }
@@ -7108,7 +7107,7 @@ async function handleSelectMenu(i) {
     const appType = i.values[0];
     const label = APPLICATION_TYPE_LABELS[appType] || 'EclipseTiers Application';
 
-    await i.deferReply({ ephemeral: true });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
 
     const member = await i.guild.members.fetch(i.user.id).catch(() => null);
     if (!member) {
@@ -7129,7 +7128,7 @@ async function handleSelectMenu(i) {
 
   if (prefix !== 'reg') return;
   if (uid !== i.user.id) {
-    return i.reply({ ephemeral:true, content:'❌ This is not your menu.' });
+    return i.reply({ flags: MessageFlags.Ephemeral, content:'❌ This is not your menu.' });
   }
 
   const selected = i.values[0];
@@ -7235,7 +7234,7 @@ async function handleButtonClick(i) {
   // ── Panel: Register / Update Profile button ──────────────
   if (i.customId === 'panel_register') {
     if (isBlacklisted(i.user.id)) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setTitle('🚫 Blacklisted')
         .setDescription(`You cannot register or update your profile while blacklisted.${blacklistReason(i.user.id)}`)
         .setFooter({ text: BOT_FOOTER })] });
@@ -7244,7 +7243,7 @@ async function handleButtonClick(i) {
     const existing = LDB.get(i.user.id);
 
     if (CONFIG.REGISTER_CHANNEL_ID && i.channelId !== CONFIG.REGISTER_CHANNEL_ID) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ Please use <#${CONFIG.REGISTER_CHANNEL_ID}> for registration.`)] });
     }
 
@@ -7269,7 +7268,7 @@ async function handleButtonClick(i) {
       : '🖥️ **Platform: Java Edition**\n\nChoose your **account type**:';
 
     return i.reply({
-      ephemeral:true,
+      flags: MessageFlags.Ephemeral,
       embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
         .setTitle(titleTxt)
         .setDescription(descTxt)
@@ -7292,8 +7291,8 @@ async function handleButtonClick(i) {
     const isOwner   = i.user.id === targetId;
     const isPuller  = ticket?.testerId && ticket.testerId === i.user.id;
     if (!isAdmin && !hasStaff && !hasTierer && !isOwner && !isPuller)
-      return i.reply({ ephemeral:true, content:'❌ You do not have permission to close this ticket.' });
-    await i.deferReply({ ephemeral:true });
+      return i.reply({ flags: MessageFlags.Ephemeral, content:'❌ You do not have permission to close this ticket.' });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
     const outcome = await closeTicket(i.client, i.guild, targetId, i.user.id);
     if (!outcome.ok) return i.editReply({ content:`❌ ${outcome.error}` });
     return i.editReply({ content:`✅ Ticket transcript archived in <#${outcome.logChannelId}>. This ticket will be deleted shortly.` });
@@ -7306,10 +7305,10 @@ async function handleButtonClick(i) {
     const hasStaff  = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
     const hasTierer = hasTiererPerm(i.member);
     if (!isAdmin && !hasStaff && !hasTierer)
-      return i.reply({ ephemeral:true, content:'❌ You do not have permission to close this ticket.' });
+      return i.reply({ flags: MessageFlags.Ephemeral, content:'❌ You do not have permission to close this ticket.' });
     const channel = await i.client.channels.fetch(channelId).catch(() => null);
-    if (!channel) return i.reply({ ephemeral:true, content:'❌ This ticket channel no longer exists.' });
-    await i.deferReply({ ephemeral:true });
+    if (!channel) return i.reply({ flags: MessageFlags.Ephemeral, content:'❌ This ticket channel no longer exists.' });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
     const outcome = await archiveTicketChannel(i.client, channel, i.user.id);
     if (!outcome.ok) return i.editReply({ content:`❌ ${outcome.error}` });
     return i.editReply({ content:`✅ Group ticket transcript archived in <#${outcome.logChannelId}>. This ticket will be deleted shortly.` });
@@ -7322,8 +7321,8 @@ async function handleButtonClick(i) {
     const hasStaff = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
     const isOwner  = i.user.id === targetId;
     if (!isAdmin && !hasStaff && !isOwner)
-      return i.reply({ ephemeral:true, content:'❌ You do not have permission to close this application.' });
-    await i.deferReply({ ephemeral:true });
+      return i.reply({ flags: MessageFlags.Ephemeral, content:'❌ You do not have permission to close this application.' });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
     const outcome = await archiveTicketChannel(i.client, i.channel, i.user.id);
     if (!outcome.ok) return i.editReply({ content:`❌ ${outcome.error}` });
     return i.editReply({ content:`✅ Application transcript archived in <#${outcome.logChannelId}>. This ticket will be deleted shortly.` });
@@ -7331,7 +7330,7 @@ async function handleButtonClick(i) {
 
   // ── Support Panel: "Open a ticket!" button ────────────────
   if (i.customId === 'support_open_ticket') {
-    await i.deferReply({ ephemeral: true });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
 
     const member = await i.guild.members.fetch(i.user.id).catch(() => null);
     if (!member) {
@@ -7356,8 +7355,8 @@ async function handleButtonClick(i) {
     const hasStaff = CONFIG.TICKET_STAFF_ROLE_ID ? i.member.roles.cache.has(CONFIG.TICKET_STAFF_ROLE_ID) : false;
     const isOwner  = i.user.id === targetId;
     if (!isAdmin && !hasStaff && !isOwner)
-      return i.reply({ ephemeral:true, content:'❌ You do not have permission to close this ticket.' });
-    await i.deferReply({ ephemeral:true });
+      return i.reply({ flags: MessageFlags.Ephemeral, content:'❌ You do not have permission to close this ticket.' });
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
     const outcome = await archiveTicketChannel(i.client, i.channel, i.user.id);
     if (!outcome.ok) return i.editReply({ content:`❌ ${outcome.error}` });
     return i.editReply({ content:`✅ Support transcript archived in <#${outcome.logChannelId}>. This ticket will be deleted shortly.` });
@@ -7374,16 +7373,16 @@ async function handleButtonClick(i) {
     // ── JOIN ──────────────────────────────────────────────────
     if (action === 'join') {
       if (isBlacklisted(i.user.id))
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setTitle('🚫 Blacklisted')
           .setDescription(`You cannot join the **${weapon}** queue while blacklisted.${blacklistReason(i.user.id)}`)] });
       if (!player)
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setDescription('❌ Please use `/register` first.')] });
 
       const access = await hasQueueAccess(i.guild, i.user.id, player, weapon);
       if (!access.allowed)
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setTitle('❌ Access Denied')
           .setDescription(
             `You cannot join the **${weapon}** queue.\n\n` +
@@ -7394,12 +7393,12 @@ async function handleButtonClick(i) {
 
       const cd = isOnCooldown(i.user.id, weapon);
       if (cd.onCooldown)
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setDescription(`⏳ **${weapon}** cooldown is active — ${cd.hours}h ${cd.mins}m remaining.`)] });
 
       const result = LDB.joinQ(i.user.id, weapon);
       if (!result.ok && result.reason === 'dupe')
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF9933)
           .setDescription(`⚠️ You are already in the **${weapon}** queue.`)] });
 
       broadcast({ type:'queue_updated', queues:MEM.queues });
@@ -7407,7 +7406,7 @@ async function handleButtonClick(i) {
       const q   = LDB.getQ(weapon);
       const pos = q.findIndex(e=>e.discordId===i.user.id)+1;
 
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
         .setTitle(`${WEAPON_EMOJI[weapon]} Queue Joined — ${weapon}`)
         .addFields(
           { name:'Player',    value:`**${player.ign}**`,           inline:true },
@@ -7422,25 +7421,25 @@ async function handleButtonClick(i) {
     // ── LEAVE ─────────────────────────────────────────────────
     if (action === 'leave') {
       if (!player)
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setDescription('❌ You are not registered.')] });
 
       LDB.leaveQ(i.user.id, weapon);
       broadcast({ type:'queue_updated', queues:MEM.queues });
       refreshLivePanel(i.client, weapon).catch(() => {});
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF9933)
         .setDescription(`👋 You left the **${weapon}** queue.`)] });
     }
 
     // ── PULL (Testers only) ───────────────────────────────────
     if (action === 'pull') {
       if (!hasQueuePerm(i.member))
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setDescription('❌ Only **Testers** or roles with queue permission can use this button.')] });
 
       const q = LDB.getQ(weapon);
       if (!q.length)
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF9933)
           .setDescription(`📭 **${weapon}** queue is currently empty — no players are waiting.`)] });
 
       // Pull = remove first player from queue
@@ -7448,7 +7447,7 @@ async function handleButtonClick(i) {
       const target = LDB.get(entry.discordId);
 
       if (!target)
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setDescription('❌ Queue entry found but player data was not found.')] });
 
       // Remove player from queue
@@ -7533,7 +7532,7 @@ async function handleButtonClick(i) {
         } catch(_) {}
       }
 
-      return i.reply({ ephemeral:true, embeds:[pullEmbed] });
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[pullEmbed] });
     }
 
     return; // unknown wl_ sub-action
@@ -7552,18 +7551,18 @@ async function handleButtonClick(i) {
     // ── SQ JOIN ───────────────────────────────────────────────
     if (action === 'join') {
       if (isBlacklisted(i.user.id))
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setTitle('🚫 Blacklisted')
           .setDescription(`You cannot join the **${weapon}** queue while blacklisted.${blacklistReason(i.user.id)}`)] });
       if (!player)
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setTitle('❌ Not Registered')
           .setDescription('To join the queue, first use `/register` or click the **Register / Update Profile** button.')
           .setFooter({ text: BOT_FOOTER })] });
 
       const access = await hasQueueAccess(i.guild, i.user.id, player, weapon);
       if (!access.allowed)
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setTitle('❌ Access Denied')
           .setDescription(
             `You cannot join the **${weapon}** queue.\n\n` +
@@ -7575,17 +7574,17 @@ async function handleButtonClick(i) {
 
       const cd = isOnCooldown(i.user.id, weapon);
       if (cd.onCooldown)
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setTitle(`⏳ Cooldown Active — ${weapon}`)
           .setDescription(`Your **${weapon}** cooldown is still active.\nTry again in **${cd.hours}h ${cd.mins}m**.`)
           .setFooter({ text: BOT_FOOTER })] });
 
       const result = addToSQQueue(i.user.id, weapon, player.ign);
       if (!result.ok && result.reason === 'dupe')
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF9933)
           .setDescription(`⚠️ You are already in the **${weapon}** queue.`)] });
       if (!result.ok && result.reason === 'full')
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setTitle('❌ Queue Full')
           .setDescription(`The **${weapon}** queue is full. A maximum of **${SQ_QUEUE_LIMIT}** players can join at a time.`)
           .setFooter({ text: BOT_FOOTER })] });
@@ -7596,7 +7595,7 @@ async function handleButtonClick(i) {
       const q   = LDB.getQ(weapon);
       const pos = q.findIndex(e => e.discordId === i.user.id) + 1;
 
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0x57F287)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0x57F287)
         .setTitle(`${WEAPON_EMOJI[weapon]} Queue Joined — ${weapon}`)
         .setThumbnail(`https://mc-heads.net/avatar/${player.ign}/128`)
         .addFields(
@@ -7612,20 +7611,20 @@ async function handleButtonClick(i) {
     // ── SQ LEAVE ──────────────────────────────────────────────
     if (action === 'leave') {
       if (!player)
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setDescription('❌ You are not registered.')] });
 
       const q = LDB.getQ(weapon);
       const inQ = q.find(e => e.discordId === i.user.id);
       if (!inQ)
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF9933)
           .setDescription(`⚠️ You are not in the **${weapon}** queue.`)] });
 
       LDB.leaveQ(i.user.id, weapon);
       broadcast({ type:'queue_updated', queues:MEM.queues });
       refreshSQPanel(i.client, weapon).catch(() => {});
 
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF9933)
         .setTitle(`👋 Queue Chod Di — ${weapon}`)
         .setDescription(`**${player.ign}** left the **${weapon}** queue.`)
         .setFooter({ text: BOT_FOOTER })] });
@@ -7634,14 +7633,14 @@ async function handleButtonClick(i) {
     // ── SQ PULL (Testers only) ────────────────────────────────
     if (action === 'pull') {
       if (!hasQueuePerm(i.member))
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setTitle('❌ Permission Denied')
           .setDescription('Only **Testers** or roles with queue permission can use this button.')
           .setFooter({ text: BOT_FOOTER })] });
 
       const q = LDB.getQ(weapon);
       if (!q.length)
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF9933)
           .setTitle(`📭 Queue Empty — ${weapon}`)
           .setDescription(`**${weapon}** there are currently no players in the queue.`)] });
 
@@ -7650,7 +7649,7 @@ async function handleButtonClick(i) {
       const target = LDB.get(entry.discordId);
 
       if (!target)
-        return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+        return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
           .setDescription('❌ Queue entry found but player data was not found.')] });
 
       LDB.leaveQ(entry.discordId, weapon);
@@ -7724,7 +7723,7 @@ async function handleButtonClick(i) {
         } catch(_) {}
       }
 
-      return i.reply({ ephemeral:true, embeds:[pullEmbed] });
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[pullEmbed] });
     }
 
     return; // unknown sq_ sub-action
@@ -7732,7 +7731,7 @@ async function handleButtonClick(i) {
   if (i.customId.startsWith('reg_ignbtn_')) {
     const uid = i.customId.replace('reg_ignbtn_','');
     if (uid !== i.user.id)
-      return i.reply({ ephemeral:true, content:'❌ This is not your button.' });
+      return i.reply({ flags: MessageFlags.Ephemeral, content:'❌ This is not your button.' });
 
     const { ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
     const modal = new ModalBuilder()
@@ -7757,23 +7756,23 @@ async function handleModal(i) {
   if (!i.customId.startsWith('reg_modal_')) return;
   const uid = i.customId.replace('reg_modal_','');
   if (isBlacklisted(i.user.id)) {
-    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+    return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
       .setTitle('🚫 Blacklisted')
       .setDescription(`You cannot register or update your profile while blacklisted.${blacklistReason(i.user.id)}`)
       .setFooter({ text: BOT_FOOTER })] });
   }
   if (uid !== i.user.id)
-    return i.reply({ ephemeral:true, content:'❌ This is not your form.' });
+    return i.reply({ flags: MessageFlags.Ephemeral, content:'❌ This is not your form.' });
 
   const ign   = i.fields.getTextInputValue('ign_input').trim();
   const state = regState.get(i.user.id) || {};
   const selectedRegion = normalizeRegionCode(state.region);
-  if (!selectedRegion) return i.reply({ ephemeral:true, content:`Choose one supported region before submitting: ${REGION_CODES.join(', ')}.` });
+  if (!selectedRegion) return i.reply({ flags: MessageFlags.Ephemeral, content:`Choose one supported region before submitting: ${REGION_CODES.join(', ')}.` });
   state.region = selectedRegion;
   regState.set(i.user.id, state);
 
   if (!/^[a-zA-Z0-9_]+$/.test(ign))
-    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+    return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
       .setDescription('❌ Invalid IGN. Only letters, numbers, and underscores are allowed.')] });
 
   // ── CRACKED IMPERSONATION GUARD ────────────────────────────
@@ -7789,7 +7788,7 @@ async function handleModal(i) {
   if (accountType === 'Cracked (Free)') {
     const lookup = await lookupMojangName(ign);
     if (lookup.exists === true) {
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ **${ign}** belongs to an existing **premium** Minecraft account.\nCracked/offline players can't register a name that's already claimed by a real premium account. Please pick a different IGN.`)] });
     }
     // lookup.exists === false -> genuinely unclaimed, safe to use
@@ -7803,14 +7802,14 @@ async function handleModal(i) {
     const existing = LDB.get(i.user.id);
     if (!existing) {
       regState.delete(i.user.id);
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription('❌ Player data not found. Please register first.')] });
     }
 
     // Check if new IGN already taken by someone else
     const taken = LDB.findIGN(ign);
     if (taken && taken.discordId !== i.user.id)
-      return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
         .setDescription(`❌ **${ign}** is already registered to someone else.`)] });
 
     const oldIgn   = existing.ign;
@@ -7883,7 +7882,7 @@ async function handleModal(i) {
       ? tierEntries.map(([w,t])=>`${WEAPON_EMOJI[w]||'•'} **${w}** — \`${t}\``).join('\n')
       : '*No tiers yet*';
 
-    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+    return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
       .setTitle('✅ Profile Updated! 🎉')
       .setDescription(`Profile updated, **${ign}**!\nAll previous tiers have been transferred, and your Discord region access has been synced to **${formatRegion(state.region)}**.`)
       .setThumbnail(`https://mc-heads.net/avatar/${ign}/128`)
@@ -7904,7 +7903,7 @@ async function handleModal(i) {
   // Check IGN already taken
   const taken = LDB.findIGN(ign);
   if (taken)
-    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF4444)
+    return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
       .setDescription(`❌ **${ign}** is already registered. Please double-check your IGN.`)] });
 
   const result = LDB.register(i.user.id, ign, state.platform, accountType, state.region, uuid, verified);
@@ -7918,7 +7917,7 @@ async function handleModal(i) {
     const ex = LDB.get(i.user.id);
     // Player already exists — treat as update
     regState.set(i.user.id, { ...state, isUpdate: true, oldIgn: ex.ign });
-    return i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(0xFF9933)
+    return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF9933)
       .setDescription(`⚠️ You are already registered as **${ex.ign}**.\nClick the button again to update your profile.`)] });
   }
 
@@ -7937,7 +7936,7 @@ async function handleModal(i) {
     } catch(_) {}
   }
 
-  await i.reply({ ephemeral:true, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
+  await i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(BRAND_COLOR)
     .setTitle('✅ Registration Complete! 🎉')
     .setDescription(`Welcome to **EclipseTiers**, **${ign}**!\nYour **${formatRegion(state.region)}** regional access has been assigned.`)
     .setThumbnail(`https://mc-heads.net/avatar/${ign}/128`)
@@ -7974,7 +7973,7 @@ const client = new Client({ intents:[
   GatewayIntentBits.GuildVoiceStates, // required for /play to join & work in voice channels
 ]});
 
-client.once('ready', async () => {
+client.once('clientReady', async () => {
   console.log(`🤖 Bot online as ${client.user.tag}`);
   client.user.setPresence({ activities:[{ name:'⚔️ •EclipseTiers · EclipseTiers', type:0 }], status:'online' });
   try { await deployCommands(); } catch(e) { console.error('Deploy error:', e); }
@@ -8057,8 +8056,8 @@ client.on('interactionCreate', async i => {
     console.error(`[ERROR] interaction:`, err);
     const e = new EmbedBuilder().setColor(0xFF4444).setDescription('❌ Something went wrong.');
     try {
-      if (i.replied || i.deferred) await i.followUp({ embeds:[e], ephemeral:true }).catch(()=>{});
-      else await i.reply({ embeds:[e], ephemeral:true }).catch(()=>{});
+      if (i.replied || i.deferred) await i.followUp({ embeds:[e], flags: MessageFlags.Ephemeral }).catch(()=>{});
+      else await i.reply({ embeds:[e], flags: MessageFlags.Ephemeral }).catch(()=>{});
     } catch(_) {}
   }
 });

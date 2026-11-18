@@ -1,4 +1,29 @@
-# EclipseTiers · Railway MUI website (v2.6.4)
+# EclipseTiers · Railway MUI website (v2.6.6)
+
+## v2.6.6 — Railway startup crash fix
+
+- Fixed the regional queue watcher startup crash shown in Railway logs: when `regional_queues.json` did not exist yet, the gateway returned a plain object even though the watcher expects a `Map`. It now skips polling until the bot creates the file, so first deployment and first-use startup are safe; the first valid file becomes the baseline and existing players are not incorrectly logged as new joins.
+- Added validation for unexpected regional queue JSON root/region shapes. Malformed or partially-written data is ignored while the last valid watcher snapshot is kept.
+- Wrapped the regional watcher callback in an error boundary so an unexpected file/data error is logged instead of taking down the public gateway process.
+- Cleared the Discord.js deprecation warnings visible in the deployment logs: the bot now listens for `clientReady`, and ephemeral interaction responses use `MessageFlags.Ephemeral`. Their response visibility/behavior is unchanged.
+- No queue records are deleted or migrated by this fix. Existing regional queue data and the persistent volume remain in place.
+
+### Validation
+
+`node --check railway-gateway.js`, `node --check api_server.js`, package JSON parsing, targeted missing-file/invalid-shape watcher smoke tests, and ZIP integrity checks passed. Dependencies were not installed in this workspace, so a Vite production build and live Railway/Discord test were not run.
+
+
+## v2.6.5 — Six supported regions across the website
+
+- Confirmed and tightened all public website region controls to use only `ME`, `AS`, `AU`, `EU`, `NA`, and `SA`: Rankings filter, Queue region picker, player region pills, and tester region chips. No legacy region choice is exposed in the website UI.
+- Ranking filter options now include readable names beside each code, such as `ME · Middle East` and `AU · Oceania`. Queue buttons retain the compact codes and expose the full names accessibly.
+- Removed the ambiguous legacy `AS/AU` to `AS` conversion. Records with the old combined value are now shown as unassigned rather than incorrectly placed in Asia; the player should update their region through Discord registration.
+- Kept safe, unambiguous country aliases for reading older player records, but country names are never offered as selectable website regions.
+- Regional waitlist display continues to read only the selected region from the regional queue API; it does not fall back to the old mixed queue.
+
+### Validation
+
+`npm run check` and ZIP integrity checks passed. The source uses one six-code registry for the public controls. A Vite production build and live Discord/Railway deployment test were not run in this workspace.
 
 ## v2.6.4 — Regional tester directory and Discord profiles
 
@@ -112,7 +137,7 @@ Keep the existing secret and all bot configuration values, including `BOT_TOKEN`
 
 ## Railway deployment
 
-1. Download and extract the latest `EclipseTiers-Railway-MUI-v2.6.2-Regional-Registration-Fix.zip`.
+1. Download and extract the latest `EclipseTiers-Railway-MUI-v2.6.6-Railway-Crash-Fix.zip`.
 2. Upload the **contents** of this folder to the root of a GitHub repository. `package.json`, `railway-gateway.js` and `api_server.js` must be at the repository root.
 3. In the existing Railway project, back up the service and its persistent `eclipsetiers_data` volume. Connect the service to the repository you just uploaded.
 4. Keep all existing environment variables. Keep the same volume attached at the same mount path. Do not add a new blank volume in place of the existing one.
