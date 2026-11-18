@@ -1,16 +1,35 @@
-# EclipseTiers · Railway MUI website (v2.6.7)
+# EclipseTiers · Railway MUI website (v2.6.8)
 
-## v2.6.7 — Regional waitlist channel repair and admin controls
+## v2.6.8 — Manual regional queues, panel cleanup, owner-only wipe
 
-- Fixed regional provisioning so each region/gamemode channel is repaired independently. A failure creating one child channel or one waitlist role no longer blocks the remaining channels or regions; the category ID is saved before child provisioning, and the exact region/mode error is logged for diagnosis. Text-channel creation is no longer dependent on a successful role creation (important on servers nearing Discord role limits).
-- Renamed categories to `⏳ Waitlist-ME`, `⏳ Waitlist-AS`, `⏳ Waitlist-AU`, `⏳ Waitlist-EU`, `⏳ Waitlist-NA`, and `⏳ Waitlist-SA`. Generated channel names use `⏳-Waitlist-MACE` style for each configured gamemode. Existing categories/channels are reused and renamed rather than duplicated.
-- Corrected channel permissions: players with the matching `Region-*` role can view and read their own region but cannot send messages or create threads. The matching `Tester-*` role and configured staff roles can post. Bot and administrator access remain available. Players continue to use Join/Leave buttons to manage their queue position.
-- Added admin-only `/waitlists create`, `/waitlists info`, and `/waitlists delete`. `create` with no region creates/repairs all six regions; selecting a region limits the action to that region. `info` reports category/channel counts and missing modes. `delete` requires `confirm:true`, removes generated channels/category for that region, and deliberately keeps player queue JSON, role records and player registrations.
-- Kept `/setupregionalqueues` as a compatibility alias. Queue entries, tiers, role assignments and player records are not reset by this update.
+- Regional category/channel provisioning still creates or repairs all six private regions × 11 gamemodes, but it no longer posts a Join/Leave/Pull embed automatically. Waitlist channels remain blank until an authorized regional tester manually opens one with `/start queue`.
+- Added `/start queue` with required gamemode and one of the six regions (`ME`, `AS`, `AU`, `EU`, `NA`, `SA`). A tester can open only the region matching their `Tester-*` role; existing global queue staff permissions continue to work. `/startqueue` remains as a backwards-compatible alias and now also requires an explicit region.
+- Added `/waitlists clear` (optional region + required confirmation). It deletes only EclipseTiers bot-authored regional queue panel messages, including tracked panels and recent duplicate panel posts. It does not delete categories, channels, roles, or queue entries. Run it once after deploying to remove the old auto-posts.
+- Added strict owner-only `/wipeall`. Only `guild.ownerId` can proceed; Administrator roles and other staff cannot. It requires the exact confirmation phrase `WIPE ALL ECLIPSETIERS DATA`, makes a full backup of all root-level files in `eclipsetiers_data/backups/`, and attaches the backup when it is under 8 MB.
+- `/wipeall` removes bot-managed tier, retired-tier, region-access, regional waitlist, legacy waitlist and configured verified-role assignments from server members; then clears registered player records, legacy/regional queues, queue migration snapshot, cooldowns, match history, regional queue history, and tier logs. It preserves Discord role definitions, regional tester/staff/admin roles, active ticket records, bot settings and staff/tester permission configuration. If a managed role is above the bot's highest role or the bot lacks Manage Roles, the command stops before clearing player data.
+- Refreshed active regional queue panels after `/wipeall` so any still-open panel shows an empty queue.
+
+### Recommended deployment
+
+For an existing v2.6.7 installation, the only functional source change is `api_server.js`. `package.json` is a version/description bump and `README.md` is documentation. `railway-gateway.js`, the React website (`src/`), styles, public assets and ranking calculations are unchanged. After deployment, run `/waitlists clear confirm:true` once to remove the previously posted queue panels, then open only the queues you need with `/start queue`.
 
 ### Validation
 
-`npm run check`, package JSON parsing, waitlist naming/permission source assertions, and ZIP integrity checks passed. Dependencies are not installed in this workspace, so a Vite production build and live Discord deployment test were not run.
+`npm run check`, package JSON parsing, ZIP integrity, command-registry static checks, six-region option checks, and assertions that provisioning no longer posts queue panels passed. Dependencies are not installed in this workspace, so a Vite production build and live Discord/Railway test were not run.
+
+---
+
+## v2.6.7 — Regional waitlist channel repair and management
+
+- Fixed partial waitlist provisioning: each gamemode channel is created/repaired independently, and a failure in one channel no longer aborts all remaining channels. The bot records channel IDs before panel publishing so failed panel messages can be retried without duplicate channels.
+- Categories use the `⏳-Waitlist-ME` style (one per region); gamemode channels use `⏳-Waitlist-MACE`, `⏳-Waitlist-SWORD`, etc. Existing legacy regional category/channel names are renamed and reused where possible.
+- The six regional tester roles can view and send messages in their matching waitlist channels. Players with only the matching `Region-*` access role can view/read and use the queue buttons, but are explicitly denied `Send Messages`.
+- Added administrator `/waitlists create` (all regions or one region), `/waitlists info` (all regions or one region), and `/waitlists delete` (one region or ALL, with required confirmation). `create` repairs missing categories/channels and reports per-channel errors. `delete` removes only managed waitlist channels/categories; queue data and waitlist/tester/access roles are preserved.
+- Kept `/setupregionalqueues` as a backwards-compatible alias. The old unscoped mixed-region channels continue to be made private.
+
+### Validation
+
+`npm run check`, package JSON parsing, structural checks for all 6 category names × 11 gamemode channels, command subcommand registration, permission overwrite definitions, and ZIP integrity checks passed. Dependencies are not installed in this workspace, so a Vite production build and live Discord API deployment test were not run.
 
 ## v2.6.6 — Railway startup crash fix
 
@@ -149,7 +168,7 @@ Keep the existing secret and all bot configuration values, including `BOT_TOKEN`
 
 ## Railway deployment
 
-1. Download and extract the latest `EclipseTiers-Railway-MUI-v2.6.7-Regional-Waitlist-Controls.zip`.
+1. Download and extract the latest `EclipseTiers-Railway-MUI-v2.6.6-Railway-Crash-Fix.zip`.
 2. Upload the **contents** of this folder to the root of a GitHub repository. `package.json`, `railway-gateway.js` and `api_server.js` must be at the repository root.
 3. In the existing Railway project, back up the service and its persistent `eclipsetiers_data` volume. Connect the service to the repository you just uploaded.
 4. Keep all existing environment variables. Keep the same volume attached at the same mount path. Do not add a new blank volume in place of the existing one.
@@ -283,14 +302,14 @@ The Discord bot now supports exactly six region codes: **ME, AS, AU, EU, NA, SA*
 
 ### What the bot provisions
 
-On bot startup, and on demand with `/waitlists create` (or the compatibility alias `/setupregionalqueues`), the bot creates or repairs:
+On bot startup, and on demand with `/setupregionalqueues`, the bot creates or repairs:
 
 - 6 region access roles: `Region-ME`, `Region-AS`, `Region-AU`, `Region-EU`, `Region-NA`, `Region-SA`.
 - 66 gamemode waitlist roles: `Waitlist-ME-Sword`, `Waitlist-AS-Sword`, etc. (one per region × each of the 11 configured gamemodes).
-- 6 private Discord categories (`⏳ Waitlist-ME`, `⏳ Waitlist-AS`, etc.).
-- 66 text channels (one per gamemode inside each region category), named `⏳-Waitlist-MACE` style, each with its own persistent Join / Leave / Pull panel.
+- 6 private Discord categories (`me-waitlists`, `as-waitlists`, etc.).
+- 66 text channels (one channel per gamemode inside each region category), each with its own persistent Join / Leave / Pull panel.
 
-A registered member receives only the region access role matching their profile. Each region category denies `View Channel` and message sending to `@everyone`; the matching region role can view/read but not post. The matching `Tester-*` role and configured tester/tierer/ticket-staff roles can send messages. The bot can post persistent queue panels, and administrators bypass channel restrictions. Each member can therefore see only their selected region's waitlist categories, while authorized staff can moderate all regions.
+A registered member receives only the region access role matching their profile. Each region category denies `View Channel` to `@everyone`, grants it to that one region role, and also grants access to configured tester/tierer/ticket-staff queue roles and the bot. Administrator roles continue to bypass channel restrictions. Each member can therefore see only their selected region's waitlist categories, while authorized staff can moderate all regions.
 
 The per-region waitlist button accepts players only when the code in their registered profile matches the category. Join assigns the matching region × gamemode waitlist role; Leave and Pull remove that role. Pull remains limited to testers/staff with queue permission and opens the existing testing ticket workflow. The old global queue file and its legacy button IDs are retained for compatibility; new regional queue data is stored separately.
 
@@ -298,7 +317,7 @@ The per-region waitlist button accepts players only when the code in their regis
 
 The bot needs **Manage Roles**, **Manage Channels**, **View Channels**, **Send Messages**, **Read Message History**, **Embed Links**, and **Manage Messages**. Move the bot's highest role above the newly created `Region-*` and `Waitlist-*-*` roles. The server also needs enough remaining capacity for up to 72 additional roles and 72 channels (6 categories + 66 text channels). Existing roles/channels are found and reused by name, so restarts do not duplicate them.
 
-If startup provisioning cannot finish, grant the permissions above and run `/waitlists create` as a server administrator. Use `/waitlists info` to inspect which categories/channels exist. Use `/waitlists create region:<CODE>` to repair one region. `/waitlists delete region:<CODE> confirm:true` deletes that region's generated channels and category only; persistent queue JSON and roles are kept. `/startqueue` points to an existing regional gamemode channel and refreshes its panel.
+If startup provisioning cannot finish, grant the permissions above and run `/setupregionalqueues` as a server administrator. `/startqueue` now points to an existing regional gamemode channel and refreshes its panel.
 
 ### Persistent Railway data
 

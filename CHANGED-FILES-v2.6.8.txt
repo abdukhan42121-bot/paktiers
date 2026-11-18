@@ -1,0 +1,23 @@
+EclipseTiers v2.6.8 — changed files
+
+FUNCTIONAL CHANGE
+- api_server.js — manual /start queue, /waitlists clear, disables automatic queue panel posting during provisioning, and adds owner-only /wipeall with pre-wipe backup.
+
+METADATA / DOCUMENTATION ONLY
+- package.json — version and description updated to 2.6.8. No dependency changes.
+- README.md — release notes and deployment instructions updated.
+- CHANGED-FILES-v2.6.8.txt — this file.
+
+UNCHANGED
+- railway-gateway.js
+- src/App.jsx, src/api.js, src/main.jsx, src/styles.css, src/theme.js
+- public/ website assets and legacy-reference/
+- Tier points, tier values, leaderboard calculations and ranking order.
+
+MOBILE DEPLOY
+If your GitHub repository is already on v2.6.7, replace only api_server.js to apply the functional changes. Replacing package.json and README.md is optional. Keep Railway environment variables and the existing persistent volume.
+
+AFTER DEPLOY
+1. Run /waitlists clear with confirm=true once to delete old queue embed messages from all 66 regional waitlist channels.
+2. Run /start queue, choose a gamemode and a region to manually publish that queue's live panel.
+3. /wipeall is server-owner only and requires the exact phrase: WIPE ALL ECLIPSETIERS DATA. It creates a backup before wiping.

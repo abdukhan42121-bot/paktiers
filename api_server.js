@@ -5525,42 +5525,21 @@ function regionalPanelKey(region, weapon) { return `${region}:${weapon}`; }
 function regionalWaitlistRoleName(region, weapon) { return `Waitlist-${region}-${weapon}`; }
 function regionalAccessRoleName(region) { return `Region-${region}`; }
 function regionalTesterRoleName(region) { return `Tester-${region}`; }
-// Discord category labels can use spaces; text channel names use a compact slug.
-function regionalCategoryName(region) { return `⏳ Waitlist-${normalizeRegionCode(region)}`; }
-function legacyRegionalCategoryName(region) { return `${String(region || '').toLowerCase()}-waitlists`; }
-function regionalChannelName(weapon) { return `⏳-Waitlist-${String(weapon || '').toUpperCase().replace(/[^A-Z0-9]+/g, '-')}`; }
-function legacyRegionalChannelName(weapon) { return `waitlist-${String(weapon || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`; }
-function inspectRegionalWaitlistStatus(guild, setup, region) {
-  const code = normalizeRegionCode(region);
-  if (!code) return null;
-  const config = setup?.[code] || {};
-  let category = config.categoryId ? guild.channels.cache.get(config.categoryId) : null;
-  if (!category || category.type !== ChannelType.GuildCategory) category = guild.channels.cache.find(channel =>
-    channel.type === ChannelType.GuildCategory && [regionalCategoryName(code), legacyRegionalCategoryName(code)].includes(channel.name)
-  );
-  const present = [];
-  if (category) {
-    for (const weapon of WEAPONS) {
-      const saved = config.channels?.[weapon]?.channelId ? guild.channels.cache.get(config.channels[weapon].channelId) : null;
-      const channel = saved && saved.type === ChannelType.GuildText && saved.parentId === category.id
-        ? saved
-        : guild.channels.cache.find(candidate => candidate.type === ChannelType.GuildText && candidate.parentId === category.id && [regionalChannelName(weapon), legacyRegionalChannelName(weapon)].includes(candidate.name));
-      if (channel) present.push(weapon);
-    }
-  }
-  const waitlistRoles = WEAPONS.filter(weapon => guild.roles.cache.some(role => role.name === regionalWaitlistRoleName(code, weapon)));
-  const regionRole = guild.roles.cache.find(role => role.name === regionalAccessRoleName(code)) || null;
-  const testerRole = guild.roles.cache.find(role => role.name === regionalTesterRoleName(code)) || null;
-  return {
-    category,
-    present,
-    missingChannels:WEAPONS.filter(weapon => !present.includes(weapon)),
-    waitlistRoles,
-    missingRoles:WEAPONS.filter(weapon => !waitlistRoles.includes(weapon)),
-    regionRole,
-    testerRole,
-  };
+// Discord channel/category names are intentionally kept in the exact visual format requested.
+function regionalCategoryName(region) { return `⏳-Waitlist-${region}`; }
+function regionalChannelName(weapon) { return `⏳-Waitlist-${String(weapon).toUpperCase()}`; }
+function normalizeDiscordChannelName(name) { return String(name || '').normalize('NFKC').replace(/\s+/g, '-').toLowerCase(); }
+function isRegionalCategoryName(name, region) {
+  const normalized = normalizeDiscordChannelName(name);
+  return normalized === normalizeDiscordChannelName(regionalCategoryName(region)) || normalized === normalizeDiscordChannelName(legacyRegionalCategoryName(region));
 }
+function legacyRegionalCategoryName(region) { return `${String(region).toLowerCase()}-waitlists`; }
+function legacyRegionalChannelName(weapon) { return `waitlist-${String(weapon).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`; }
+function isManagedRegionalChannelName(name, weapon) {
+  const normalized = normalizeDiscordChannelName(name);
+  return normalized === normalizeDiscordChannelName(regionalChannelName(weapon)) || normalized === normalizeDiscordChannelName(legacyRegionalChannelName(weapon));
+}
+let lastRegionalQueueProvisionReport = null;
 
 function getRegionalQueue(region, weapon) {
   const code = normalizeRegionCode(region);
@@ -5736,187 +5715,276 @@ async function refreshRegionalQueuePanel(client, region, weapon) {
   }
 }
 
-async function ensureRegionalQueueInfrastructure(guild, client, onlyRegion = null) {
+async function ensureRegionalQueueInfrastructure(guild, client, options = {}) {
   if (!guild || !client) throw new Error('Guild and Discord client are required.');
-  const selectedRegion = onlyRegion ? normalizeRegionCode(onlyRegion) : null;
-  if (onlyRegion && !selectedRegion) throw new Error(`Unsupported region: ${onlyRegion}`);
-  const regionsToSetup = selectedRegion ? [selectedRegion] : REGION_CODES;
-  await guild.roles.fetch().catch(() => {});
-  await guild.channels.fetch().catch(() => {});
+  const requested = options.regions || (options.region ? [options.region] : REGION_CODES);
+  const regionsToProvision = [...new Set(requested.map(normalizeRegionCode).filter(Boolean))];
+  if (!regionsToProvision.length) throw new Error(`Choose a supported region: ${REGION_CODES.join(', ')}`);
+
+  await guild.roles.fetch().catch(error => console.warn('[REGIONAL QUEUE] Role refresh failed:', error.message));
+  await guild.channels.fetch().catch(error => console.warn('[REGIONAL QUEUE] Channel refresh failed:', error.message));
+  const botMember = guild.members.me || await guild.members.fetch(client.user.id).catch(() => null);
+  if (!botMember) throw new Error('Could not fetch the bot member.');
+  if (!botMember.permissions.has(PermissionFlagsBits.ManageChannels)) throw new Error('The bot needs Manage Channels permission.');
+  if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) throw new Error('The bot needs Manage Roles permission.');
+
   const setup = loadRegionalSetup();
   const panels = loadRegionalPanels();
-  const botMember = guild.members.me || await guild.members.fetch(client.user.id).catch(() => null);
   const privilegedRoleIds = new Set([
     CONFIG.TESTERS_ROLE_ID, CONFIG.TIERER_ROLE_ID, CONFIG.TICKET_STAFF_ROLE_ID,
     ...((loadQueuePerms().roles || []))
   ].filter(roleId => roleId && guild.roles.cache.has(roleId)));
+  const report = {
+    regions: [], createdCategories: 0, existingCategories: 0,
+    createdChannels: 0, existingChannels: 0, repairedChannels: 0,
+    failedChannels: [], errors: []
+  };
 
-  for (const region of regionsToSetup) {
+  for (const region of regionsToProvision) {
+    const regionResult = { region, categoryName:regionalCategoryName(region), categoryId:null, categoryAction:'', channels:[], errors:[] };
+    report.regions.push(regionResult);
     try {
       const regionRole = await ensureRegionalAccessRole(guild, region);
       const regionalTesterRole = await ensureRegionalTesterRole(guild, region);
       let regionConfig = setup[region] || { channels:{} };
-
-      // Players can view and read their own region, but cannot post. The matching
-      // regional tester role and configured staff roles can send messages.
       const overwrites = [
-        { id:guild.id, deny:[
-          PermissionFlagsBits.ViewChannel,
-          PermissionFlagsBits.SendMessages,
-          PermissionFlagsBits.SendMessagesInThreads,
-          PermissionFlagsBits.CreatePublicThreads,
-          PermissionFlagsBits.CreatePrivateThreads,
-        ] },
-        { id:regionRole.id, allow:[PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory], deny:[
-          PermissionFlagsBits.SendMessages,
-          PermissionFlagsBits.SendMessagesInThreads,
-          PermissionFlagsBits.CreatePublicThreads,
-          PermissionFlagsBits.CreatePrivateThreads,
-        ] },
-        { id:regionalTesterRole.id, allow:[
-          PermissionFlagsBits.ViewChannel,
-          PermissionFlagsBits.ReadMessageHistory,
-          PermissionFlagsBits.SendMessages,
-          PermissionFlagsBits.SendMessagesInThreads,
-          PermissionFlagsBits.EmbedLinks,
-          PermissionFlagsBits.AttachFiles,
-        ] },
+        { id:guild.id, deny:[PermissionFlagsBits.ViewChannel] },
+        // Registered players can view/read the queue, but cannot chat in it.
+        { id:regionRole.id, allow:[PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory], deny:[PermissionFlagsBits.SendMessages] },
+        // Only regional testers and global staff may send messages in waitlist channels.
+        { id:regionalTesterRole.id, allow:[PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages] },
       ];
       for (const roleId of privilegedRoleIds) {
-        if (roleId !== regionRole.id && roleId !== regionalTesterRole.id) overwrites.push({
-          id:roleId,
-          allow:[PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.SendMessagesInThreads]
-        });
+        if (roleId !== regionRole.id && roleId !== regionalTesterRole.id) {
+          overwrites.push({ id:roleId, allow:[PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages] });
+        }
       }
-      if (botMember) overwrites.push({
-        id:botMember.id,
-        allow:[PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.SendMessagesInThreads, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ManageMessages]
-      });
+      overwrites.push({ id:botMember.id, allow:[PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ManageMessages] });
 
-      const categoryName = regionalCategoryName(region);
       let category = regionConfig.categoryId ? await guild.channels.fetch(regionConfig.categoryId).catch(() => null) : null;
-      if (category && category.type !== ChannelType.GuildCategory) category = null;
-      if (!category) category = guild.channels.cache.find(channel =>
-        channel.type === ChannelType.GuildCategory &&
-        [categoryName, legacyRegionalCategoryName(region)].includes(channel.name)
-      );
+      if (!category) {
+        category = guild.channels.cache.find(channel => channel.type === ChannelType.GuildCategory &&
+          isRegionalCategoryName(channel.name, region));
+      }
       if (!category) {
         category = await guild.channels.create({
-          name:categoryName,
-          type:ChannelType.GuildCategory,
+          name:regionalCategoryName(region), type:ChannelType.GuildCategory,
           permissionOverwrites:overwrites,
-          reason:`EclipseTiers automatically provisions ${region} waitlists`
+          reason:`EclipseTiers provision ${region} regional waitlist category`
         });
-        console.log(`[REGIONAL CHANNEL] Created category ${category.name}`);
+        report.createdCategories++;
+        regionResult.categoryAction = 'created';
+        console.log(`[REGIONAL CHANNEL] Created category ${category.name} (${category.id})`);
       } else {
-        if (category.name !== categoryName) await category.setName(categoryName, `EclipseTiers rename ${region} waitlist category`).catch(error => {
-          console.warn(`[REGIONAL CHANNEL] Could not rename ${region} category:`, error.message);
-        });
-        await category.permissionOverwrites.set(overwrites, `EclipseTiers ${region} waitlist category permissions`).catch(error => {
-          console.error(`[REGIONAL CHANNEL] Could not set ${region} category permissions:`, error.message);
-        });
+        if (normalizeDiscordChannelName(category.name) !== normalizeDiscordChannelName(regionalCategoryName(region))) await category.setName(regionalCategoryName(region), 'EclipseTiers regional waitlist naming update');
+        await category.permissionOverwrites.set(overwrites);
+        report.existingCategories++;
+        regionResult.categoryAction = 'repaired';
       }
-
-      regionConfig = {
-        ...regionConfig,
-        regionRoleId:regionRole.id,
-        testerRoleId:regionalTesterRole.id,
-        categoryId:category.id,
-        channels:regionConfig.channels || {}
-      };
+      regionResult.categoryId = category.id;
+      regionConfig = { ...regionConfig, regionRoleId:regionRole.id, testerRoleId:regionalTesterRole.id, categoryId:category.id, channels:regionConfig.channels || {} };
       setup[region] = regionConfig;
-      // Save the category immediately; a later child-channel error must not lose its ID.
       saveRegionalSetup(setup);
 
       for (const weapon of WEAPONS) {
+        const channelResult = { weapon, name:regionalChannelName(weapon), status:'', channelId:null, panelReady:false, error:null };
+        regionResult.channels.push(channelResult);
         try {
-          // Creating a text channel must not depend on a role-create succeeding.
-          // Servers near Discord's role limit can still get all 66 channels repaired;
-          // the missing role is logged and retried on a later provisioning pass.
-          let waitlistRole = null;
-          try {
-            waitlistRole = await ensureRegionalWaitlistRole(guild, region, weapon);
-          } catch (roleError) {
-            console.error(`[REGIONAL ROLE] Could not ensure ${regionalWaitlistRoleName(region, weapon)}; channel creation will continue:`, roleError.message);
-          }
-          let channelInfo = regionConfig.channels[weapon] || {};
+          const waitlistRole = await ensureRegionalWaitlistRole(guild, region, weapon);
+          const channelInfo = regionConfig.channels[weapon] || {};
           let channel = channelInfo.channelId ? await guild.channels.fetch(channelInfo.channelId).catch(() => null) : null;
           if (channel && channel.type !== ChannelType.GuildText) channel = null;
-          const name = regionalChannelName(weapon);
-          const oldName = legacyRegionalChannelName(weapon);
-          if (!channel) channel = guild.channels.cache.find(candidate =>
-            candidate.type === ChannelType.GuildText && candidate.parentId === category.id &&
-            [name, oldName].includes(candidate.name)
-          );
-
+          if (!channel) {
+            channel = guild.channels.cache.find(candidate => candidate.type === ChannelType.GuildText && candidate.parentId === category.id && isManagedRegionalChannelName(candidate.name, weapon));
+          }
           if (!channel) {
             channel = await guild.channels.create({
-              name,
-              type:ChannelType.GuildText,
-              parent:category.id,
-              permissionOverwrites:overwrites,
-              topic:`${region} region · ${weapon} testing waitlist · visible to ${region} members; posting is for regional testers and staff`,
-              reason:`EclipseTiers regional ${region} ${weapon} waitlist channel`
+              name:regionalChannelName(weapon), type:ChannelType.GuildText,
+              parent:category.id, permissionOverwrites:overwrites,
+              topic:`${region} region · ${weapon} testing waitlist · players can view; ${regionalTesterRoleName(region)} can send messages`,
+              reason:`EclipseTiers ${region} ${weapon} regional waitlist channel`
             });
-            console.log(`[REGIONAL CHANNEL] Created #${name} in ${categoryName}`);
+            channelResult.status = 'created';
+            report.createdChannels++;
+            console.log(`[REGIONAL CHANNEL] Created #${channel.name} (${channel.id}) in ${region}`);
           } else {
-            if (channel.name !== name) await channel.setName(name, `EclipseTiers rename ${region} ${weapon} waitlist`).catch(error => {
-              console.warn(`[REGIONAL CHANNEL] Could not rename ${region}/${weapon}:`, error.message);
-            });
-            if (channel.parentId !== category.id) {
-              await channel.setParent(category.id, { lockPermissions:false, reason:'EclipseTiers regional queue organization' });
-            }
+            const wasLegacyName = normalizeDiscordChannelName(channel.name) !== normalizeDiscordChannelName(regionalChannelName(weapon));
+            const wasWrongParent = channel.parentId !== category.id;
+            if (wasWrongParent) await channel.setParent(category.id, { lockPermissions:false, reason:'EclipseTiers regional waitlist organization' });
+            if (wasLegacyName) await channel.setName(regionalChannelName(weapon), 'EclipseTiers regional waitlist naming update');
+            channelResult.status = wasLegacyName || wasWrongParent ? 'repaired' : 'existing';
+            if (channelResult.status === 'repaired') report.repairedChannels++;
+            else report.existingChannels++;
           }
 
-          // Always reset channel overwrites after moving/creating so players remain read-only.
-          await channel.permissionOverwrites.set(overwrites, `EclipseTiers ${region} ${weapon} waitlist permissions`);
+          // Persist the channel ID immediately so a later permissions/panel error can be repaired in place.
+          channelResult.channelId = channel.id;
+          regionConfig.channels[weapon] = { ...channelInfo, channelId:channel.id, waitlistRoleId:waitlistRole?.id || null, panelId:channelInfo.panelId || null };
+          setup[region] = regionConfig;
+          saveRegionalSetup(setup);
 
+          // Always apply explicit overwrites after moving/renaming; do not inherit stale global-player permissions.
+          await channel.permissionOverwrites.set(overwrites, 'EclipseTiers regional waitlist permission sync');
+          channel.setTopic(`**${region}** · ${weapon} waitlist. Players may view and use the buttons; ${regionalTesterRoleName(region)} may send messages.`).catch(() => {});
+
+          // Provisioning creates and secures the channel only. Queue panels are
+          // intentionally opened by a regional tester with `/start queue`.
+          // Preserve previously tracked messages so `/waitlists clear` can remove
+          // old auto-posts, or `/start queue` can reopen an existing panel.
           const key = regionalPanelKey(region, weapon);
           const existingInfo = panels[key] || {};
-          let message = null;
-          if (existingInfo.channelId === channel.id && existingInfo.messageId) {
-            message = await channel.messages.fetch(existingInfo.messageId).catch(() => null);
-          }
-          if (message) {
-            await message.edit({ embeds:[buildRegionalQueueEmbed(region, weapon)], components:[buildRegionalQueueButtons(region, weapon)] });
-          } else {
-            message = await channel.send({ embeds:[buildRegionalQueueEmbed(region, weapon)], components:[buildRegionalQueueButtons(region, weapon)] });
-          }
-          panels[key] = { channelId:channel.id, messageId:message.id, region, weapon, updatedAt:Date.now(), waitlistRoleId:waitlistRole?.id || null };
-          regionConfig.channels[weapon] = { channelId:channel.id, waitlistRoleId:waitlistRole?.id || null, panelId:message.id };
-          saveRegionalPanels(panels);
+          channelResult.panelReady = Boolean(existingInfo.channelId === channel.id && existingInfo.messageId);
+          regionConfig.channels[weapon] = {
+            channelId:channel.id,
+            waitlistRoleId:waitlistRole?.id || null,
+            panelId:existingInfo.messageId || channelInfo.panelId || null
+          };
           setup[region] = regionConfig;
           saveRegionalSetup(setup);
         } catch (channelError) {
-          console.error(`[REGIONAL CHANNEL] Failed provisioning ${region}/${weapon}:`, channelError);
-          // Continue with the remaining modes. /waitlists create can retry missing channels.
+          channelResult.status = channelResult.status || 'failed';
+          channelResult.error = channelError.message;
+          regionResult.errors.push(`${weapon}: ${channelError.message}`);
+          report.failedChannels.push({ region, weapon, error:channelError.message });
+          console.error(`[REGIONAL CHANNEL] Failed ${region}/${weapon}:`, channelError);
+          // Continue with the other gamemodes; one bad channel must not abort the region.
+          saveRegionalSetup(setup);
         }
       }
     } catch (regionError) {
-      console.error(`[REGIONAL CHANNEL] Failed provisioning region ${region}:`, regionError);
-      // One region failing must not prevent the other regions from being repaired.
+      regionResult.errors.push(regionError.message);
+      report.errors.push({ region, error:regionError.message });
+      console.error(`[REGIONAL QUEUE] Failed provisioning ${region}:`, regionError);
     }
   }
 
-  // Keep old, unscoped waitlist channels private so legacy roles cannot expose mixed queues.
-  const regionalCategoryIds = new Set(REGION_CODES.map(code => setup[code]?.categoryId).filter(Boolean));
-  const oldChannelNames = new Set(WEAPONS.map(legacyRegionalChannelName));
-  const legacyPrivateOverwrites = [
-    { id:guild.id, deny:[PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.SendMessagesInThreads] },
-  ];
-  for (const roleId of privilegedRoleIds) {
-    legacyPrivateOverwrites.push({ id:roleId, allow:[PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.SendMessagesInThreads] });
-  }
-  if (botMember) legacyPrivateOverwrites.push({ id:botMember.id, allow:[PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.SendMessagesInThreads, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ManageMessages] });
-  for (const channel of guild.channels.cache.values()) {
-    if (channel.type !== ChannelType.GuildText || !oldChannelNames.has(channel.name) || regionalCategoryIds.has(channel.parentId)) continue;
-    await channel.permissionOverwrites.set(legacyPrivateOverwrites, 'EclipseTiers moved waitlists into private region categories').catch(error => {
-      console.warn(`[REGIONAL QUEUE] Could not hide legacy public channel #${channel.name}:`, error.message);
-    });
-  }
+  // Hide unscoped legacy channels so old generic roles cannot expose a mixed-region queue.
+    const regionalCategoryIds = new Set(REGION_CODES.map(code => setup[code]?.categoryId).filter(Boolean));
+    const legacyPrivateOverwrites = [{ id:guild.id, deny:[PermissionFlagsBits.ViewChannel] }];
+    for (const roleId of privilegedRoleIds) legacyPrivateOverwrites.push({ id:roleId, allow:[PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages] });
+    legacyPrivateOverwrites.push({ id:botMember.id, allow:[PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ManageMessages] });
+    for (const channel of guild.channels.cache.values()) {
+      if (channel.type !== ChannelType.GuildText || !WEAPONS.some(weapon => isManagedRegionalChannelName(channel.name, weapon)) || regionalCategoryIds.has(channel.parentId)) continue;
+      await channel.permissionOverwrites.set(legacyPrivateOverwrites, 'EclipseTiers moved waitlists into private region categories').catch(error => {
+        console.warn(`[REGIONAL QUEUE] Could not hide legacy public channel #${channel.name}:`, error.message);
+      });
+    }
 
-  console.log(`[REGIONAL QUEUE] Provisioning pass complete for ${regionsToSetup.join(', ')}. Verify with /waitlists info.`);
+  lastRegionalQueueProvisionReport = report;
+  const readyCount = report.createdChannels + report.existingChannels + report.repairedChannels;
+  console.log(`[REGIONAL QUEUE] Provision result: ${regionsToProvision.join(', ')} · ${readyCount}/${regionsToProvision.length * WEAPONS.length} channels ready · ${report.failedChannels.length} failed.`);
   return setup;
+}
+
+async function clearRegionalQueuePanelMessages(guild, client, requestedRegions = REGION_CODES) {
+  const regions = [...new Set((requestedRegions || REGION_CODES).map(normalizeRegionCode).filter(Boolean))];
+  const setup = loadRegionalSetup();
+  const panels = loadRegionalPanels();
+  const report = { regions:regions.length, channelsChecked:0, deletedMessages:0, alreadyClear:0, failures:[] };
+  await guild.channels.fetch().catch(() => {});
+
+  for (const region of regions) {
+    const regionConfig = setup[region] || {};
+    let category = regionConfig.categoryId ? guild.channels.cache.get(regionConfig.categoryId) : null;
+    if (!category) category = guild.channels.cache.find(channel => channel.type === ChannelType.GuildCategory && isRegionalCategoryName(channel.name, region));
+
+    for (const weapon of WEAPONS) {
+      const key = regionalPanelKey(region, weapon);
+      const channelInfo = regionConfig.channels?.[weapon] || {};
+      let channel = channelInfo.channelId ? guild.channels.cache.get(channelInfo.channelId) : null;
+      if (!channel) channel = guild.channels.cache.find(candidate => candidate.type === ChannelType.GuildText && category && candidate.parentId === category.id && isManagedRegionalChannelName(candidate.name, weapon));
+      if (!channel || channel.type !== ChannelType.GuildText) {
+        delete panels[key];
+        if (regionConfig.channels?.[weapon]) regionConfig.channels[weapon].panelId = null;
+        continue;
+      }
+      report.channelsChecked++;
+      const deleteIds = new Set();
+      const tracked = panels[key];
+      if (tracked?.channelId === channel.id && tracked.messageId) {
+        const trackedMessage = await channel.messages.fetch(tracked.messageId).catch(() => null);
+        if (trackedMessage && trackedMessage.author?.id === client.user.id) deleteIds.add(trackedMessage.id);
+      }
+
+      // Catch old duplicate automatic posts as well. Only bot-authored messages
+      // with our regional queue buttons/footer are eligible for deletion.
+      const recent = await channel.messages.fetch({ limit:50 }).catch(error => {
+        report.failures.push(`${region}/${weapon}: could not inspect message history (${error.message})`);
+        return null;
+      });
+      for (const message of recent?.values?.() || []) {
+        if (message.author?.id !== client.user.id) continue;
+        const hasQueueButtons = (message.components || []).some(row =>
+          (row.components || []).some(component => String(component.customId || '').startsWith('rwl_')));
+        const hasQueueFooter = (message.embeds || []).some(embed =>
+          String(embed.footer?.text || '').includes('live regional waitlist'));
+        if (hasQueueButtons || hasQueueFooter) deleteIds.add(message.id);
+      }
+
+      for (const messageId of deleteIds) {
+        try {
+          const message = await channel.messages.fetch(messageId).catch(() => null);
+          if (message && message.author?.id === client.user.id) {
+            await message.delete('EclipseTiers waitlist panel cleared by administrator');
+            report.deletedMessages++;
+          }
+        } catch (error) {
+          report.failures.push(`${region}/${weapon}: ${error.message}`);
+        }
+      }
+      if (!deleteIds.size) report.alreadyClear++;
+      delete panels[key];
+      if (regionConfig.channels?.[weapon]) regionConfig.channels[weapon].panelId = null;
+    }
+    setup[region] = regionConfig;
+  }
+  saveRegionalSetup(setup);
+  saveRegionalPanels(panels);
+  return report;
+}
+
+function regionalWaitlistInfo(guild, region) {
+  const setup = loadRegionalSetup();
+  const regions = region ? [normalizeRegionCode(region)].filter(Boolean) : REGION_CODES;
+  return regions.map(code => {
+    const config = setup[code] || {};
+    const category = config.categoryId ? guild.channels.cache.get(config.categoryId) : null;
+    const foundCategory = category || guild.channels.cache.find(ch => ch.type === ChannelType.GuildCategory &&
+      isRegionalCategoryName(ch.name, code));
+    const channels = WEAPONS.map(weapon => {
+      const info = config.channels?.[weapon] || {};
+      const stored = info.channelId ? guild.channels.cache.get(info.channelId) : null;
+      const found = stored || (foundCategory && guild.channels.cache.find(ch => ch.type === ChannelType.GuildText && ch.parentId === foundCategory.id && isManagedRegionalChannelName(ch.name, weapon)));
+      return { weapon, channel:found || null };
+    });
+    return { region:code, category:foundCategory || null, channels };
+  });
+}
+
+async function deleteRegionalWaitlistRegion(guild, region) {
+  const setup = loadRegionalSetup();
+  const panels = loadRegionalPanels();
+  const config = setup[region] || {};
+  let category = config.categoryId ? await guild.channels.fetch(config.categoryId).catch(() => null) : null;
+  if (!category) category = guild.channels.cache.find(ch => ch.type === ChannelType.GuildCategory &&
+    isRegionalCategoryName(ch.name, region));
+  const trackedIds = new Set(WEAPONS.map(weapon => config.channels?.[weapon]?.channelId).filter(Boolean));
+  const children = [...guild.channels.cache.values()].filter(ch => ch.type === ChannelType.GuildText && (
+    (category && ch.parentId === category.id && (trackedIds.has(ch.id) || WEAPONS.some(weapon => isManagedRegionalChannelName(ch.name, weapon)))) ||
+    trackedIds.has(ch.id)
+  ));
+  let deletedChannels = 0;
+  for (const channel of children) {
+    await channel.delete(`EclipseTiers admin removed ${region} regional waitlists`);
+    deletedChannels++;
+  }
+  if (category) await category.delete(`EclipseTiers admin removed ${region} regional waitlist category`);
+  delete setup[region];
+  for (const key of Object.keys(panels)) if (key.startsWith(`${region}:`)) delete panels[key];
+  saveRegionalSetup(setup);
+  saveRegionalPanels(panels);
+  // Queue JSON and Discord roles are intentionally preserved; delete only removes the category/channels.
+  return { region, deletedChannels, deletedCategory:Boolean(category) };
 }
 
 async function handleRegionalQueueButton(i) {
@@ -6482,164 +6550,331 @@ CMDS.testerpnl = {
   },
 };
 
+async function executeRegionalQueueStart(i) {
+  const weapon = i.options.getString('gamemode');
+  const region = normalizeRegionCode(i.options.getString('region'));
+  const extra = i.options.getString('message');
+  if (!weapon || !WEAPONS.includes(weapon)) return i.reply({ flags:MessageFlags.Ephemeral, content:'Choose a valid gamemode.' });
+  if (!region || !REGION_CODES.includes(region)) return i.reply({ flags:MessageFlags.Ephemeral, content:`Choose one supported region: ${REGION_CODES.join(', ')}.` });
+  if (!hasQueuePerm(i.member) && !hasRegionalTesterPerm(i.member, region)) {
+    return i.reply({ flags:MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
+      .setTitle('❌ Permission Denied')
+      .setDescription(`Only **${regionalTesterRoleName(region)}** or global queue staff can open this region's queue.`)
+      .setFooter({ text:BOT_FOOTER })] });
+  }
+
+  await i.deferReply({ flags:MessageFlags.Ephemeral });
+  try {
+    await ensureRegionalQueueInfrastructure(i.guild, i.client, { region });
+    const setup = loadRegionalSetup();
+    const channelId = setup?.[region]?.channels?.[weapon]?.channelId;
+    const channel = channelId ? await i.client.channels.fetch(channelId).catch(() => null) : null;
+    if (!channel || channel.type !== ChannelType.GuildText) {
+      return i.editReply({ content:`The ${region} ${weapon} waitlist channel is missing. Ask an administrator to run /waitlists create for ${region}.` });
+    }
+
+    const panels = loadRegionalPanels();
+    const key = regionalPanelKey(region, weapon);
+    const existingInfo = panels[key] || {};
+    let message = null;
+    if (existingInfo.channelId === channel.id && existingInfo.messageId) {
+      message = await channel.messages.fetch(existingInfo.messageId).catch(() => null);
+    }
+    if (message && message.author?.id !== i.client.user.id) message = null;
+    if (message) {
+      await message.edit({ embeds:[buildRegionalQueueEmbed(region, weapon)], components:[buildRegionalQueueButtons(region, weapon)] });
+    } else {
+      message = await channel.send({ embeds:[buildRegionalQueueEmbed(region, weapon)], components:[buildRegionalQueueButtons(region, weapon)] });
+    }
+    panels[key] = { channelId:channel.id, messageId:message.id, region, weapon, updatedAt:Date.now() };
+    saveRegionalPanels(panels);
+
+    const latestSetup = loadRegionalSetup();
+    latestSetup[region] = latestSetup[region] || { channels:{} };
+    latestSetup[region].channels = latestSetup[region].channels || {};
+    latestSetup[region].channels[weapon] = { ...(latestSetup[region].channels[weapon] || {}), channelId:channel.id, panelId:message.id };
+    saveRegionalSetup(latestSetup);
+    if (extra) await channel.send({ content:extra, allowedMentions:{ parse:[] } });
+
+    return i.editReply({ embeds:[new EmbedBuilder().setColor(0x57F287)
+      .setTitle(`${WEAPON_EMOJI[weapon] || '🎮'} ${region} ${weapon} queue opened`)
+      .setDescription(`The queue panel is now live in <#${channel.id}>.\nOnly **${regionalTesterRoleName(region)}** or global queue staff can open/manage it. Players can use the Join and Leave buttons.`)
+      .setTimestamp()] });
+  } catch (error) {
+    console.error('[START QUEUE]', error);
+    return i.editReply({ content:`Could not open ${region} ${weapon} queue: ${error.message}. Check the bot's Manage Channels/Manage Roles permissions and role hierarchy.` });
+  }
+}
+
+// New grouped command: /start queue. Region is required to avoid opening a queue
+// in the wrong region. `/startqueue` stays as a backward-compatible alias.
+CMDS.start = {
+  data: new SlashCommandBuilder()
+    .setName('start')
+    .setDescription('Manually open an EclipseTiers regional queue')
+    .addSubcommand(sub => sub.setName('queue').setDescription('Open one gamemode queue in one selected region')
+      .addStringOption(o => o.setName('gamemode').setDescription('Choose a gamemode').setRequired(true)
+        .addChoices(...WEAPONS.map(weapon => ({ name:`${WEAPON_EMOJI[weapon]} ${weapon}`, value:weapon }))))
+      .addStringOption(o => o.setName('region').setDescription('Choose the region to open').setRequired(true)
+        .addChoices(...REGION_DEFS.map(region => ({ name:`${region.code} · ${region.label}`, value:region.code }))))
+      .addStringOption(o => o.setName('message').setDescription('Optional queue announcement').setRequired(false))),
+  async execute(i) {
+    if (i.options.getSubcommand() !== 'queue') return;
+    return executeRegionalQueueStart(i);
+  }
+};
+
 CMDS.startqueue = {
   data: new SlashCommandBuilder()
     .setName('startqueue')
-    .setDescription('CTL-style live queue panel kholo (Testers only)')
-    .addStringOption(o => o
-      .setName('gamemode')
-      .setDescription('Choose a gamemode')
-      .setRequired(true)
-      .addChoices(...WEAPONS.map(w => ({ name: `${WEAPON_EMOJI[w]} ${w}`, value: w })))
-    )
-    .addStringOption(o => o
-      .setName('region')
-      .setDescription('Choose one of the six supported regions (default: ME)')
-      .setRequired(false)
-      .addChoices(...REGION_DEFS.map(region => ({ name:`${region.code} · ${region.label}`, value:region.code })))
-    )
-    .addStringOption(o => o
-      .setName('message')
-      .setDescription('Extra announcement message (optional)')
-      .setRequired(false)
-    ),
-
-  async execute(i) {
-    if (!hasQueuePerm(i.member)) {
-      return i.reply({ flags: MessageFlags.Ephemeral, embeds:[new EmbedBuilder().setColor(0xFF4444)
-        .setTitle('❌ Permission Denied')
-        .setDescription('Only Testers or staff with queue permission can manage waitlists.')
-        .setFooter({ text:BOT_FOOTER })] });
-    }
-    await i.deferReply({ flags: MessageFlags.Ephemeral });
-    const weapon = i.options.getString('gamemode');
-    const region = normalizeRegionCode(i.options.getString('region') || 'ME');
-    try {
-      await ensureRegionalQueueInfrastructure(i.guild, i.client);
-      const setup = loadRegionalSetup();
-      const channelId = setup?.[region]?.channels?.[weapon]?.channelId;
-      const channel = channelId ? await i.client.channels.fetch(channelId).catch(() => null) : null;
-      await refreshRegionalQueuePanel(i.client, region, weapon);
-      if (!channel) return i.editReply({ content:`The ${region} ${weapon} waitlist channel was not provisioned. Run /setupregionalqueues or check Manage Channels permission.` });
-      const extra = i.options.getString('message');
-      if (extra) await channel.send({ content:extra, allowedMentions:{ parse:[] } }).catch(() => {});
-      return i.editReply({ embeds:[new EmbedBuilder().setColor(0x57F287)
-        .setTitle(`${WEAPON_EMOJI[weapon] || '🎮'} ${region} ${weapon} waitlist is ready`)
-        .setDescription(`Regional queue: <#${channel.id}>
-Members with **${regionalAccessRoleName(region)}** can view and join using buttons. Only **${regionalTesterRoleName(region)}** and staff can send messages.`)
-        .setTimestamp()] });
-    } catch (error) {
-      console.error('[STARTQUEUE REGIONAL]', error);
-      return i.editReply({ content:`Regional waitlist setup failed: ${error.message}. Check that the bot has Manage Roles and Manage Channels, and that its role is above the roles it creates.` });
-    }
-  },
+    .setDescription('Legacy alias: manually open a regional gamemode queue')
+    .addStringOption(o => o.setName('gamemode').setDescription('Choose a gamemode').setRequired(true)
+      .addChoices(...WEAPONS.map(weapon => ({ name:`${WEAPON_EMOJI[weapon]} ${weapon}`, value:weapon }))))
+    .addStringOption(o => o.setName('region').setDescription('Choose one of the six regions').setRequired(true)
+      .addChoices(...REGION_DEFS.map(region => ({ name:`${region.code} · ${region.label}`, value:region.code }))))
+    .addStringOption(o => o.setName('message').setDescription('Optional queue announcement').setRequired(false)),
+  execute:executeRegionalQueueStart
 };
 
 CMDS.waitlists = {
   data: new SlashCommandBuilder()
     .setName('waitlists')
-    .setDescription('Create, inspect, or delete regional waitlist categories and channels')
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addSubcommand(sub => sub
-      .setName('create')
-      .setDescription('Create or repair all waitlists, or one region')
-      .addStringOption(option => option.setName('region').setDescription('Leave empty to create all six regions').setRequired(false)
+    .setDescription('Create, inspect, clear panels, or remove EclipseTiers regional waitlists')
+    .addSubcommand(sub => sub.setName('create')
+      .setDescription('Create or repair all waitlists, or one selected region')
+      .addStringOption(o => o.setName('region').setDescription('Leave empty to create all six regions').setRequired(false)
+        .addChoices(...REGION_DEFS.map(region => ({ name:`${region.code} · ${region.label}`, value:region.code })))))
+    .addSubcommand(sub => sub.setName('info')
+      .setDescription('Show category and channel status')
+      .addStringOption(o => o.setName('region').setDescription('Leave empty to inspect all six regions').setRequired(false)
+        .addChoices(...REGION_DEFS.map(region => ({ name:`${region.code} · ${region.label}`, value:region.code })))))
+    .addSubcommand(sub => sub.setName('clear')
+      .setDescription('Delete bot queue panel messages without deleting channels or queue entries')
+      .addStringOption(o => o.setName('region').setDescription('Leave empty to clear all six regions').setRequired(false)
         .addChoices(...REGION_DEFS.map(region => ({ name:`${region.code} · ${region.label}`, value:region.code }))))
+      .addBooleanOption(o => o.setName('confirm').setDescription('Confirm removal of regional queue panel messages').setRequired(true)))
+    .addSubcommand(sub => sub.setName('delete')
+      .setDescription('Delete managed waitlist categories/channels for a region')
+      .addStringOption(o => o.setName('region').setDescription('Choose one region or ALL').setRequired(true)
+        .addChoices({ name:'ALL · All regions', value:'ALL' }, ...REGION_DEFS.map(region => ({ name:`${region.code} · ${region.label}`, value:region.code })))
+      )
+      .addBooleanOption(o => o.setName('confirm').setDescription('Confirm deletion of the selected region categories/channels').setRequired(true))
     )
-    .addSubcommand(sub => sub
-      .setName('info')
-      .setDescription('Show category and per-gamemode channel status')
-      .addStringOption(option => option.setName('region').setDescription('Leave empty to inspect all six regions').setRequired(false)
-        .addChoices(...REGION_DEFS.map(region => ({ name:`${region.code} · ${region.label}`, value:region.code }))))
-    )
-    .addSubcommand(sub => sub
-      .setName('delete')
-      .setDescription('Delete one region category and its generated waitlist channels')
-      .addStringOption(option => option.setName('region').setDescription('Region to delete').setRequired(true)
-        .addChoices(...REGION_DEFS.map(region => ({ name:`${region.code} · ${region.label}`, value:region.code }))))
-      .addBooleanOption(option => option.setName('confirm').setDescription('Required confirmation; queue data and roles will be kept').setRequired(true))
-    ),
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
   async execute(i) {
-    if (!i.memberPermissions?.has(PermissionFlagsBits.Administrator))
+    if (!i.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
       return i.reply({ flags:MessageFlags.Ephemeral, content:'Administrator permission required.' });
-
-    const action = i.options.getSubcommand();
-    const requestedRegion = i.options.getString('region');
+    }
+    const sub = i.options.getSubcommand();
     await i.deferReply({ flags:MessageFlags.Ephemeral });
-
-    if (action === 'create') {
-      try {
-        const targetRegions = requestedRegion ? [normalizeRegionCode(requestedRegion)] : REGION_CODES;
-        if (targetRegions.some(region => !region)) return i.editReply({ content:'Invalid region selection.' });
-        await ensureRegionalQueueInfrastructure(i.guild, i.client, requestedRegion || null);
-        await Promise.all([i.guild.channels.fetch().catch(() => {}), i.guild.roles.fetch().catch(() => {})]);
-        const setup = loadRegionalSetup();
-        const lines = targetRegions.map(region => {
-          const status = inspectRegionalWaitlistStatus(i.guild, setup, region);
-          if (!status) return `**${region}** · invalid region`;
-          return `**${region}** · ${status.category ? `<#${status.category.id}>` : 'category missing'} · **${status.present.length}/${WEAPONS.length}** channels · **${status.waitlistRoles.length}/${WEAPONS.length}** waitlist roles · Region role: ${status.regionRole ? '✓' : 'missing'} · Tester role: ${status.testerRole ? '✓' : 'missing'}${status.missingChannels.length ? `\nMissing channels: ${status.missingChannels.join(', ')}` : ''}${status.missingRoles.length ? `\nMissing roles: ${status.missingRoles.join(', ')}` : ''}`;
+    try {
+      if (sub === 'create') {
+        const selectedRegion = i.options.getString('region');
+        const regions = selectedRegion ? [selectedRegion] : REGION_CODES;
+        await ensureRegionalQueueInfrastructure(i.guild, i.client, { regions });
+        const report = lastRegionalQueueProvisionReport || {};
+        const hasProvisionErrors = Boolean(report.failedChannels?.length || report.errors?.length);
+        const lines = (report.regions || []).map(item => {
+          const ready = item.channels.filter(ch => ch.channelId).length;
+          const failed = item.channels.filter(ch => ch.status === 'failed' || ch.error).length;
+          return `**${item.region}** · ${item.categoryId ? 'category ready' : 'category missing'} · **${ready}/${WEAPONS.length}** channels · ${failed} failed`;
         });
-        return i.editReply({ embeds:[new EmbedBuilder().setColor(0x57F287)
-          .setTitle('⏳ Regional waitlist creation/repair complete')
-          .setDescription(lines.join('\n\n').slice(0, 4000))
-          .setFooter({ text:'Players can view and join with buttons; only testers and staff can post.' }).setTimestamp()] });
-      } catch (error) {
-        console.error('[WAITLISTS CREATE]', error);
-        return i.editReply({ content:`Could not create regional waitlists: ${error.message}. Check Manage Channels, Manage Roles, and the bot's role position.` });
+        const errorLines = [ ...(report.failedChannels || []).map(item => `• ${item.region}/${item.weapon}: ${item.error}`), ...(report.errors || []).map(item => `• ${item.region}: ${item.error}`) ].slice(0, 10);
+        const description = [lines.join('\n') || 'No provisioning report was returned.', errorLines.length ? `\n**Channel errors**\n${errorLines.join('\n')}` : '', '\nPlayer roles can view but cannot chat. Regional tester roles and staff can send messages.'].join('');
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(hasProvisionErrors ? 0xFFB84D : 0x57F287)
+          .setTitle(hasProvisionErrors ? '⚠️ Waitlists created with some errors' : '✅ Regional waitlists created / repaired')
+          .setDescription(`${description.slice(0, 3900)}\n\nChannels are created without queue posts. A regional tester opens a queue with \`/start queue\`.`).setFooter({ text:'EclipseTiers · /waitlists create' }).setTimestamp()] });
       }
-    }
-
-    if (action === 'info') {
-      await Promise.all([i.guild.channels.fetch().catch(() => {}), i.guild.roles.fetch().catch(() => {})]);
-      const setup = loadRegionalSetup();
-      const regions = requestedRegion ? [normalizeRegionCode(requestedRegion)] : REGION_CODES;
-      const lines = regions.map(region => {
-        const status = inspectRegionalWaitlistStatus(i.guild, setup, region);
-        if (!status) return '**Invalid region selection.**';
-        return `**${region}** · ${status.category ? `Category: <#${status.category.id}>` : 'Category: missing'} · **${status.present.length}/${WEAPONS.length}** channels · **${status.waitlistRoles.length}/${WEAPONS.length}** waitlist roles · Region role: ${status.regionRole ? '✓' : 'missing'} · Tester role: ${status.testerRole ? '✓' : 'missing'}${status.missingChannels.length ? `\nMissing channels: ${status.missingChannels.join(', ')}` : ''}${status.missingRoles.length ? `\nMissing roles: ${status.missingRoles.join(', ')}` : ''}`;
-      });
-      return i.editReply({ embeds:[new EmbedBuilder().setColor(0x5865F2)
-        .setTitle('⏳ Regional waitlist status')
-        .setDescription(lines.join('\n\n').slice(0, 4000))
-        .setFooter({ text:'Use /waitlists create to repair missing categories, channels, or roles.' }).setTimestamp()] });
-    }
-
-    if (action === 'delete') {
-      const region = normalizeRegionCode(requestedRegion);
-      const confirmed = i.options.getBoolean('confirm');
-      if (!region) return i.editReply({ content:'Invalid region selection.' });
-      if (confirmed !== true) return i.editReply({ content:'No changes made. Run `/waitlists delete` again and set `confirm` to `true`.' });
-      try {
+      if (sub === 'info') {
         await i.guild.channels.fetch().catch(() => {});
-        const setup = loadRegionalSetup();
-        const panels = loadRegionalPanels();
-        const config = setup[region] || {};
-        let category = config.categoryId ? i.guild.channels.cache.get(config.categoryId) : null;
-        if (!category) category = i.guild.channels.cache.find(channel => channel.type === ChannelType.GuildCategory && [regionalCategoryName(region), legacyRegionalCategoryName(region)].includes(channel.name));
-        const targetIds = new Set(WEAPONS.map(weapon => config.channels?.[weapon]?.channelId).filter(Boolean));
-        const generatedNames = new Set(WEAPONS.flatMap(weapon => [regionalChannelName(weapon), legacyRegionalChannelName(weapon)]));
-        const children = i.guild.channels.cache.filter(channel => channel.type === ChannelType.GuildText && (
-          (category && channel.parentId === category.id) || targetIds.has(channel.id) ||
-          (generatedNames.has(channel.name) && String(channel.topic || '').startsWith(`${region} region ·`))
-        ));
-        let deletedChannels = 0;
-        for (const channel of children.values()) {
-          await channel.delete(`Administrator deleted ${region} regional waitlists via /waitlists delete`);
-          deletedChannels++;
-        }
-        if (category) await category.delete(`Administrator deleted ${region} regional waitlist category via /waitlists delete`);
-        for (const weapon of WEAPONS) delete panels[regionalPanelKey(region, weapon)];
-        delete setup[region];
-        saveRegionalPanels(panels);
-        saveRegionalSetup(setup);
-        return i.editReply({ embeds:[new EmbedBuilder().setColor(0x57F287)
-          .setTitle(`Deleted ${region} waitlist channels`)
-          .setDescription(`Removed **${deletedChannels}** generated text channel(s) and ${category ? 'the regional category' : 'no existing category'} for **${region}**.\n\nPersistent player queue entries, roles, and player registrations were kept. Use \/waitlists create region:${region} to recreate the channels.`)
-          .setTimestamp()] });
-      } catch (error) {
-        console.error(`[WAITLISTS DELETE ${region}]`, error);
-        return i.editReply({ content:`Could not fully delete ${region} waitlists: ${error.message}. Check Manage Channels permission, then run /waitlists info.` });
+        const selectedRegion = i.options.getString('region');
+        const info = regionalWaitlistInfo(i.guild, selectedRegion);
+        const lines = info.map(item => {
+          const ready = item.channels.filter(entry => entry.channel).length;
+          const missing = item.channels.filter(entry => !entry.channel).map(entry => entry.weapon);
+          const categoryText = item.category ? `<#${item.category.id}>` : '`MISSING`';
+          return `**${item.region}** · ${categoryText} · **${ready}/${WEAPONS.length}** channels${missing.length ? `\nMissing: ${missing.join(', ')}` : ''}`;
+        });
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(info.every(item => item.category && item.channels.every(entry => entry.channel)) ? 0x57F287 : 0xFFB84D)
+          .setTitle('📋 Regional waitlist status').setDescription(lines.join('\n\n').slice(0, 4000))
+          .setFooter({ text:'Queue data and roles are stored separately from channels.' }).setTimestamp()] });
       }
+      if (sub === 'clear') {
+        const confirm = i.options.getBoolean('confirm');
+        if (!confirm) return i.editReply({ content:'Cancelled. Set `confirm: true` to delete the bot queue panel messages.' });
+        const selectedRegion = i.options.getString('region');
+        const regions = selectedRegion ? [selectedRegion] : REGION_CODES;
+        const result = await clearRegionalQueuePanelMessages(i.guild, i.client, regions);
+        const failures = result.failures.slice(0, 10).map(item => `• ${item}`).join('\n');
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(result.failures.length ? 0xFFB84D : 0x57F287)
+          .setTitle('🧹 Regional queue messages cleared')
+          .setDescription(`**${result.deletedMessages}** queue panel message(s) deleted across **${result.channelsChecked}** channel(s).\n${result.alreadyClear} channel(s) were already clear.\n\nChannels, categories, roles, and player queue entries were preserved.${failures ? `\n\n**Could not clear**\n${failures}` : ''}`)
+          .setTimestamp()] });
+      }
+      if (sub === 'delete') {
+        const selectedRegion = i.options.getString('region');
+        const confirm = i.options.getBoolean('confirm');
+        if (!confirm) return i.editReply({ content:'Deletion cancelled. Set `confirm: true` to remove managed waitlist categories/channels.' });
+        await i.guild.channels.fetch().catch(() => {});
+        const regions = selectedRegion === 'ALL' ? REGION_CODES : [selectedRegion];
+        const results = [];
+        for (const region of regions) results.push(await deleteRegionalWaitlistRegion(i.guild, region));
+        const description = results.map(result => `**${result.region}** · ${result.deletedCategory ? 'category deleted' : 'category not found'} · ${result.deletedChannels} channels deleted`).join('\n');
+        return i.editReply({ embeds:[new EmbedBuilder().setColor(0xFFB84D).setTitle('🗑️ Waitlist channels removed')
+          .setDescription(`${description}\n\nQueue entries and roles were preserved. Use \`/waitlists create\` to rebuild the channels.`)
+          .setTimestamp()] });
+      }
+    } catch (error) {
+      console.error(`[WAITLISTS ${sub.toUpperCase()}]`, error);
+      return i.editReply({ content:`Waitlist ${sub} failed: ${error.message}. Check Manage Channels + Manage Roles, and ensure the bot role is high enough.` });
+    }
+  }
+};
+
+// /wipeall is strictly limited to the actual Discord server owner.
+// It writes a complete backup of every root-level data file before wiping.
+CMDS.wipeall = {
+  data: new SlashCommandBuilder()
+    .setName('wipeall')
+    .setDescription('OWNER ONLY: back up and clear all EclipseTiers player data, tiers, roles and history')
+    .addStringOption(option => option.setName('confirmation')
+      .setDescription('Type WIPE ALL ECLIPSETIERS DATA exactly to proceed')
+      .setRequired(true)),
+  async execute(i) {
+    if (!i.guild) return i.reply({ flags:MessageFlags.Ephemeral, content:'This command can only be used inside the server.' });
+    if (i.user.id !== i.guild.ownerId) {
+      return i.reply({ flags:MessageFlags.Ephemeral, content:'⛔ Only the actual Discord server owner can use /wipeall. Administrator roles do not qualify.' });
+    }
+    if (i.options.getString('confirmation') !== 'WIPE ALL ECLIPSETIERS DATA') {
+      return i.reply({ flags:MessageFlags.Ephemeral, content:'Wipe cancelled. To confirm, type exactly: `WIPE ALL ECLIPSETIERS DATA`.' });
+    }
+
+    await i.deferReply({ flags:MessageFlags.Ephemeral });
+    try {
+      fs.mkdirSync(DATA_DIR, { recursive:true });
+      const backup = { product:'EclipseTiers', purpose:'pre-wipeall recovery backup', createdAt:Date.now(), guildId:i.guild.id, files:{} };
+      for (const entry of fs.readdirSync(DATA_DIR, { withFileTypes:true })) {
+        if (!entry.isFile()) continue;
+        backup.files[entry.name] = fs.readFileSync(path.join(DATA_DIR, entry.name), 'utf8');
+      }
+      const stamp = new Date(backup.createdAt).toISOString().replace(/[:.]/g, '-');
+      const backupName = `pre-wipeall-${stamp}.json`;
+      const backupBuffer = Buffer.from(JSON.stringify(backup, null, 2), 'utf8');
+      const backupDir = path.join(DATA_DIR, 'backups');
+      fs.mkdirSync(backupDir, { recursive:true });
+      fs.writeFileSync(path.join(backupDir, backupName), backupBuffer);
+
+      // Remove only bot-managed player roles from members. Tester/staff/admin
+      // roles and Discord role definitions are kept intact.
+      await i.guild.roles.fetch().catch(() => {});
+      const botMember = i.guild.members.me || await i.guild.members.fetch(i.client.user.id).catch(() => null);
+      if (!botMember || !botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        throw new Error('The bot needs Manage Roles permission before /wipeall can remove player role assignments. No player data was cleared.');
+      }
+      const botTopPosition = botMember.roles.highest.position;
+      const managedRoleIds = new Set();
+      const blockedRoleNames = new Set();
+      const trackPlayerRole = role => {
+        if (!role) return;
+        if (role.position >= botTopPosition) blockedRoleNames.add(role.name);
+        else managedRoleIds.add(role.id);
+      };
+      const tierNames = ['HT1','LT1','HT2','LT2','HT3','LT3','HT4','LT4','HT5','LT5'];
+      for (const weapon of WEAPONS) for (const tier of tierNames) {
+        for (const name of [roleName(weapon, tier), legacyRoleName(weapon, tier)]) {
+          const role = i.guild.roles.cache.find(candidate => candidate.name === name);
+          trackPlayerRole(role);
+        }
+      }
+      for (const region of REGION_CODES) {
+        for (const name of [regionalAccessRoleName(region), ...WEAPONS.map(weapon => regionalWaitlistRoleName(region, weapon))]) {
+          const role = i.guild.roles.cache.find(candidate => candidate.name === name);
+          trackPlayerRole(role);
+        }
+      }
+      for (const weapon of WEAPONS) {
+        const role = i.guild.roles.cache.find(candidate => candidate.name === `Waitlist-${weapon}`);
+        trackPlayerRole(role);
+      }
+      if (CONFIG.VERIFIED_ROLE_ID) {
+        const verifiedRole = i.guild.roles.cache.get(CONFIG.VERIFIED_ROLE_ID);
+        trackPlayerRole(verifiedRole);
+      }
+
+      if (blockedRoleNames.size) {
+        throw new Error(`Move the bot's highest role above these player roles, then retry: ${[...blockedRoleNames].slice(0, 12).join(', ')}${blockedRoleNames.size > 12 ? ` and ${blockedRoleNames.size - 12} more` : ''}. No player data was cleared.`);
+      }
+      let membersChecked = 0, membersUpdated = 0, roleRemovalFailures = 0;
+      const members = await i.guild.members.fetch();
+      const roleRemovalJobs = [];
+      for (const member of members.values()) {
+        if (member.user?.bot) continue;
+        membersChecked++;
+        const rolesToRemove = [...managedRoleIds].filter(roleId => member.roles.cache.has(roleId));
+        if (rolesToRemove.length) roleRemovalJobs.push({ member, rolesToRemove });
+      }
+      // Work in small batches to avoid a burst of Guild Member role edits.
+      for (let offset = 0; offset < roleRemovalJobs.length; offset += 8) {
+        const batch = roleRemovalJobs.slice(offset, offset + 8);
+        const results = await Promise.all(batch.map(async ({ member, rolesToRemove }) => {
+          try {
+            await member.roles.remove(rolesToRemove, 'EclipseTiers owner-authorized /wipeall player-role reset');
+            return true;
+          } catch (roleError) {
+            console.warn(`[WIPEALL] Could not clear roles for ${member.id}:`, roleError.message);
+            return false;
+          }
+        }));
+        membersUpdated += results.filter(Boolean).length;
+        roleRemovalFailures += results.filter(result => !result).length;
+        await new Promise(resolve => setTimeout(resolve, 150));
+      }
+
+      const emptyLegacyQueues = Object.fromEntries(WEAPONS.map(weapon => [weapon, []]));
+      const emptyRegional = emptyRegionalQueues();
+      const resetFiles = [
+        [PF, {}], [QF, emptyLegacyQueues], [REGIONAL_QUEUE_FILE, emptyRegional],
+        [path.join(DATA_DIR, 'queue.pre-regional-migration.json'), emptyLegacyQueues],
+        [MF, []], [TIER_LOG_FILE, []], [getCooldownFile(), {}],
+        [path.join(DATA_DIR, 'regional_queue_history.json'), []],
+      ];
+      for (const [filePath, value] of resetFiles) {
+        fs.mkdirSync(path.dirname(filePath), { recursive:true });
+        const tempPath = `${filePath}.${process.pid}.wipe.tmp`;
+        fs.writeFileSync(tempPath, JSON.stringify(value, null, 2));
+        fs.renameSync(tempPath, filePath);
+      }
+
+      MEM.players = {};
+      MEM.queues = emptyLegacyQueues;
+      MEM.matches = [];
+      MEM.cooldowns = {};
+      // Active ticket records and staff/tester permissions are intentionally preserved.
+      for (const key of Object.keys(roleCache)) delete roleCache[key];
+      regionalRoleCache.regions = {}; regionalRoleCache.waitlists = {}; regionalRoleCache.testers = {};
+      for (const region of REGION_CODES) for (const weapon of WEAPONS) {
+        await refreshRegionalQueuePanel(i.client, region, weapon).catch(() => {});
+      }
+      broadcast({ type:'players_updated' });
+      broadcast({ type:'testers_updated' });
+      broadcast({ type:'queues_updated' });
+
+      const resultEmbed = new EmbedBuilder().setColor(0xE0A52B)
+        .setTitle('🧹 EclipseTiers data wipe completed')
+        .setDescription(`All registered player records, tiers, retired tiers, queues, cooldowns, match history and tier history were cleared. A full pre-wipe backup was saved to the Railway volume at \`eclipsetiers_data/backups/${backupName}\`.`)
+        .addFields(
+          { name:'Members checked', value:String(membersChecked), inline:true },
+          { name:'Members with player roles cleared', value:String(membersUpdated), inline:true },
+          { name:'Managed roles removed', value:String(managedRoleIds.size), inline:true },
+          { name:'Role removal failures', value:String(roleRemovalFailures), inline:true },
+        ).setFooter({ text:'Owner-only operation · Staff/tester roles and active tickets were preserved' }).setTimestamp();
+      const files = backupBuffer.length <= 8 * 1024 * 1024
+        ? [new AttachmentBuilder(backupBuffer, { name:backupName })]
+        : [];
+      return i.editReply({ embeds:[resultEmbed], files });
+    } catch (error) {
+      console.error('[WIPEALL]', error);
+      return i.editReply({ content:`Wipe stopped or completed partially: ${error.message}. The pre-wipe backup, if created, remains in the Railway volume under eclipsetiers_data/backups/. Check the bot logs before retrying.` });
     }
   }
 };
@@ -6647,7 +6882,7 @@ CMDS.waitlists = {
 CMDS.setupregionalqueues = {
   data: new SlashCommandBuilder()
     .setName('setupregionalqueues')
-    .setDescription('Legacy alias: create or repair all six private regional waitlists')
+    .setDescription('Create or repair all six private regional waitlists')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
   async execute(i) {
     if (!i.memberPermissions?.has(PermissionFlagsBits.Administrator))
@@ -6655,10 +6890,13 @@ CMDS.setupregionalqueues = {
     await i.deferReply({ flags: MessageFlags.Ephemeral });
     try {
       const setup = await ensureRegionalQueueInfrastructure(i.guild, i.client);
-      const summary = REGION_CODES.map(code => `**${code}** · ${WEAPONS.length} channels · ${regionalAccessRoleName(code)}`).join('\n');
-      return i.editReply({ embeds:[new EmbedBuilder().setColor(0x57F287)
-        .setTitle('✅ Regional waitlists provisioned')
-        .setDescription(`Six region categories and their per-gamemode channels are ready.\n\n${summary}\n\nPlayers can view and use buttons, but only the matching Tester-* role and staff can send messages.`)
+      const report = lastRegionalQueueProvisionReport || {};
+      const hasProvisionErrors = Boolean(report.failedChannels?.length || report.errors?.length);
+      const summary = (report.regions || []).map(item => `**${item.region}** · ${item.categoryId ? 'category ready' : 'category missing'} · ${item.channels.filter(ch => ch.channelId).length}/${WEAPONS.length} channels`).join('\n');
+      const failures = (report.failedChannels || []).slice(0, 8).map(item => `• ${item.region}/${item.weapon}: ${item.error}`).join('\n');
+      return i.editReply({ embeds:[new EmbedBuilder().setColor(hasProvisionErrors ? 0xFFB84D : 0x57F287)
+        .setTitle(hasProvisionErrors ? '⚠️ Regional waitlists partially provisioned' : '✅ Regional waitlists provisioned')
+        .setDescription(`${summary || 'No region results.'}${failures ? `\n\n**Channel errors**\n${failures}` : ''}\n\nQueue channels remain closed until a regional tester runs \`/start queue\`. Players can then use the Join and Leave buttons.`)
         .setFooter({ text:'EclipseTiers · Regional waitlists' }).setTimestamp()] });
     } catch (error) {
       console.error('[REGIONAL SETUP COMMAND]', error);

@@ -1,8 +1,8 @@
 {
   "name": "eclipsetiers-railway-mui",
-  "version": "2.6.7",
+  "version": "2.6.8",
   "private": true,
-  "description": "EclipseTiers premium MUI website with six regions, regional tester directory, private read-only player waitlists, and admin waitlist management commands.",
+  "description": "EclipseTiers public website and Discord bot with six-region queues, manual queue starts, queue panel cleanup, and owner-only data reset safeguards.",
   "main": "railway-gateway.js",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
