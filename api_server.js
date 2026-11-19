@@ -6650,9 +6650,10 @@ CMDS.waitlists = {
         .addChoices(...REGION_DEFS.map(region => ({ name:`${region.code} · ${region.label}`, value:region.code })))))
     .addSubcommand(sub => sub.setName('clear')
       .setDescription('Delete bot queue panel messages without deleting channels or queue entries')
+      // Discord requires every required option to precede optional options.
+      .addBooleanOption(o => o.setName('confirm').setDescription('Confirm removal of regional queue panel messages').setRequired(true))
       .addStringOption(o => o.setName('region').setDescription('Leave empty to clear all six regions').setRequired(false)
-        .addChoices(...REGION_DEFS.map(region => ({ name:`${region.code} · ${region.label}`, value:region.code }))))
-      .addBooleanOption(o => o.setName('confirm').setDescription('Confirm removal of regional queue panel messages').setRequired(true)))
+        .addChoices(...REGION_DEFS.map(region => ({ name:`${region.code} · ${region.label}`, value:region.code })))))
     .addSubcommand(sub => sub.setName('delete')
       .setDescription('Delete managed waitlist categories/channels for a region')
       .addStringOption(o => o.setName('region').setDescription('Choose one region or ALL').setRequired(true)

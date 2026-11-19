@@ -1,9 +1,19 @@
-Changed in v2.6.8.1:
-- api_server.js — slash-command publish validation, bot application ID matching, target guild validation, read-after-write verification, and detailed Discord REST diagnostics.
+EclipseTiers v2.6.8.2 — API-only hotfix
+
+Changed:
+- api_server.js: fixed Discord slash-command schema validation for /waitlists clear.
+
+Exact fix:
+- /waitlists clear now declares the required `confirm` option before the optional `region` option.
+
 Unchanged:
 - railway-gateway.js
-- src/App.jsx
-- src/styles.css
-- all website assets
 - package.json
-- all existing data files and Railway volume contents
+- frontend source/assets/styles
+- persistent data files and ranking logic
+
+Deployment:
+1. Extract this ZIP.
+2. Replace only the root api_server.js in your GitHub repository.
+3. Commit/push and let Railway redeploy.
+4. Check Railway logs for [SLASH SYNC] ✅ Published ...
