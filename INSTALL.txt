@@ -1,0 +1,11 @@
+EclipseTiers v2.6.8 — API server patch
+
+For an existing v2.6.7 GitHub repository, replace the repository-root api_server.js with the api_server.js in this patch.
+No frontend files or railway-gateway.js changes are required for these functional updates.
+
+After Railway redeploys:
+1. Run /waitlists clear and set confirm=true once to delete previously posted queue panel messages from all six regions.
+2. Use /start queue and choose gamemode + region to open a queue manually.
+3. /wipeall is for the actual server owner only. It requires the exact phrase WIPE ALL ECLIPSETIERS DATA and creates a pre-wipe backup first.
+
+Keep the Railway environment variables and persistent volume unchanged.
