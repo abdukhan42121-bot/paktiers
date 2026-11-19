@@ -1,0 +1,9 @@
+Changed in v2.6.8.1:
+- api_server.js — slash-command publish validation, bot application ID matching, target guild validation, read-after-write verification, and detailed Discord REST diagnostics.
+Unchanged:
+- railway-gateway.js
+- src/App.jsx
+- src/styles.css
+- all website assets
+- package.json
+- all existing data files and Railway volume contents

@@ -8423,11 +8423,62 @@ async function handleModal(i) {
 // ════════════════════════════════════════════════════════════
 //  DEPLOY + START
 // ════════════════════════════════════════════════════════════
-async function deployCommands() {
+async function deployCommands(client) {
   const rest = new REST({ version:'10' }).setToken(CONFIG.BOT_TOKEN);
-  await rest.put(Routes.applicationGuildCommands(CONFIG.CLIENT_ID, CONFIG.GUILD_ID),
-    { body: Object.values(CMDS).map(c=>c.data.toJSON()) });
-  console.log(`✅ Deployed ${Object.keys(CMDS).length} slash commands`);
+  const applicationId = client.application?.id || CONFIG.CLIENT_ID;
+  const guildId = String(CONFIG.GUILD_ID || '').trim();
+
+  console.log(`[SLASH SYNC] Starting command sync. Bot application=${applicationId}; configured CLIENT_ID=${CONFIG.CLIENT_ID}; target GUILD_ID=${guildId}`);
+  if (!guildId || !/^\d{17,20}$/.test(guildId)) {
+    throw new Error(`GUILD_ID is missing or invalid (${guildId || 'empty'}). Set GUILD_ID to the Discord server ID where commands should appear.`);
+  }
+  if (!applicationId || !/^\d{17,20}$/.test(String(applicationId))) {
+    throw new Error(`Could not determine a valid Discord application ID from the logged-in bot. Check BOT_TOKEN / CLIENT_ID.`);
+  }
+  if (String(CONFIG.CLIENT_ID) !== String(applicationId)) {
+    console.warn(`[SLASH SYNC] CLIENT_ID mismatch: configured ${CONFIG.CLIENT_ID}, but BOT_TOKEN belongs to application ${applicationId}. Using the logged-in bot application ID.`);
+  }
+
+  // Confirm that this bot is actually connected to the intended server before
+  // writing guild-scoped commands to a potentially incorrect GUILD_ID.
+  const guild = await client.guilds.fetch(guildId).catch(error => {
+    throw new Error(`Bot cannot access GUILD_ID ${guildId}. Confirm the bot is in that server and GUILD_ID is correct. Discord said: ${error.message}`);
+  });
+  if (!guild) throw new Error(`Guild ${guildId} could not be fetched by the bot.`);
+
+  const commands = Object.values(CMDS).map((command, index) => {
+    try {
+      if (!command?.data?.toJSON) throw new Error('Missing SlashCommandBuilder data');
+      return command.data.toJSON();
+    } catch (error) {
+      throw new Error(`Could not serialize slash command #${index + 1}: ${error.message}`);
+    }
+  });
+  const names = commands.map(command => command.name);
+  const duplicates = names.filter((name, index) => names.indexOf(name) !== index);
+  if (duplicates.length) throw new Error(`Duplicate slash command names: ${[...new Set(duplicates)].join(', ')}`);
+  if (commands.length > 100) throw new Error(`Discord guild command limit is 100; this build contains ${commands.length}.`);
+
+  const route = Routes.applicationGuildCommands(applicationId, guildId);
+  try {
+    await rest.put(route, { body:commands });
+    const registered = await rest.get(route);
+    const registeredNames = Array.isArray(registered) ? registered.map(command => command.name).sort() : [];
+    const missing = names.filter(name => !registeredNames.includes(name));
+    console.log(`[SLASH SYNC] ✅ Published ${registeredNames.length}/${commands.length} guild commands for ${guild.name} (${guildId}).`);
+    console.log(`[SLASH SYNC] Registered: ${registeredNames.join(', ') || '(none)'}`);
+    if (missing.length) console.error(`[SLASH SYNC] ⚠️ Commands not returned by Discord after publish: ${missing.join(', ')}`);
+    if (!registeredNames.includes('start')) console.error('[SLASH SYNC] /start is missing from Discord response; check the Discord API response and application/server IDs.');
+    if (!registeredNames.includes('waitlists')) console.error('[SLASH SYNC] /waitlists is missing from Discord response; check the Discord API response and application/server IDs.');
+    return { count:registeredNames.length, names:registeredNames, missing, guildId, applicationId };
+  } catch (error) {
+    const apiDetails = error?.rawError || error?.data || error?.response?.data || null;
+    console.error('[SLASH SYNC] ❌ Discord rejected the command registration request.');
+    console.error(`[SLASH SYNC] HTTP/status=${error?.status || error?.statusCode || 'unknown'}; code=${error?.code || 'unknown'}; message=${error?.message || error}`);
+    if (apiDetails) console.error('[SLASH SYNC] Discord API details:', JSON.stringify(apiDetails, null, 2));
+    console.error(`[SLASH SYNC] Target application=${applicationId}; guild=${guildId}; commands=${commands.length}`);
+    throw error;
+  }
 }
 
 const client = new Client({ intents:[
@@ -8442,7 +8493,7 @@ const client = new Client({ intents:[
 client.once('clientReady', async () => {
   console.log(`🤖 Bot online as ${client.user.tag}`);
   client.user.setPresence({ activities:[{ name:'⚔️ •EclipseTiers · EclipseTiers', type:0 }], status:'online' });
-  try { await deployCommands(); } catch(e) { console.error('Deploy error:', e); }
+  try { await deployCommands(client); } catch(e) { console.error('[SLASH SYNC] Deploy failed — see the diagnostic details above. Commands will not appear until this is resolved:', e.message); }
 
   // Backfill uuid/verified for players registered before UUID tracking existed
   try {

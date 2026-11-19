@@ -1,11 +1,29 @@
-EclipseTiers v2.6.8 — API server patch
+EclipseTiers v2.6.8.1 — Slash Command Sync Diagnostic Fix
 
-For an existing v2.6.7 GitHub repository, replace the repository-root api_server.js with the api_server.js in this patch.
-No frontend files or railway-gateway.js changes are required for these functional updates.
+MOBILE-FRIENDLY HOTFIX
+Replace ONLY the root api_server.js in your existing GitHub repository with this api_server.js.
+No website files, railway-gateway.js, package.json, or persistent-volume data need to be replaced.
 
-After Railway redeploys:
-1. Run /waitlists clear and set confirm=true once to delete previously posted queue panel messages from all six regions.
-2. Use /start queue and choose gamemode + region to open a queue manually.
-3. /wipeall is for the actual server owner only. It requires the exact phrase WIPE ALL ECLIPSETIERS DATA and creates a pre-wipe backup first.
+WHAT CHANGED
+- Uses the logged-in bot's actual Discord application ID for command publishing.
+- Checks that GUILD_ID is a valid Discord server ID and that the bot can access that server.
+- Validates and serializes the command list before publishing.
+- Publishes guild-scoped commands, then fetches them back from Discord to verify registration.
+- Logs the registered command names and highlights missing /start or /waitlists commands.
+- Prints Discord's detailed API error response if command registration fails.
 
-Keep the Railway environment variables and persistent volume unchanged.
+AFTER DEPLOY
+1. Replace api_server.js in the repository root and commit/push it.
+2. Wait for Railway to restart the service.
+3. Open Railway Deploy Logs and search for [SLASH SYNC].
+4. A successful sync should show a line similar to:
+   [SLASH SYNC] ✅ Published 53/53 guild commands for <server name> (<guild id>).
+5. In Discord, use /start and then choose the queue subcommand. Do not search for a separate command literally named /start queue.
+   Use /waitlists and select create, info, clear, or delete.
+
+IMPORTANT
+- BOT_TOKEN must belong to the EclipseTiers bot you expect to use.
+- GUILD_ID must be the exact server ID where commands should appear.
+- The bot must be a member of that server.
+- Keep existing Railway environment variables and the persistent data volume.
+- If [SLASH SYNC] reports an error, copy that entire log block. It will identify whether the application ID, guild ID, permissions, or command payload was rejected.
